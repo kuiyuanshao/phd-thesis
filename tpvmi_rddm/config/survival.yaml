@@ -22,7 +22,7 @@ model:
   channels: 64
   nheads: 4
   layers: 3
-  dropout: 0.2
+  dropout: 0
 # ==========================================
 # Testing / Imputation
 # ==========================================

@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from networks_attn import RDDM_NET
+from networks import RDDM_NET
 from utils import inverse_transform_data, process_data
 
 

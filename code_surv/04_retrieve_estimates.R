@@ -159,7 +159,7 @@ combine <- function(){
 
 combine()
 
-i <- 2
+i <- 4
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
@@ -190,6 +190,7 @@ compare_variances(data, multi_impset,
                   target_vars = data_info_srs$phase2_vars,
                   categorical_vars = data_info_srs$cat_vars)
 
+table(data$EVENT, multi_impset[[1]]$EVENT)
 
 library(ggplot2)
 
@@ -224,3 +225,18 @@ ggplot(data) +
   geom_density(aes(x = BMI), colour = "red") +
   geom_density(aes(x = BMI_STAR), colour = "black") +
   geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
+
+
+ggplot() + 
+  geom_point(aes(x = multi_impset[[1]]$T_I, y = data$T_I)) + 
+  geom_abline()
+
+ggplot() + 
+  geom_point(aes(x = multi_impset[[1]]$HbA1c, y = data$HbA1c)) + 
+  geom_abline()
+
+
+mean((multi_impset[[1]]$HbA1c - data$HbA1c_STAR)^2)
+mean((data$HbA1c_STAR - data$HbA1c)^2)
+mean((multi_impset[[1]]$HbA1c - data$HbA1c)^2)
+ 
