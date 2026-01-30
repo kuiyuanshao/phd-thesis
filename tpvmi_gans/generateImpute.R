@@ -4,7 +4,6 @@ pmm <- function(yhatobs, yhatmis, yobs, k) {
   yobs[idx]
 }
 
-
 # Create batches of GPU tensor slices (Views)
 create_bfi <- function(data_nrow, batch_size, tensor_list){
   n <- ceiling(data_nrow / batch_size)
@@ -19,28 +18,58 @@ create_bfi <- function(data_nrow, batch_size, tensor_list){
   return(batches)
 }
 
-sample_swag_weights <- function(swag_stats, scale = 0.5) {
+# [MODIFIED] Full SWAG Sampling (Diagonal + Low Rank)
+sample_full_swag_weights <- function(swag_stats, scale = 1) {
   sampled_state <- list()
   mean_dict <- swag_stats$mean
   sq_mean_dict <- swag_stats$sq_mean
+  cov_mat_dict <- swag_stats$cov_mat
   
   for (key in names(mean_dict)) {
     mu <- mean_dict[[key]]
-    if (is_torch_tensor(mu) && mu$dtype == torch_float()) {
+    
+    if (inherits(mu, "torch_tensor") && mu$dtype == torch_float()) {
       sq_mu <- sq_mean_dict[[key]]
+      
+      # 1. Diagonal Part
       # Var = E[X^2] - (E[X])^2
       # Clamp to avoid numerical issues (negative variance)
-      var_val <- torch_clamp(sq_mu - mu^2, min = 1e-30)
+      var_val <- torch_clamp(torch_abs(sq_mu - mu^2), min = 1e-30)
       sigma <- torch_sqrt(var_val)
-      # Sample: w ~ N(mu, scale * sigma)
-      eps <- torch_randn_like(mu)
-      sampled_state[[key]] <- mu + scale * sigma * eps
+      z1 <- torch_randn_like(mu)
+      
+      term_diag <- (scale / sqrt(2)) * sigma * z1
+      
+      # 2. Low-Rank Part
+      # cov_mat_dict[[key]] is a list of deviation tensors
+      dev_queue <- cov_mat_dict[[key]]
+      K <- length(dev_queue)
+      
+      term_lr <- torch_zeros_like(mu)
+      
+      if (K > 1) {
+        # Sample z2 ~ N(0, I_K)
+        z2 <- torch_randn(K, device = mu$device)
+        
+        # Compute D * z2 (Sum of weighted deviations)
+        for (k_idx in 1:K) {
+          # dev_k * z2[k]
+          term_lr <- term_lr + dev_queue[[k_idx]] * z2[k_idx]
+        }
+        
+        # Scale term
+        term_lr <- term_lr * (scale / sqrt(2 * (K - 1)))
+      }
+      
+      sampled_state[[key]] <- mu + term_diag + term_lr
+      
     } else {
       sampled_state[[key]] <- mu
     }
   }
   return(sampled_state)
 }
+
 # Row-wise acceptance probability calculation
 acc_prob_row <- function(mat, lb, ub, alpha = 1) {
   nr <- nrow(mat)
@@ -56,7 +85,7 @@ acc_prob_row <- function(mat, lb, ub, alpha = 1) {
   exp(-alpha * total_violation ^ 2)
 }
 
-generateImpute <- function(gnet, m = 5, 
+generateImpute <- function(gnet_list, m = 5, 
                            data_original, data_info, data_norm, 
                            data_encode, data_training,
                            phase1_vars, phase2_vars,
@@ -119,10 +148,20 @@ generateImpute <- function(gnet, m = 5,
   }
   
   for (z in 1:m){
-    # --- Phase 1: Main Batch Generation ---
-    new_weights <- sample_swag_weights(swag_stats, scale = 0.5)
-    gnet$load_state_dict(new_weights)
+    # Select Model based on approximation method
+    if (params$mi_approx == "bootstrap"){
+      gnet <- gnet_list[[z]]
+    } else {
+      gnet <- gnet_list[[1]]
+    }
     
+    # Apply SWAG weights if active
+    if (params$mi_approx == "SWAG"){
+      new_weights <- sample_full_swag_weights(swag_stats, scale = 1)
+      gnet$load_state_dict(new_weights)
+    }
+    
+    # --- Phase 1: Main Batch Generation ---
     output_df_list <- vector("list", length(batchforimpute))
     
     for (i in seq_along(batchforimpute)){
@@ -168,7 +207,7 @@ generateImpute <- function(gnet, m = 5,
       idx_oob <- torch_tensor(oob_rows, dtype = torch_long(), device = device)
       
       # Direct GPU Slicing
-      A_sub <- A_t[idx_oob]; C_sub <- C_t[idx_oob]; X_sub <- X_t[idx_oob]; M_sub <- M_t[idx_oob]
+      A_sub <- A_t[idx_oob]; C_sub <- C_t[idx_oob]
       
       fakez <- torch_normal(mean=0, std=1, size=c(n_oob, params$noise_dim), device=device)
       new_samp <- gnet(fakez, A_sub, C_sub)

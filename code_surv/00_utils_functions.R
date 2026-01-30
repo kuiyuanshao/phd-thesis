@@ -119,6 +119,67 @@ match_types <- function(new_df, orig_df) {
   out
 }
 
+compare_variances <- function(original_df, imputed_list, target_vars, categorical_vars) {
+  results <- data.frame(
+    Variable = character(),
+    Original_Var = numeric(),
+    Imputed_Avg_Var = numeric(),
+    Ratio_Imp_vs_Org = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  # Helper to safely convert and calc variance
+  calc_safe_var <- function(vec, var_name) {
+    # Remove NAs first
+    vec <- vec[!is.na(vec)]
+    if(length(vec) < 2) return(NA)
+    
+    # Check if categorical -> convert to numeric codes
+    if (var_name %in% categorical_vars) {
+      # as.factor ensures levels are consistent, as.numeric gets the code (1,2,3...)
+      vec <- as.numeric(as.factor(vec))
+    } else {
+      # Ensure numeric
+      vec <- as.numeric(vec)
+    }
+    return(var(vec))
+  }
+  
+  for (v in target_vars) {
+    # 1. Calculate Variance in Original Data
+    # check if variable exists
+    if (v %in% names(original_df)) {
+      orig_var <- calc_safe_var(original_df[[v]], v)
+    } else {
+      orig_var <- NA
+    }
+    
+    # 2. Calculate Variance in Multi-Imputed Set (Average of variances)
+    imp_vars <- sapply(imputed_list, function(df) {
+      if (v %in% names(df)) {
+        return(calc_safe_var(df[[v]], v))
+      } else {
+        return(NA)
+      }
+    })
+    
+    avg_imp_var <- mean(imp_vars, na.rm = TRUE)
+    
+    # 3. Store Result
+    ratio <- ifelse(!is.na(orig_var) & orig_var != 0, avg_imp_var / orig_var, NA)
+    
+    results[nrow(results) + 1, ] <- list(
+      Variable = v,
+      Original_Var = round(orig_var, 4),
+      Imputed_Avg_Var = round(avg_imp_var, 4),
+      Ratio_Imp_vs_Org = round(ratio, 4)
+    )
+  }
+  
+  return(results)
+}
+
+
 
 reallocate <- function(samp){
   parts <- do.call(rbind, strsplit(as.character(samp$STRATA), "\\."))

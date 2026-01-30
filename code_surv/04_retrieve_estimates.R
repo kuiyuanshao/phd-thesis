@@ -6,7 +6,7 @@ options(survey.lonely.psu = "certainty")
 retrieveEst <- function(method){
   resultCoeff <- resultStdError <- resultCI <- NULL
   sampling_designs <- c("SRS")#, "Balance", "Neyman")
-  for (i in 1:10){
+  for (i in 1:100){
     digit <- stringr::str_pad(i, 4, pad = 0)
     cat("Current:", digit, "\n")
     load(paste0("./data/True/", digit, ".RData"))
@@ -158,87 +158,40 @@ combine <- function(){
 
 combine()
 
-#for (i in 1:10){
-  i <- 1
-  digit <- stringr::str_pad(i, 4, pad = 0)
-  cat("Current:", digit, "\n")
-  load(paste0("./data/True/", digit, ".RData"))
-  cox.fit <- coxph(Surv(T_I, EVENT) ~ poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + I((eGFR - 60) / 20) + 
-                     I((BMI - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
-                     INSURANCE + RACE + SMOKE +
-                     I((HbA1c - 50) / 15):I((AGE - 60) / 15), data = data)
-  cox.star <- coxph(Surv(T_I_STAR, EVENT_STAR) ~ poly(I((HbA1c_STAR - 50) / 15), 2, raw = TRUE) + I((eGFR_STAR - 60) / 20) + 
-                      I((BMI_STAR - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
-                      INSURANCE + RACE + SMOKE_STAR +
-                      I((HbA1c_STAR - 50) / 15):I((AGE - 60) / 15), data = data)
-  multi_impset <- read_parquet(paste0("./simulations/SRS/tpvmi_rddm/", digit, ".parquet"))
-  multi_impset <- multi_impset %>% group_split(imp_id)
-  multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
-  multi_impset <- lapply(multi_impset, function(dat){
-    match_types(dat, data)
-  })
-  imp.mids <- imputationList(multi_impset)
-  cox.mod <- with(data = imp.mids, 
-                  exp = coxph(Surv(T_I, EVENT) ~
-                                poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + I((eGFR - 60) / 20) + 
-                                I((BMI - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
-                                INSURANCE + RACE + SMOKE +
-                                I((HbA1c - 50) / 15):I((AGE - 60) / 15)))
-  pooled <- MIcombine(cox.mod)
-  print(as.vector(exp(coef(cox.fit)) - exp(pooled$coefficients)))
-  
-  print(as.vector(exp(coef(cox.star)) - exp(pooled$coefficients)))
-  
+i <- 1
+digit <- stringr::str_pad(i, 4, pad = 0)
+cat("Current:", digit, "\n")
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- coxph(Surv(T_I, EVENT) ~ poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + I((eGFR - 60) / 20) + 
+                   I((BMI - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
+                   INSURANCE + RACE + SMOKE +
+                   I((HbA1c - 50) / 15):I((AGE - 60) / 15), data = data)
+cox.star <- coxph(Surv(T_I_STAR, EVENT_STAR) ~ poly(I((HbA1c_STAR - 50) / 15), 2, raw = TRUE) + I((eGFR_STAR - 60) / 20) + 
+                    I((BMI_STAR - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
+                    INSURANCE + RACE + SMOKE_STAR +
+                    I((HbA1c_STAR - 50) / 15):I((AGE - 60) / 15), data = data)
+multi_impset <- read_parquet(paste0("./simulations/SRS/tpvmi_rddm/", digit, ".parquet"))
+multi_impset <- multi_impset %>% group_split(imp_id)
+multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
+multi_impset <- lapply(multi_impset, function(dat){
+  match_types(dat, data)
+})
+imp.mids <- imputationList(multi_impset)
+cox.mod <- with(data = imp.mids, 
+                exp = coxph(Surv(T_I, EVENT) ~
+                              poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + 
+                              I((eGFR - 60) / 20) + 
+                              I((BMI - 30) / 5) + rs4506565 + 
+                              I((AGE - 60) / 15) + SEX +
+                              INSURANCE + RACE + SMOKE +
+                              I((HbA1c - 50) / 15):I((AGE - 60) / 15)))
+pooled <- MIcombine(cox.mod)
+print(as.vector(exp(coef(cox.fit)) - exp(pooled$coefficients)))
 
-cor(data$T_I, data$HbA1c)
-cor(multi_impset[[1]]$T_I, multi_impset[[1]]$HbA1c)
-
-cor(data$EVENT, data$HbA1c)
-cor(multi_impset[[1]]$EVENT, multi_impset[[1]]$HbA1c)
-
-cor(data$T_I, data$EVENT)
-cor(multi_impset[[1]]$T_I, multi_impset[[1]]$EVENT)
-library(ggplot2)
-
-ggplot(data %>% filter(EVENT == 1)) + 
-  geom_density(aes(x = HbA1c), colour = "red") +
-  geom_density(aes(x = HbA1c_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]] %>% filter(EVENT == 1), 
-               aes(x = HbA1c), colour = "blue")
-
-ggplot(data %>% filter(EVENT == 1)) + 
-  geom_density(aes(x = log(T_I)), colour = "red") +
-  geom_density(aes(x = log(T_I_STAR)), colour = "black") +
-  geom_density(data = multi_impset[[1]] %>% filter(EVENT == 1), 
-               aes(x = log(T_I)), colour = "blue")
-
-ggplot(data) + 
-  geom_density(aes(x = T_I), colour = "red") +
-  geom_density(aes(x = T_I_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = T_I), colour = "blue")
-
-ggplot(data) + 
-  geom_density(aes(x = HbA1c), colour = "red") + 
-  geom_density(aes(x = HbA1c_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = HbA1c), colour = "blue")
-
-ggplot(data) + 
-  geom_density(aes(x = eGFR), colour = "red") +
-  geom_density(aes(x = eGFR_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = eGFR), colour = "blue")
-
-ggplot(data) + 
-  geom_density(aes(x = BMI), colour = "red") +
-  geom_density(aes(x = BMI_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
+samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
+compare_variances(data, multi_impset, 
+                  target_vars = data_info_srs$phase2_vars,
+                  categorical_vars = data_info_srs$cat_vars)
 
 
-ggplot() + 
-  geom_point(aes(x = data$HbA1c, y = multi_impset[[1]]$HbA1c), colour = "black") + 
-  geom_abline()
-
-ggplot() + 
-  geom_point(aes(x = data$T_I, y = multi_impset[[1]]$T_I), colour = "black") + 
-  geom_abline()
-table(data$EVENT, multi_impset[[1]]$EVENT)
 

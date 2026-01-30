@@ -1,14 +1,60 @@
 pacman::p_load(progress, torch)
 
+# --- Helper Function to Create Loaders (Extracted from original logic) ---
+create_data_loaders <- function(data_original, data_encode, data_info, params, 
+                                phase1_rows, phase2_rows, p1set, p2set, 
+                                p1b_t, p2b_t, epochs){
+  
+  if (params$balancebatch){
+    phase1_bins <- data_info$cat_vars[!(data_info$cat_vars %in% data_info$phase2_vars)] 
+    phase1_bins <- if (length(phase1_bins) > 0) {
+      phase1_bins[sapply(phase1_bins, function(col) {
+        length(unique(data_original[phase1_rows, col])) > 1 & length(unique(data_original[phase2_rows, col])) > 1
+      })]
+    } else {
+      character(0)
+    }
+    
+    p1sampler <- BalancedSampler(data_original[phase1_rows,], phase1_bins, p1b_t, epochs)
+    p2sampler <- BalancedSampler(data_original[phase2_rows,], phase1_bins, p2b_t, epochs)
+    p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = T,
+                           collate_fn = function(bl) bl[[1]])
+    p2loader <- dataloader(p2set, sampler = p2sampler, pin_memory = T,
+                           collate_fn = function(bl) bl[[1]])
+    Dloader <- dataloader(p2set, 
+                          sampler = BalancedSampler(data_original[phase2_rows,], 
+                                                    phase1_bins, params$batch_size, epochs), pin_memory = T,
+                          collate_fn = function(bl) bl[[1]])
+  } else {
+    phase1_bins <- NULL
+    p1sampler <- SRSSampler(length(phase1_rows), p1b_t, epochs)
+    p2sampler <- SRSSampler(length(phase2_rows), p2b_t, epochs)
+    p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = T,
+                           collate_fn = function(bl) bl[[1]])
+    p2loader <- dataloader(p2set, sampler = p2sampler, pin_memory = T,
+                           collate_fn = function(bl) bl[[1]])
+    Dloader <- dataloader(p2set, 
+                          sampler = SRSSampler(length(phase2_rows), params$batch_size, epochs),
+                          pin_memory = T, collate_fn = function(bl) bl[[1]])
+  }
+  
+  list(p1loader = p1loader, p2loader = p2loader, Dloader = Dloader, phase1_bins = phase1_bins)
+}
+
 cwgangp_default <- function(batch_size = 500, lambda = 10, 
                             alpha = 0, beta = 1, proj_weight = 1,
-                            at_least_p = 0.5, g_dropout = 0.5,
+                            at_least_p = 1, g_dropout = 0,
                             lr_g = 2e-4, lr_d = 2e-4, g_betas = c(0.5, 0.9), d_betas = c(0.5, 0.9), 
                             g_weight_decay = 1e-6, d_weight_decay = 1e-6, noise_dim = 64, cond_dim = 128,
-                            g_dim = c(256, 256), d_dim = c(256, 256), pac = 5, discriminator_steps = 1,
+                            g_dim = c(256, 256), d_dim = c(256, 256), pac = 2, discriminator_steps = 1,
                             tau = 0.2, hard = F, type_g = "mlp", type_d = "mlp",
-                            num = "mmer", cat = "projp1", balancebatch = T){
+                            num = "mmer", cat = "projp1", balancebatch = T, mi_approx = "dropout"){
+  
   batch_size <- pac * round(batch_size / pac)
+  
+  if (mi_approx == "dropout" & g_dropout == 0){
+    g_dropout <- 0.5
+  }
   
   list(batch_size = batch_size, at_least_p = at_least_p, 
        lambda = lambda, alpha = alpha, beta = beta, proj_weight = proj_weight,
@@ -18,14 +64,15 @@ cwgangp_default <- function(batch_size = 500, lambda = 10,
        noise_dim = noise_dim, cond_dim = cond_dim, g_dim = g_dim, d_dim = d_dim, 
        pac = pac, discriminator_steps = discriminator_steps, 
        tau = tau, hard = hard, type_g = type_g, type_d = type_d, 
-       num = num, cat = cat, balancebatch = balancebatch)
+       num = num, cat = cat, balancebatch = balancebatch, mi_approx = mi_approx)
 }
 
 tpvmi_gans <- function(data, m = 5, 
-                     num.normalizing = "mode", cat.encoding = "onehot", 
-                     device = "cpu", epochs = 10000, 
-                     params = list(), data_info = list(), 
-                     save.step = NULL){
+                       num.normalizing = "mode", cat.encoding = "onehot", 
+                       device = "cpu", epochs = 2000, 
+                       params = list(), data_info = list(), 
+                       save.step = NULL){
+  
   params <- do.call("cwgangp_default", params)
   device <- torch_device(device)
   
@@ -102,55 +149,6 @@ tpvmi_gans <- function(data, m = 5,
   phase1_t <- torch_tensor(as.matrix(phase1_m), device = device)
   
   tensor_list <- list(data_mask, conditions_t, phase2_t, phase1_t)
-  
-  # Initialize Datasets with Device
-  p1set <- initset(data_training, phase1_rows, 
-                   phase1_vars_encode, phase2_vars_encode, conditions_vars_encode, device = device)
-  p2set <- initset(data_training, phase2_rows, 
-                   phase1_vars_encode, phase2_vars_encode, conditions_vars_encode, device = device)
-  
-  p2b_t <- as.integer(params$batch_size * params$at_least_p)
-  p1b_t <- params$batch_size - p2b_t
-  
-  if (params$balancebatch){
-    phase1_bins <- data_info$cat_vars[!(data_info$cat_vars %in% data_info$phase2_vars)] 
-    phase1_bins <- if (length(phase1_bins) > 0) {
-      phase1_bins[sapply(phase1_bins, function(col) {
-        length(unique(data_original[phase1_rows, col])) > 1 & length(unique(data_original[phase2_rows, col])) > 1
-      })]
-    } else {
-      character(0)
-    }
-    bins_l <- length(phase1_bins)
-    phase1_bins_indices <- data_encode$binary_indices[phase1_bins]
-    
-    phase1_bins_indices_sort <- phase1_bins_indices[order(vapply(phase1_bins_indices, min, integer(1)))]
-    lens <- lengths(phase1_bins_indices_sort)
-    starts <- cumsum(c(1L, head(lens, -1L)))
-    phase1_bins_indices_seq  <- Map(function(n, s) seq.int(s, s + n - 1L), lens, starts)
-    names(phase1_bins_indices_seq) <- names(phase1_bins_indices_sort)
-    
-    p1sampler <- BalancedSampler(data_original[phase1_rows,], phase1_bins, p1b_t, epochs)
-    p2sampler <- BalancedSampler(data_original[phase2_rows,], phase1_bins, p2b_t, epochs)
-    p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = T,
-                           collate_fn = function(bl) bl[[1]])
-    p2loader <- dataloader(p2set, sampler = p2sampler, pin_memory = T,
-                           collate_fn = function(bl) bl[[1]])
-    Dloader <- dataloader(p2set, 
-                          sampler = BalancedSampler(data_original[phase2_rows,], 
-                                                    phase1_bins, params$batch_size, epochs), pin_memory = T,
-                          collate_fn = function(bl) bl[[1]])
-  }else{
-    p1sampler <- SRSSampler(length(phase1_rows), p1b_t, epochs)
-    p2sampler <- SRSSampler(length(phase2_rows), p2b_t, epochs)
-    p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = T,
-                           collate_fn = function(bl) bl[[1]])
-    p2loader <- dataloader(p2set, sampler = p2sampler, pin_memory = T,
-                           collate_fn = function(bl) bl[[1]])
-    Dloader <- dataloader(p2set, 
-                          sampler = SRSSampler(length(phase2_rows), params$batch_size, epochs),
-                          pin_memory = T, collate_fn = function(bl) bl[[1]])
-  }
   
   phase1_cats <- intersect(data_info$phase1_vars, data_info$cat_vars)
   phase2_cats <- intersect(data_info$phase2_vars, data_info$cat_vars)
@@ -252,154 +250,248 @@ tpvmi_gans <- function(data, m = 5,
   }
   total_cat_count <- length(cats_p2) + length(cats_mode)
   
+  D_loader_list <- list()
+  p1_loader_list <- list()
+  p2_loader_list <- list()
+  num_models_to_train <- if (params$mi_approx == "bootstrap") m else 1
+  
+  p2b_t <- as.integer(params$batch_size * params$at_least_p)
+  p1b_t <- params$batch_size - p2b_t
   params$ncols <- ncols
   params$nphase2 <- length(phase2_vars_encode)
   params$nphase1 <- length(phase1_vars_encode)
-  gnet <- do.call(paste("generator", params$type_g, sep = "."), 
-                  args = list(params))$to(device = device)
-  dnet <- do.call(paste("discriminator", params$type_d, sep = "."), 
-                  args = list(params))$to(device = device)
-  g_solver <- optim_adam(gnet$parameters, lr = params$lr_g, 
-                         betas = params$g_betas, weight_decay = params$g_weight_decay)
-  d_solver <- optim_adam(dnet$parameters, lr = params$lr_d, 
-                         betas = params$d_betas, weight_decay = params$d_weight_decay)
+  params$num_inds <- num_inds_p2
+  params$cat_inds <- cat_inds_p2
   
-  training_loss <- matrix(0, nrow = epochs, ncol = 2)
+  gnet_list <- list()
+  dnet_list <- list()
+  g_solver_list <- list()
+  d_solver_list <- list()
+  training_loss_list <- list()
   
-  pb <- progress_bar$new(
-    format = paste0("Running [:bar] :percent eta: :eta | G Loss: :g_loss | D Loss: :d_loss | Recon: :recon_loss"),
-    clear = FALSE, total = epochs, width = 100)
-  
-  if (!is.null(save.step)){
-    step_result <- list()
-    p <- 1
-  }
-  
-  it_p1 <- dataloader_make_iter(p1loader)
-  it_p2 <- dataloader_make_iter(p2loader)
-  it_D <- dataloader_make_iter(Dloader)
-  
-  swa_n <- 0
-  swa_mean <- list()
-  swa_sq_mean <- list()
-  swa_start <- 1
-  
-  ones_buf <- torch_ones(c(params$batch_size, 1), device = device)
-  for (i in 1:epochs){
-    gnet$train()
-    #### D block
-    batch <- dataloader_next(it_D)
-    A <- batch$A; X <- batch$X; C <- batch$C; M <- batch$M
-    
-    fakez <- torch_normal(mean = 0, std = 1, size = c(params$batch_size, params$noise_dim), device = device) 
-    X_fake <- gnet(fakez, A, C)
-    X_fakeact <- activationFun(X_fake, cat_groups_p2, num_inds_p2, params)
-    fake_AC <- torch_cat(list(X_fakeact, A, C), dim = 2)
-    true_AC <- torch_cat(list(X, A, C), dim = 2)
-    x_fake <- dnet(fake_AC)
-    x_true <- dnet(true_AC)
-    
-    d_loss <- -(torch_mean(x_true) - torch_mean(x_fake))
-    if (params$lambda > 0){
-      gp <- gradientPenalty(dnet, fake_AC, true_AC, params, device = device, ones_buf = ones_buf) 
-      d_loss <- d_loss + params$lambda * gp
-    }
-    d_solver$zero_grad()
-    d_loss$backward()
-    d_solver$step()
-    
-    #### G Block
-    batch_p1 <- dataloader_next(it_p1)
-    batch_p2 <- dataloader_next(it_p2)
-    A <- torch_cat(list(batch_p1$A, batch_p2$A), dim = 1)
-    X <- torch_cat(list(batch_p1$X, batch_p2$X), dim = 1)
-    C <- torch_cat(list(batch_p1$C, batch_p2$C), dim = 1)
-    M <- torch_cat(list(batch_p1$M, batch_p2$M), dim = 1)
-    I <- M[, 1] == 1
-    
-    fakez <- torch_normal(mean = 0, std = 1, size = c(params$batch_size, params$noise_dim), device = device) 
-    X_fake <- gnet(fakez, A, C)
-    
-    fake_proj <- NULL
-    if (length(phase2_cats) > 0 && params$cat == "projp1"){
-      fake_proj <- projCat(X_fake, proj_groups)
+  for (model_idx in 1:num_models_to_train) {
+    if (num_models_to_train > 1) {
+      b_phase1_rows <- sample(phase1_rows, length(phase1_rows), replace = TRUE)
+      b_phase2_rows <- sample(phase2_rows, length(phase2_rows), replace = TRUE)
+      
+      p1set <- initset(data_training, b_phase1_rows, phase1_vars_encode, 
+                       phase2_vars_encode, conditions_vars_encode, device = device)
+      p2set <- initset(data_training, b_phase2_rows, phase1_vars_encode, 
+                       phase2_vars_encode, conditions_vars_encode, device = device)
+      
+      curr_loaders <- create_data_loaders(data_original, data_encode, data_info, params, 
+                                          b_phase1_rows, b_phase2_rows, p1set, p2set, 
+                                          p1b_t, p2b_t, epochs)
+    } else {
+      p1set <- initset(data_training, phase1_rows, 
+                       phase1_vars_encode, phase2_vars_encode, conditions_vars_encode, device = device)
+      p2set <- initset(data_training, phase2_rows, 
+                       phase1_vars_encode, phase2_vars_encode, conditions_vars_encode, device = device)
+      
+      curr_loaders <- create_data_loaders(data_original, data_encode, data_info, params, 
+                                          phase1_rows, phase2_rows, p1set, p2set, 
+                                          p1b_t, p2b_t, epochs)
     }
     
-    recon_loss <- reconLoss(X_fake, X, fake_proj, A, I, params, 
-                            num_inds_p2, cat_inds_p2, 
-                            ce_groups_p2, ce_groups_mode, total_cat_count)
+    D_loader <- curr_loaders$Dloader
+    p1_loader <- curr_loaders$p1loader
+    p2_loader <- curr_loaders$p2loader
+    phase1_bins <- curr_loaders$phase1_bins
     
-    X_fakeact <- activationFun(X_fake, cat_groups_p2, num_inds_p2, params)
-    fake_AC <- torch_cat(list(X_fakeact, A, C), dim = 2)
-    d_fake <- dnet(fake_AC)
-    adv_term <- -torch_mean(d_fake)
+    cat(sprintf("\n--- Training Model %d/%d ---\n", model_idx, num_models_to_train))
     
-    g_loss <- adv_term + recon_loss
+    gnet <- do.call(paste("generator", params$type_g, sep = "."), 
+                    args = list(params))$to(device = device)
+    dnet <- do.call(paste("discriminator", params$type_d, sep = "."), 
+                    args = list(params))$to(device = device)
     
-    g_solver$zero_grad()
-    g_loss$backward()
-    g_solver$step()
+    if (params$mi_approx != "SWAG"){
+      g_solver <- optim_adam(gnet$parameters, lr = params$lr_g, betas = params$g_betas)
+      d_solver <- optim_adam(dnet$parameters, lr = params$lr_d, betas = params$d_betas)
+    } else {
+      # Assumes 25 times larger learning rate for SGD in SWAG
+      g_solver <- optim_sgd(gnet$parameters, lr = params$lr_g * 25, momentum = 0)
+      d_solver <- optim_sgd(dnet$parameters, lr = params$lr_d * 25, momentum = 0)
+      
+      swa_start <- as.integer(0.8 * epochs)
+      scheduler_g <- lr_cosine_annealing(g_solver, T_max = swa_start, eta_min = params$lr_g * 25 * 0.5)
+      scheduler_d <- lr_cosine_annealing(d_solver, T_max = swa_start, eta_min = params$lr_g * 25 * 0.5)
+      swa_n <- 0
+      max_num_models <- m * 5
+      swa_mean <- list()
+      swa_sq_mean <- list()
+      swa_cov_mat <- list()
+    }
     
-    if (i >= swa_start) {
-      swa_n <- swa_n + 1
-      curr_state <- gnet$state_dict()
-      if (swa_n == 1) {
-        for (key in names(curr_state)) {
-          if (is_torch_tensor(curr_state[[key]]) && curr_state[[key]]$dtype == torch_float()) {
-            swa_mean[[key]] <- curr_state[[key]]$detach()$clone()
-            swa_sq_mean[[key]] <- curr_state[[key]]$detach()$clone()^2
-          } else {
-            swa_mean[[key]] <- curr_state[[key]]$detach()$clone()
-            swa_sq_mean[[key]] <- curr_state[[key]]$detach()$clone()
-          }
+    training_loss <- matrix(0, nrow = epochs, ncol = 2)
+    
+    pb <- progress_bar$new(
+      format = paste0("Running [:bar] :percent eta: :eta | G Loss: :g_loss | D Loss: :d_loss | Recon: :recon_loss"),
+      clear = FALSE, total = epochs, width = 100)
+    
+    if (p1b_t > 0){
+      it_p1 <- dataloader_make_iter(p1_loader)
+    }
+    it_p2 <- dataloader_make_iter(p2_loader)
+    it_D <- dataloader_make_iter(D_loader)
+    
+    ones_buf <- torch_ones(c(params$batch_size, 1), device = device)
+    
+    for (i in 1:epochs){
+      gnet$train()
+      
+      # --- Discriminator Step ---
+      for (d_step in 1:params$discriminator_steps) {
+        batch <- dataloader_next(it_D)
+        if (is.null(batch)) {
+          it_D <- dataloader_make_iter(D_loader)
+          batch <- dataloader_next(it_D)
         }
+        
+        A <- batch$A; X <- batch$X; C <- batch$C
+        fakez <- torch_normal(mean = 0, std = 1, size = c(params$batch_size, params$noise_dim), device = device) 
+        X_fake <- gnet(fakez, A, C)
+        X_fakeact <- activationFun(X_fake, cat_groups_p2, num_inds_p2, params)
+        fake_AC <- torch_cat(list(X_fakeact, A, C), dim = 2)
+        true_AC <- torch_cat(list(X, A, C), dim = 2)
+        x_fake <- dnet(fake_AC); x_true <- dnet(true_AC)
+        
+        d_loss <- -(torch_mean(x_true) - torch_mean(x_fake))
+        
+        if (params$lambda > 0){
+          gp <- gradientPenalty(dnet, fake_AC, true_AC, params, device = device, ones_buf = ones_buf) 
+          d_loss <- d_loss + params$lambda * gp
+        }
+        
+        d_solver$zero_grad()
+        d_loss$backward()
+        d_solver$step()
+      }
+      
+      # --- Generator Step ---
+      batch_p2 <- dataloader_next(it_p2)
+      if (is.null(batch_p2)) {
+        it_p2 <- dataloader_make_iter(p2_loader)
+        batch_p2 <- dataloader_next(it_p2)
+      }
+      
+      if (p1b_t > 0){
+        batch_p1 <- dataloader_next(it_p1)
+        if (is.null(batch_p1)) {
+          it_p1 <- dataloader_make_iter(p1_loader)
+          batch_p1 <- dataloader_next(it_p1)
+        }
+        A <- torch_cat(list(batch_p1$A, batch_p2$A), dim = 1)
+        X <- torch_cat(list(batch_p1$X, batch_p2$X), dim = 1)
+        C <- torch_cat(list(batch_p1$C, batch_p2$C), dim = 1)
+        M <- torch_cat(list(batch_p1$M, batch_p2$M), dim = 1)
       } else {
-        for (key in names(swa_mean)) {
-          if (is_torch_tensor(curr_state[[key]]) && curr_state[[key]]$dtype == torch_float()) {
-            curr_val <- curr_state[[key]]$detach()
-            # Mean Update
-            swa_mean[[key]] <- (swa_mean[[key]] * (swa_n - 1) + curr_val) / swa_n
-            # Sq Mean Update
-            swa_sq_mean[[key]] <- (swa_sq_mean[[key]] * (swa_n - 1) + curr_val^2) / swa_n
-          } else {
-            swa_mean[[key]] <- curr_state[[key]]$detach()$clone()
+        A <- batch_p2$A; X <- batch_p2$X; C <- batch_p2$C; M <- batch_p2$M
+      }
+      I <- M[, 1] == 1
+      
+      fakez <- torch_normal(mean = 0, std = 1, size = c(params$batch_size, params$noise_dim), device = device) 
+      X_fake <- gnet(fakez, A, C)
+      
+      fake_proj <- NULL
+      if (length(phase2_cats) > 0 && params$cat == "projp1"){
+        fake_proj <- projCat(X_fake, proj_groups)
+      }
+      
+      recon_loss <- reconLoss(X_fake, X, fake_proj, A, I, params, num_inds_p2, cat_inds_p2, ce_groups_p2, ce_groups_mode, total_cat_count)
+      X_fakeact <- activationFun(X_fake, cat_groups_p2, num_inds_p2, params)
+      fake_AC <- torch_cat(list(X_fakeact, A, C), dim = 2)
+      d_fake <- dnet(fake_AC)
+      adv_term <- -torch_mean(d_fake)
+      
+      g_loss <- adv_term + recon_loss
+      
+      g_solver$zero_grad()
+      g_loss$backward()
+      
+      if (params$mi_approx == "SWAG"){
+        nn_utils_clip_grad_norm_(gnet$parameters, max_norm = 1)
+      }
+      g_solver$step()
+      
+      # --- SWAG / Scheduling Updates ---
+      if (params$mi_approx == "SWAG"){
+        is_swa_phase <- i > swa_start
+        if (!is_swa_phase) {
+          scheduler_g$step()
+          scheduler_d$step()
+        } else {
+          swa_n <- swa_n + 1
+          curr_state <- gnet$state_dict()
+          for (key in names(curr_state)) {
+            val <- curr_state[[key]]
+            if (inherits(val, "torch_tensor") && val$dtype == torch_float()) {
+              p_data <- val$detach()$clone()
+              if (swa_n == 1) {
+                swa_mean[[key]] <- p_data
+                swa_sq_mean[[key]] <- p_data^2
+                swa_cov_mat[[key]] <- list() 
+              } else {
+                swa_mean[[key]] <- (swa_mean[[key]] * (swa_n - 1) + p_data) / swa_n
+                swa_sq_mean[[key]] <- (swa_sq_mean[[key]] * (swa_n - 1) + p_data^2) / swa_n
+                dev <- p_data - swa_mean[[key]]
+                q <- swa_cov_mat[[key]]
+                q[[length(q) + 1]] <- dev
+                if (length(q) > max_num_models) q <- q[-1] 
+                swa_cov_mat[[key]] <- q
+              }
+            } else {
+              swa_mean[[key]] <- val$detach()$clone()
+            }
           }
         }
       }
+      
+      training_loss[i, ] <- c(g_loss$item(), d_loss$item())
+      pb$tick(tokens = list(
+        g_loss = sprintf("%.3f", adv_term$item()),
+        d_loss = sprintf("%.3f", d_loss$item()),
+        recon_loss = sprintf("%.3f", recon_loss$item())
+      ))
     }
+    pb$terminate()
     
-    training_loss[i, ] <- c(g_loss$item(), d_loss$item())
-    pb$tick(tokens = list(
-      g_loss = sprintf("%.3f", adv_term$item()),
-      d_loss = sprintf("%.3f", d_loss$item()),
-      recon_loss = sprintf("%.3f", recon_loss$item())
-    ))
-    
-    }
-  }
-  pb$terminate()
-  
-  training_loss <- data.frame(training_loss)
-  names(training_loss) <- c("G Loss", "D Loss")
-  
-  gnet$eval()
-  for (modu in gnet$modules) {
-    if (inherits(modu, "nn_dropout")) {
-      modu$train(TRUE)
-    }
+    training_loss <- data.frame(training_loss)
+    names(training_loss) <- c("G Loss", "D Loss")
+    training_loss_list[[model_idx]] <- training_loss
+    gnet_list[[model_idx]] <- gnet
   }
   
-  swag_stats <- list(mean = swa_mean, sq_mean = swa_sq_mean, n = swa_n)
-  result <- generateImpute(gnet, m = m, 
+  # --- Evaluation / Generation ---
+  gnet_list <- lapply(gnet_list, function(m) {
+    m$eval()
+    if (params$mi_approx == "dropout"){
+      for (modu in m$modules) {
+        if (inherits(modu, "nn_dropout")) {
+          modu$train(TRUE)
+        }
+      }
+    }
+    return(m)
+  })
+  
+  if (params$mi_approx == "SWAG"){
+    swag_stats <- list(mean = swa_mean, sq_mean = swa_sq_mean, cov_mat = swa_cov_mat, n = swa_n)
+  } else {
+    swag_stats <- NULL
+  }
+  
+  result <- generateImpute(gnet_list, m = m, 
                            data_original, data_info, data_norm, 
                            data_encode, data_training,
                            phase1_vars_encode, phase2_vars_encode,
                            num.normalizing, cat.encoding, 
                            device, params, cat_groups_p2, num_inds_p2, tensor_list,
                            swag_stats)
+  
   out <- list(imputation = result$imputation,
               gsample = result$gsample,
-              loss = training_loss)
+              loss = training_loss_list)
   if (exists("step_result", inherits = FALSE) && !is.null(step_result)){
     out$step_result <- step_result
   }

@@ -1,4 +1,4 @@
-lapply(c("dplyr", "stringr", "torch", "coro", "survival", "mclust"), require, character.only = T)
+lapply(c("dplyr", "stringr", "torch", "coro", "survival", "mclust", "mitools"), require, character.only = T)
 files <- list.files("../tpvmi_gans", full.names = TRUE, recursive = FALSE)
 files <- files[!grepl("tests", files)]
 lapply(files, source)
@@ -31,24 +31,25 @@ if(!dir.exists('./simulations/Neyman/tpvmi_gans')){dir.create('./simulations/Ney
 
 do_tpvmi_gans <- function(samp, info, nm, digit) {
   tm <- system.time({
-    tpvmi_gans_imp <- tpvmi_gans(samp, m = 20, epochs = 2000,
-                                 data_info = info, params = list(mi_approx = "bootstrap"), device = "cpu")
+    tpvmi_gans_imp <- tpvmi_gans(samp, m = 5, epochs = 2000,
+                                 data_info = info, params = list(mi_approx = "dropout"), 
+                                 device = "cuda")
   })
   tpvmi_gans_imp$imputation <- lapply(tpvmi_gans_imp$imputation, function(dat){
     match_types(dat, data)
   })
-  imp.mids <- as.mids(tpvmi_gans_imp$imputation)
-  cox.fit <- with(data = imp.mids, 
-                  exp = coxph(Surv(T_I, EVENT) ~ I((HbA1c - 50) / 5) +
-                                rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                                SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
-  pooled <- mice::pool(cox.fit)
-  sumry <- summary(pooled, conf.int = TRUE)
+  imp.mids <- imputationList(tpvmi_gans_imp$imputation)
+  cox.mod <- with(data = imp.mids, 
+                  exp = coxph(Surv(T_I, EVENT) ~
+                                poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + 
+                                I((eGFR - 60) / 20) + 
+                                I((BMI - 30) / 5) + rs4506565 + 
+                                I((AGE - 60) / 15) + SEX +
+                                INSURANCE + RACE + SMOKE +
+                                I((HbA1c - 50) / 15):I((AGE - 60) / 15)))
+  pooled <- MIcombine(cox.mod)
   cat("Bias: \n")
-  cat(exp(sumry$estimate) - exp(coef(cox.true)), "\n")
-  cat("StdError: \n")
-  cat(sumry$std.error, "\n")
-  
+  cat(exp(pooled$coefficients) - exp(coef(cox.true)), "\n")
   #save(tpvmi_gans_imp, tm, file = file.path("simulations", nm, "tpvmi_gans",
   #                                        paste0(digit, ".RData")))
 }
@@ -72,19 +73,20 @@ for (i in 1:500){
     mutate(across(all_of(data_info_neyman$cat_vars), as.factor, .names = "{.col}"),
            across(all_of(data_info_neyman$num_vars), as.numeric, .names = "{.col}"))
   
-  cox.true <- coxph(Surv(T_I, EVENT) ~ I((HbA1c - 50) / 5) + 
-                      rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) + 
-                      SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE, data = data)
+  cox.true <- coxph(Surv(T_I, EVENT) ~ poly(I((HbA1c - 50) / 15), 2, raw = TRUE) + I((eGFR - 60) / 20) + 
+                      I((BMI - 30) / 5) + rs4506565 + I((AGE - 60) / 15) + SEX +
+                      INSURANCE + RACE + SMOKE +
+                      I((HbA1c - 50) / 15):I((AGE - 60) / 15), data = data)
   
-  if (!file.exists(paste0("./simulations/SRS/tpvmi_gans/", digit, ".RData"))){
-    do_tpvmi_gans(samp_srs, data_info_srs, "SRS", digit)
-  }
-  if (!file.exists(paste0("./simulations/Balance/tpvmi_gans/", digit, ".RData"))){
-    do_tpvmi_gans(samp_balance, data_info_balance, "Balance", digit)
-  }
-  if (!file.exists(paste0("./simulations/Neyman/tpvmi_gans/", digit, ".RData"))){
-    do_tpvmi_gans(samp_neyman, data_info_neyman, "Neyman", digit)
-  }
+  # if (!file.exists(paste0("./simulations/SRS/tpvmi_gans/", digit, ".RData"))){
+  #   do_tpvmi_gans(samp_srs, data_info_srs, "SRS", digit)
+  # }
+  # if (!file.exists(paste0("./simulations/Balance/tpvmi_gans/", digit, ".RData"))){
+  #   do_tpvmi_gans(samp_balance, data_info_balance, "Balance", digit)
+  # }
+  # if (!file.exists(paste0("./simulations/Neyman/tpvmi_gans/", digit, ".RData"))){
+  #   do_tpvmi_gans(samp_neyman, data_info_neyman, "Neyman", digit)
+  # }
   do_tpvmi_gans(samp_srs, data_info_srs, "SRS", digit)
 }
 

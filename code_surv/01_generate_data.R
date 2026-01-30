@@ -30,7 +30,7 @@ generateData <- function(n, seed){
   data$INCOME <- sample(as.character(1:5), size = n,
                         replace = T, prob = getRandProp(5))
   # EDUCATION YEARS:
-  data$EDU <- rpois(n, 14)
+  data$EDU <- rpois(n, 4) + 6
   # 15 Genotypes
   genoInfo <- loadGenotypeInfo()
   data <- simGenotypes(data, genoInfo)
@@ -186,15 +186,12 @@ add_measurement_errors <- function(data) {
     val <- intercept + slope * true_vec
     if (!is.null(z_list) && !is.null(z_coeffs)) {
       for (i in 1:length(z_list)) {
-        cov_num <- as.numeric(z_list[[i]])
-        val <- val + z_coeffs[i] * (cov_num - mean(cov_num, na.rm = TRUE))
+        val <- val + z_coeffs[i] * as.numeric(z_list[[i]]) 
       }
     }
     val <- val + rnorm(length(true_vec), mean = 0, sd = noise_sd)
-    return(pmax(0.1, val))
+    return (pmax(min(true_vec), val))
   }
-  
-  # Categorical Misclassification (One-to-One Mapping)
   apply_cat_error <- function(true_vec, levels_vec, z_list = NULL, z_coeffs = NULL, base_accuracy = 0.80) {
     n_obs <- length(true_vec)
     logits <- rep(qlogis(base_accuracy), n_obs)
@@ -219,14 +216,18 @@ add_measurement_errors <- function(data) {
   # ============================================================================
   # 1. PRIMARY PREDICTORS 
   # ============================================================================
-  
+  # HbA1c_STAR ~ alpha_0 + alpha_1 * HbA1c + alphas * [URBAN, AGE, RACE, BMI, INSURANCE] + U
   data$HbA1c_STAR <- apply_linear_error(data$HbA1c, 
-                                        slope = 0.6, intercept = 5.0,
-                                        z_list = list(data$EDU, data$AGE),
-                                        z_coeffs = c(-0.5, 0.2), noise_sd = 5.0)
+                                        slope = 1.5, intercept = -10.0,
+                                        z_list = list(1 - data$URBAN, 
+                                                      data$AGE - mean(data$AGE),
+                                                      data$RACE %in% c("AMR", "AFR"),
+                                                      data$BMI, 1- data$INSURANCE),
+                                        z_coeffs = c(-1, -0.2, -5, -0.2, -2), 
+                                        noise_sd = sd(data$HbA1c) * 0.33)
   
   # eGFR: Recalculated from a very noisy Creatinine
-  data$Creatinine_STAR <- apply_linear_error(data$Creatinine, slope = 1.0, 
+  data$Creatinine_STAR <- apply_linear_error(data$Creatinine, slope = 1.2, 
                                              noise_sd = sd(data$Creatinine) * 0.40)
   scr <- data$Creatinine_STAR / 88.4
   k <- ifelse(data$SEX, 0.9, 0.7); alpha <- ifelse(data$SEX, -0.411, -0.329)
@@ -235,7 +236,7 @@ add_measurement_errors <- function(data) {
   data$eGFR_STAR <- pmin(data$eGFR_STAR, 140)
   # BMI Components: Heavy systematic bias
   TRUE_WEIGHT <- data$BMI * (data$HEIGHT / 100)^2
-  data$WEIGHT_STAR <- apply_linear_error(TRUE_WEIGHT, slope = 0.95, intercept = -3.0,
+  data$WEIGHT_STAR <- apply_linear_error(TRUE_WEIGHT, slope = 1.05, intercept = -3.0,
                                          z_list = list(data$BMI, data$SEX),
                                          z_coeffs = c(-0.5, 0.5), noise_sd = 1)
   data$HEIGHT_STAR <- apply_linear_error(data$HEIGHT, slope = 1.05, intercept = 3.0,
@@ -907,6 +908,7 @@ data$HbA1c_STAR_c  <- (data$HbA1c_STAR - 50) / 15
 data$eGFR_STAR_c <- (data$eGFR_STAR - 60) / 20
 data$BMI_STAR_c <- (data$BMI_STAR - 30) / 5
 data$SMOKE_STAR <- as.character(data$SMOKE_STAR)
+
 fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
                     poly(HbA1c_STAR_c, 2, raw = TRUE) + eGFR_STAR_c + BMI_STAR_c +
                     rs4506565_STAR + AGE_c + SEX +

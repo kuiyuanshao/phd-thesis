@@ -165,6 +165,8 @@ class TPVMI_RDDM:
         p2_mask = proc_mask[:, p2_idx]
         valid_rows = np.where(p2_mask.mean(axis=1) > 0.5)[0]
 
+        print(f"[Fit] Global Valid Rows: {len(valid_rows)}")
+
         self._global_p1 = torch.from_numpy(proc_data[:, p1_idx]).float().to(self.device)
         self._global_p2 = torch.from_numpy(proc_data[:, p2_idx]).float().to(self.device)
 
@@ -179,122 +181,138 @@ class TPVMI_RDDM:
         self.Q_dict = {}
         if len(self.cat_idxs) > 0:
             rel_cat_idxs = self.cat_idxs.cpu().numpy()
-
-            # Extract valid pairs for estimation
             valid_p1_entries = proc_data[valid_rows][:, p1_idx[rel_cat_idxs]].astype(int)
             valid_p2_entries = proc_data[valid_rows][:, p2_idx[rel_cat_idxs]].astype(int)
 
             for i, var in enumerate(self.cat_vars):
                 name = var['name']
                 K = var['num_classes']
+                cm = confusion_matrix(valid_p2_entries[:, i], valid_p1_entries[:, i], labels=range(K))
 
-                # Compute Q: Rows=Truth (P2), Cols=Proxy (P1)
-                cm = confusion_matrix(
-                    valid_p2_entries[:, i],
-                    valid_p1_entries[:, i],
-                    labels=range(K)
-                )
+                class_counts = cm.sum(axis=1, keepdims=True) + 1e-6
+                cm_balanced = cm / class_counts
 
-                # Laplace Smoothing and Normalization
-                cm_smooth = cm + 1
+                cm_smooth = cm_balanced + 0.01
                 Q = cm_smooth / cm_smooth.sum(axis=1, keepdims=True)
                 self.Q_dict[name] = torch.tensor(Q, device=self.device).float()
 
-        def get_tensors(rows):
-            t_p1 = torch.from_numpy(proc_data[rows][:, p1_idx]).float().to(self.device)
-            t_p2 = torch.from_numpy(proc_data[rows][:, p2_idx]).float().to(self.device)
-            all_idx = set(range(proc_data.shape[1]))
-            reserved = set(p1_idx) | set(p2_idx)
-            aux_idx = np.array(sorted(list(all_idx - reserved)), dtype=int)
-            if len(aux_idx) > 0:
-                t_aux = torch.from_numpy(proc_data[rows][:, aux_idx]).float().to(self.device)
-            else:
-                t_aux = torch.empty((len(rows), 0)).float().to(self.device)
-            return t_p1, t_p2, t_aux
-
-        if self.config["else"]["mi_approx"] == "bootstrap":
-            num_train_mods = self.config["else"]["m"]
-        else:
-            num_train_mods = 1
+        num_train_mods = self.config["else"]["m"] if mi_approx == "bootstrap" else 1
 
         for k in range(num_train_mods):
-            print(f"\n[TPVMI-RDDM] Training {k + 1}/{num_train_mods}...")
+            print(f"\n[TPVMI-RDDM] Training Model {k + 1}/{num_train_mods}...")
             rng = np.random.default_rng()
-            if self.config["else"]["mi_approx"] == "bootstrap":
-                current_rows = rng.choice(valid_rows, size=len(valid_rows), replace=True)
+            if mi_approx == "bootstrap":
+                current_rows_indices = rng.choice(np.arange(len(valid_rows)), size=len(valid_rows), replace=True)
+                train_rows = valid_rows[current_rows_indices]
             else:
-                current_rows = np.random.permutation(valid_rows)
-            val_ratio = self.config["train"].get("val_ratio", 0.0)
-            n_val = int(len(current_rows) * val_ratio)
-            train_rows, val_rows = current_rows[n_val:], current_rows[:n_val] if n_val > 0 else []
+                train_rows = valid_rows.copy()
+            cat_class_indices = {}
+            cat_vars_names = []
+            if len(self.cat_vars) > 0:
+                all_cat_vars_map = []
+                n_targets = len(p2_idx)
+                for i, var in enumerate(self.variable_schema):
+                    if 'categorical' in var['type']:
+                        if 'aux' in var['type']:
+                            if len(aux_idx) > 0:
+                                rel_idx = i - n_targets
+                                if 0 <= rel_idx < len(aux_idx):
+                                    all_cat_vars_map.append({'name': var['name'], 'global_col': aux_idx[rel_idx]})
+                        else:
+                            all_cat_vars_map.append({'name': var['name'], 'global_col': p2_idx[i]})
 
-            train_p1, train_p2, train_aux = get_tensors(train_rows)
+                train_data_subset = proc_data[train_rows]
+                severity_scores = []
+                for var_info in all_cat_vars_map:
+                    col_idx = var_info['global_col']
+                    name = var_info['name']
+                    col_vals = train_data_subset[:, col_idx].astype(int)
+                    unique_labels, counts = np.unique(col_vals, return_counts=True)
+                    indices_map = {}
+                    for label in unique_labels:
+                        indices_map[label] = np.where(col_vals == label)[0]
+                    cat_class_indices[name] = indices_map
 
+                    N = len(col_vals)
+                    probs = counts / N
+                    entropy = -np.sum(probs * np.log(probs + 1e-9))
+                    K = len(unique_labels)
+                    if K > 1:
+                        max_entropy = np.log(K)
+                        severity = max_entropy - entropy
+                    else:
+                        severity = 0.0
+                    severity_scores.append(severity)
+                    cat_vars_names.append(name)
+                severity_scores = np.array(severity_scores)
+                severity_scores = np.power(severity_scores, 0.25)
+                cat_sampling_probs = severity_scores / severity_scores.sum()
+                if k == 0:
+                    print(f"[Sampler] Computed Imbalance Severity (KL-Div). Top imbalance:")
+                    sort_idx = np.argsort(cat_sampling_probs)[::-1]
+                    for i in range(min(3, len(sort_idx))):
+                        idx = sort_idx[i]
+                        print(f"  - {cat_vars_names[idx]}: P={cat_sampling_probs[idx]:.4f}")
             self.model = RDDM_NET(self.config, self.device, self.variable_schema).to(self.device)
-
+            self.model.train()
             if mi_approx == "SWAG":
-                swa_start = int(epochs * 0.80)
+                swa_start_iter = int(epochs * 0.80)
                 optimizer = SGD(self.model.parameters(), lr=lr, momentum=0.9)
-                scheduler = CosineAnnealingLR(optimizer, T_max=swa_start, eta_min=lr * 0.5)
+                scheduler = CosineAnnealingLR(optimizer, T_max=swa_start_iter, eta_min=lr * 0.5)
                 self.swag_model = FullSWAG(self.model, max_num_models=int(self.config["else"]["m"] * 5)).to(self.device)
             else:
-                optimizer = Adam(self.model.parameters(), lr=self.config["train"]["lr"])
+                optimizer = Adam(self.model.parameters(), lr=lr)
 
-            num_train = len(train_rows)
-            steps_per_epoch = math.ceil(num_train / batch_size)
+            pbar = tqdm(range(epochs), desc=f"Training M{k+1}", file=sys.stdout)
+            for step in pbar:
+                current_balance_map = None
+                current_var_name = ""
 
-            for epoch in range(epochs):
-                self.model.train()
-                epoch_losses = []
+                if len(cat_class_indices) > 0:
+                    target_var_name = np.random.choice(cat_vars_names, p=cat_sampling_probs)
+                    current_balance_map = cat_class_indices[target_var_name]
+                    current_var_name = target_var_name
 
-                # Shuffle indices once per epoch for non-bootstrap modes
-                if mi_approx != "bootstrap":
-                    epoch_indices = np.random.permutation(num_train)
+                if current_balance_map is not None:
+                    classes = list(current_balance_map.keys())
+                    batch_classes = np.random.choice(classes, batch_size, replace=True)
 
-                it = tqdm(range(steps_per_epoch), desc=f"Epoch {epoch + 1}", file=sys.stdout)
+                    batch_indices_local = []
+                    for c in batch_classes:
+                        idx = np.random.choice(current_balance_map[c])
+                        batch_indices_local.append(idx)
+
+                    b_idx = train_rows[np.array(batch_indices_local)]
+                    np.random.shuffle(b_idx)
+                else:
+                    idx_sample = np.random.randint(0, len(train_rows), batch_size)
+                    b_idx = train_rows[idx_sample]
+
+                b_p1 = self._global_p1[b_idx]
+                b_p2 = self._global_p2[b_idx]
+                b_aux = self._global_aux[b_idx]
+
+                optimizer.zero_grad()
+                loss = self.calc_unified_loss(b_p1, b_p2, b_aux)
+                loss.backward()
 
                 if mi_approx == "SWAG":
-                    is_swa_phase = (epoch >= swa_start)
-                    if is_swa_phase:
-                        swa_lr = lr * 0.5
-                        for param_group in optimizer.param_groups:
-                            param_group['lr'] = swa_lr
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
 
-                for step in it:
-                    if mi_approx == "bootstrap":
-                        b_idx = np.random.randint(0, num_train, batch_size)
+                optimizer.step()
+
+                if step % 50 == 0:
+                    var_tag = f"Bal:{current_var_name}" if current_var_name else "Std"
+                    pbar.set_postfix(loss=f"{loss.item():.4f}", v=var_tag)
+
+                if mi_approx == "SWAG":
+                    if step < swa_start_iter:
+                        scheduler.step()
                     else:
-                        start_idx = step * batch_size
-                        end_idx = min(start_idx + batch_size, num_train)
-                        if start_idx >= num_train: break
-                        b_idx = epoch_indices[start_idx:end_idx]
+                        for param_group in optimizer.param_groups: param_group['lr'] = lr * 0.5
+                        if (step - swa_start_iter) % 50 == 0:
+                            self.swag_model.collect_model(self.model)
 
-                    b_p1 = train_p1[b_idx]
-                    b_p2 = train_p2[b_idx]
-                    b_aux = train_aux[b_idx]
-
-                    optimizer.zero_grad()
-                    loss = self.calc_unified_loss(b_p1, b_p2, b_aux)
-                    loss.backward()
-
-                    if mi_approx == "SWAG":
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1)
-
-                    optimizer.step()
-                    epoch_losses.append(loss.item())
-                    it.set_postfix(loss=f"{loss.item():.4f}")
-
-                if mi_approx == "SWAG":
-                    if not is_swa_phase: scheduler.step()
-                    if is_swa_phase: self.swag_model.collect_model(self.model)
-
-                if len(val_rows) > 0 and (epoch + 1) % self.config["train"].get("val_interval", 100) == 0:
-                    v_p1 = self._global_p1[val_rows]
-                    v_p2 = self._global_p2[val_rows]
-                    v_aux = self._global_aux[val_rows]
-                    val_loss = self._validate(v_p1, v_p2, v_aux, batch_size)
-                    phase_str = "SWAG" if is_swa_phase else "Pre-train"
-                    print(f"   [Validation] Epoch {epoch + 1} | Val: {val_loss:.4f} | Phase: {phase_str}")
             self.model_list.append(self.model)
         return self
 
@@ -408,8 +426,16 @@ class TPVMI_RDDM:
 
         all_imputed_dfs = []
 
+        # Calculate total steps for the single progress bar
+        steps_per_imp = (N + eval_bs - 1) // eval_bs
+        total_steps = m_s * steps_per_imp
+
+        # Initialize single progress bar
+        pbar = tqdm(total=total_steps, desc="Imputation", file=sys.stdout)
+
         for samp_i in range(1, m_s + 1):
-            print(f"\nGenerating Sample {samp_i}/{m_s}...", flush=True)
+            # Update description to show current imputation set
+            pbar.set_description(f"Imputing Set {samp_i}/{m_s}")
 
             if self.config["else"]["mi_approx"] == "SWAG":
                 if self.swag_model is not None and self.swag_model.n_models.item() > 1:
@@ -430,7 +456,8 @@ class TPVMI_RDDM:
             all_p2 = []
 
             with torch.no_grad():
-                for start in tqdm(range(0, N, eval_bs)):
+                # Standard range loop instead of tqdm
+                for start in range(0, N, eval_bs):
                     end = min(start + eval_bs, N)
                     B = end - start
                     b_p1 = self._global_p1[start:end]
@@ -492,11 +519,13 @@ class TPVMI_RDDM:
                                 x_start_pred = x_start_pred.clamp(-5.0, 5.0)
                             elif self.task == "N":
                                 pred_eps = out[name]
-                                x_start_pred = (x_t - self.alpha_bars[t] * x_input - self.beta_bars[t] * pred_eps) / (1 - self.alpha_bars[t]).clamp(min=1e-5)
+                                x_start_pred = (x_t - self.alpha_bars[t] * x_input - self.beta_bars[t] * pred_eps) / (
+                                            1 - self.alpha_bars[t]).clamp(min=1e-5)
                                 x_start_pred = x_start_pred.clamp(-5.0, 5.0)
                                 pred_res = x_input - x_start_pred
 
-                            posterior_mean = self.posterior_mean_coef1[t] * x_t + self.posterior_mean_coef2[t] * pred_res + self.posterior_mean_coef3[t] * x_start_pred
+                            posterior_mean = self.posterior_mean_coef1[t] * x_t + self.posterior_mean_coef2[
+                                t] * pred_res + self.posterior_mean_coef3[t] * x_start_pred
                             noise = torch.randn_like(x_t) if t > 0 else 0
                             pred_x_t = posterior_mean + (0.5 * self.posterior_log_variance[t]).exp() * noise
                             x_t_dict[name] = pred_x_t
@@ -515,7 +544,6 @@ class TPVMI_RDDM:
                             b_prev = self.beta_bars[t - 1] if t > 0 else torch.tensor(0.0).to(self.device)
 
                             alpha_t = (1 - a_t) / (1 - a_prev + 1e-6)
-                            # Clamp to ensure validity (0, 1) due to potential float errors
                             alpha_t = torch.clamp(alpha_t, 0.0, 1.0)
                             noise_dist_weighted = torch.einsum('bk,kn->bn', pred_x0_probs, self.Q_dict[name])
                             proxy_mix_prev = (1 - b_prev) * curr_oh_p1 + b_prev * noise_dist_weighted
@@ -539,6 +567,9 @@ class TPVMI_RDDM:
                             batch_res.append(x_t_dict[var['name']])
                     all_p2.append(torch.cat(batch_res, dim=1).cpu())
 
+                    # Update global progress bar by 1 batch
+                    pbar.update(1)
+
             df_p2 = inverse_transform_data(torch.cat(all_p2, dim=0).numpy(), self.norm_stats, self.data_info)
             df_f = self.raw_df.copy()
 
@@ -548,6 +579,8 @@ class TPVMI_RDDM:
 
             df_f.insert(0, "imp_id", samp_i)
             all_imputed_dfs.append(df_f)
+
+        pbar.close()
 
         final_df = pd.concat(all_imputed_dfs, ignore_index=True)
         final_df['imp_id'] = final_df['imp_id'].astype(int)

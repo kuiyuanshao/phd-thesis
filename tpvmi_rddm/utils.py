@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 
-
 def process_data(filepath, data_info):
     df = pd.read_csv(filepath)
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
