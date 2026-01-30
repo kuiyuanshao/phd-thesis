@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from networks import RDDM_NET
+from networks_attn import RDDM_NET
 from utils import inverse_transform_data, process_data
 
 
@@ -183,16 +183,11 @@ class TPVMI_RDDM:
             rel_cat_idxs = self.cat_idxs.cpu().numpy()
             valid_p1_entries = proc_data[valid_rows][:, p1_idx[rel_cat_idxs]].astype(int)
             valid_p2_entries = proc_data[valid_rows][:, p2_idx[rel_cat_idxs]].astype(int)
-
             for i, var in enumerate(self.cat_vars):
                 name = var['name']
                 K = var['num_classes']
                 cm = confusion_matrix(valid_p2_entries[:, i], valid_p1_entries[:, i], labels=range(K))
-
-                class_counts = cm.sum(axis=1, keepdims=True) + 1e-6
-                cm_balanced = cm / class_counts
-
-                cm_smooth = cm_balanced + 0.01
+                cm_smooth = cm + 1
                 Q = cm_smooth / cm_smooth.sum(axis=1, keepdims=True)
                 self.Q_dict[name] = torch.tensor(Q, device=self.device).float()
 
@@ -206,53 +201,56 @@ class TPVMI_RDDM:
                 train_rows = valid_rows[current_rows_indices]
             else:
                 train_rows = valid_rows.copy()
-            cat_class_indices = {}
-            cat_vars_names = []
-            if len(self.cat_vars) > 0:
-                all_cat_vars_map = []
-                n_targets = len(p2_idx)
-                for i, var in enumerate(self.variable_schema):
-                    if 'categorical' in var['type']:
-                        if 'aux' in var['type']:
-                            if len(aux_idx) > 0:
-                                rel_idx = i - n_targets
-                                if 0 <= rel_idx < len(aux_idx):
-                                    all_cat_vars_map.append({'name': var['name'], 'global_col': aux_idx[rel_idx]})
+
+            if self.config["else"]["samp"] == "BLS":
+                cat_class_indices = {}
+                cat_vars_names = []
+                if len(self.cat_vars) > 0:
+                    all_cat_vars_map = []
+                    n_targets = len(p2_idx)
+                    for i, var in enumerate(self.variable_schema):
+                        if 'categorical' in var['type']:
+                            if 'aux' in var['type']:
+                                if len(aux_idx) > 0:
+                                    rel_idx = i - n_targets
+                                    if 0 <= rel_idx < len(aux_idx):
+                                        all_cat_vars_map.append({'name': var['name'], 'global_col': aux_idx[rel_idx]})
+                            else:
+                                all_cat_vars_map.append({'name': var['name'], 'global_col': p2_idx[i]})
+
+                    train_data_subset = proc_data[train_rows]
+                    severity_scores = []
+                    for var_info in all_cat_vars_map:
+                        col_idx = var_info['global_col']
+                        name = var_info['name']
+                        col_vals = train_data_subset[:, col_idx].astype(int)
+                        unique_labels, counts = np.unique(col_vals, return_counts=True)
+                        indices_map = {}
+                        for label in unique_labels:
+                            indices_map[label] = np.where(col_vals == label)[0]
+                        cat_class_indices[name] = indices_map
+
+                        N = len(col_vals)
+                        probs = counts / N
+                        entropy = -np.sum(probs * np.log(probs + 1e-9))
+                        K = len(unique_labels)
+                        if K > 1:
+                            max_entropy = np.log(K)
+                            severity = max_entropy - entropy
                         else:
-                            all_cat_vars_map.append({'name': var['name'], 'global_col': p2_idx[i]})
+                            severity = 0.0
+                        severity_scores.append(severity)
+                        cat_vars_names.append(name)
+                    severity_scores = np.array(severity_scores)
+                    severity_scores = np.power(severity_scores, 0.25)
+                    cat_sampling_probs = severity_scores / severity_scores.sum()
+                    if k == 0:
+                        print(f"[Sampler] Computed Imbalance Severity (KL-Div). Top imbalance:")
+                        sort_idx = np.argsort(cat_sampling_probs)[::-1]
+                        for i in range(min(3, len(sort_idx))):
+                            idx = sort_idx[i]
+                            print(f"  - {cat_vars_names[idx]}: P={cat_sampling_probs[idx]:.4f}")
 
-                train_data_subset = proc_data[train_rows]
-                severity_scores = []
-                for var_info in all_cat_vars_map:
-                    col_idx = var_info['global_col']
-                    name = var_info['name']
-                    col_vals = train_data_subset[:, col_idx].astype(int)
-                    unique_labels, counts = np.unique(col_vals, return_counts=True)
-                    indices_map = {}
-                    for label in unique_labels:
-                        indices_map[label] = np.where(col_vals == label)[0]
-                    cat_class_indices[name] = indices_map
-
-                    N = len(col_vals)
-                    probs = counts / N
-                    entropy = -np.sum(probs * np.log(probs + 1e-9))
-                    K = len(unique_labels)
-                    if K > 1:
-                        max_entropy = np.log(K)
-                        severity = max_entropy - entropy
-                    else:
-                        severity = 0.0
-                    severity_scores.append(severity)
-                    cat_vars_names.append(name)
-                severity_scores = np.array(severity_scores)
-                severity_scores = np.power(severity_scores, 0.25)
-                cat_sampling_probs = severity_scores / severity_scores.sum()
-                if k == 0:
-                    print(f"[Sampler] Computed Imbalance Severity (KL-Div). Top imbalance:")
-                    sort_idx = np.argsort(cat_sampling_probs)[::-1]
-                    for i in range(min(3, len(sort_idx))):
-                        idx = sort_idx[i]
-                        print(f"  - {cat_vars_names[idx]}: P={cat_sampling_probs[idx]:.4f}")
             self.model = RDDM_NET(self.config, self.device, self.variable_schema).to(self.device)
             self.model.train()
             if mi_approx == "SWAG":
@@ -265,25 +263,22 @@ class TPVMI_RDDM:
 
             pbar = tqdm(range(epochs), desc=f"Training M{k+1}", file=sys.stdout)
             for step in pbar:
-                current_balance_map = None
-                current_var_name = ""
-
-                if len(cat_class_indices) > 0:
-                    target_var_name = np.random.choice(cat_vars_names, p=cat_sampling_probs)
-                    current_balance_map = cat_class_indices[target_var_name]
-                    current_var_name = target_var_name
-
-                if current_balance_map is not None:
-                    classes = list(current_balance_map.keys())
-                    batch_classes = np.random.choice(classes, batch_size, replace=True)
-
-                    batch_indices_local = []
-                    for c in batch_classes:
-                        idx = np.random.choice(current_balance_map[c])
-                        batch_indices_local.append(idx)
-
-                    b_idx = train_rows[np.array(batch_indices_local)]
-                    np.random.shuffle(b_idx)
+                if self.config["else"]["samp"] == "BLS":
+                    current_balance_map = None
+                    current_var_name = ""
+                    if len(cat_class_indices) > 0:
+                        target_var_name = np.random.choice(cat_vars_names, p=cat_sampling_probs)
+                        current_balance_map = cat_class_indices[target_var_name]
+                        current_var_name = target_var_name
+                    if current_balance_map is not None:
+                        classes = list(current_balance_map.keys())
+                        batch_classes = np.random.choice(classes, batch_size, replace=True)
+                        batch_indices_local = []
+                        for c in batch_classes:
+                            idx = np.random.choice(current_balance_map[c])
+                            batch_indices_local.append(idx)
+                        b_idx = train_rows[np.array(batch_indices_local)]
+                        np.random.shuffle(b_idx)
                 else:
                     idx_sample = np.random.randint(0, len(train_rows), batch_size)
                     b_idx = train_rows[idx_sample]
@@ -302,9 +297,11 @@ class TPVMI_RDDM:
                 optimizer.step()
 
                 if step % 50 == 0:
-                    var_tag = f"Bal:{current_var_name}" if current_var_name else "Std"
-                    pbar.set_postfix(loss=f"{loss.item():.4f}", v=var_tag)
-
+                    if self.config["else"]["samp"] == "BLS":
+                        var_tag = f"Bal:{current_var_name}" if current_var_name else "Std"
+                        pbar.set_postfix(loss=f"{loss.item():.4f}", v=var_tag)
+                    else:
+                        pbar.set_postfix(loss=f"{loss.item():.4f}")
                 if mi_approx == "SWAG":
                     if step < swa_start_iter:
                         scheduler.step()

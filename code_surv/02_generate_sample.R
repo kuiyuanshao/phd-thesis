@@ -10,6 +10,8 @@ generateSample <- function(data, proportion, seed){
               "rs5015480", "rs9465871", "rs4506565", "rs5219", "rs358806",
               "HbA1c", "Creatinine", "eGFR", "WEIGHT", "HEIGHT", "BMI", 
               "SMOKE", "INCOME", "ALC", "EXER", "EDU", "SBP", "Triglyceride", 
+              "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE", 
+              "KCAL_INTAKE", "PROTEIN_INTAKE", "HYPERTENSION",
               "C", "EVENT", "T_I")
   # Simple Random Sampling
   srs_ind <- sample(nRow, n_phase2)
@@ -18,9 +20,9 @@ generateSample <- function(data, proportion, seed){
                   W = 1,
                   across(all_of(p2vars), ~ ifelse(R == 0, NA, .)))
   # Balanced Sampling
-  time_cut <- as.numeric(cut(data$T_I_STAR, breaks = c(-Inf, 10, 15, 25, Inf), 
+  time_cut <- as.numeric(cut(data$T_I_STAR, breaks = c(-Inf, 6, 12, 18, Inf), 
                              labels = 1:4))
-  hba1c_cut <- as.numeric(cut(data$HbA1c_STAR, breaks = c(-Inf, 50, 65, Inf), 
+  hba1c_cut <- as.numeric(cut(data$HbA1c_STAR, breaks = c(-Inf, 55, 70, Inf), 
                    labels = 1:3))
   strata <- interaction(data$EVENT_STAR, time_cut, hba1c_cut, drop = TRUE)
   data$STRATA <- strata

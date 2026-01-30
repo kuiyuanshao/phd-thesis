@@ -23,8 +23,9 @@ data_info_srs = {
         "rs10811661_STAR", "rs7756992_STAR", "rs11708067_STAR", "rs17036101_STAR",
         "rs17584499_STAR", "rs1111875_STAR", "rs4402960_STAR", "rs4607103_STAR",
         "rs7754840_STAR", "rs9300039_STAR", "rs5015480_STAR", "rs9465871_STAR",
-        "rs4506565_STAR", "rs5219_STAR", "rs358806_STAR", "SMOKE_STAR",
-        "INCOME_STAR", "ALC_STAR", "EXER_STAR", "R"
+        "rs4506565_STAR", "rs5219_STAR", "rs358806_STAR",
+        "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "HYPERTENSION_STAR",
+        "R"
     ],
     "num_vars": [
         "X", "ID", "AGE", "EDU", "HEIGHT", "BMI", "MED_Count",
@@ -38,7 +39,10 @@ data_info_srs = {
         "Temperature", "HR", "SpO2", "WEIGHT", "eGFR", "T_I", "C",
         "HbA1c_STAR", "Creatinine_STAR", "eGFR_STAR", "WEIGHT_STAR",
         "HEIGHT_STAR", "BMI_STAR", "EDU_STAR", "SBP_STAR",
-        "Triglyceride_STAR", "C_STAR", "T_I_STAR", "W"
+        "Triglyceride_STAR", "C_STAR", "T_I_STAR",
+        "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR",
+        "Na_INTAKE_STAR", "K_INTAKE_STAR", "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR",
+        "W"
     ],
     "phase2_vars": [
         "rs10811661", "rs7756992", "rs11708067",
@@ -48,6 +52,8 @@ data_info_srs = {
         "rs4506565", "rs5219", "rs358806",
         "HbA1c", "Creatinine", "eGFR", "WEIGHT", "HEIGHT", "BMI",
         "SMOKE", "INCOME", "ALC", "EXER", "EDU", "SBP", "Triglyceride",
+        "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE",
+        "KCAL_INTAKE", "PROTEIN_INTAKE", "HYPERTENSION",
         "C", "EVENT", "T_I"
     ],
     "phase1_vars": [
@@ -58,6 +64,8 @@ data_info_srs = {
         "rs4506565_STAR", "rs5219_STAR", "rs358806_STAR",
         "HbA1c_STAR", "Creatinine_STAR", "eGFR_STAR", "WEIGHT_STAR", "HEIGHT_STAR", "BMI_STAR",
         "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "EDU_STAR", "SBP_STAR", "Triglyceride_STAR",
+        "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR", "Na_INTAKE_STAR", "K_INTAKE_STAR",
+        "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR", "HYPERTENSION_STAR",
         "C_STAR", "EVENT_STAR", "T_I_STAR"
     ]
 }

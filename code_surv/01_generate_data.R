@@ -7,7 +7,7 @@ generateData <- function(n, seed){
   n <- n
   data <- data.frame(ID = as.character(1:n))
   # AGE: 18 ~ 90
-  data$AGE <- pmin(90, pmax(18, rnorm(n, 50, 15)))
+  data$AGE <- pmin(90, pmax(25, rnorm(n, 62, 10)))
   # SEX: 0 For 45% Female, 1 For 55% Male
   data$SEX <- as.logical(rbinom(n, 1, 0.55))
   # RACE: 50% EUR, 20% AFR, 10% EAS, 10% SAS, 10% AMR
@@ -72,13 +72,7 @@ generateData <- function(n, seed){
   for (i in c(29, (32:76)[!(32:76) %in% (56:59)])){
     data[, i] <- exp(data[, i]) - 1
   }
-  # HYPENTERSION
-  data$SBP <- pmin(pmax(data$SBP, 90), 200)
-  data$HYPERTENSION <- with(data, SBP >= 140)
-  data$Glucose <- data$Glucose + 10
-  data$F_Glucose <- data$F_Glucose + 6
-  data$HbA1c <- data$HbA1c + 40
-  # WEIGHT:
+  data <- scaleVariables(data)
   data$WEIGHT <- round(data$BMI * (data$HEIGHT / 100)^2, 3)
   calculate_eGFR <- function(creat, age, sex) {
     scr <- creat / 88.4 # convert to mg/dL
@@ -90,9 +84,7 @@ generateData <- function(n, seed){
     return(egfr)
   }
   data$eGFR <- calculate_eGFR(data$Creatinine, data$AGE, data$SEX)
-  
-  # Adding Measurement Errors:
-  # GENOTYPES:
+  # GENOTYPES Measurement Errors:
   GENO_M <- matrix(
     c(0.99, 0.005, 0.005,
       0.005, 0.99, 0.005,
@@ -107,67 +99,34 @@ generateData <- function(n, seed){
                                                                        size = 1, 
                                                                        prob = GENO_M[true_val, ])})
   }
-  
   # T_I: Time Interval between Treatment Initiation SGLT2 and T2D Diagnosis (Months)
-  # 1. SCALING 
-  # ----------------------------------------------------------------------------
-  A1c_sc <- (data$HbA1c - 50) / 15 
-  Age_sc <- (data$AGE - 60) / 15
-  eGFR_sc <- (data$eGFR - 60) / 20
-  BMI_sc <- (data$BMI - 30) / 5
-  geno_eff <- as.numeric(data$rs4506565) 
-  
-  # 2. PROPENSITY FOR ACUTE SWITCH
-  # Boosted coefficients to ensure clean separation and significance
-  prob_acute <- plogis(-5.5 +                
-                         0.6 * A1c_sc +        
-                         0.3 * BMI_sc +        
-                         0.3 * geno_eff +      
-                         0.6 * as.numeric(data$INSURANCE) +
-                         # RACE Effect: Asians/Blacks might have higher acute risk
-                         0.4 * as.numeric(data$RACE %in% c("AFR", "SAS")))
-  
-  is_acute <- (runif(n) < prob_acute)
-  
-  # 3. LINEAR PREDICTOR (Hazard Strength)
-  
-  # RACE Effect Vector
-  # EUR=0, AFR=0.3, AMR=0.1, SAS=0.4, EAS=0.2
-  race_eff <- case_when(
-    data$RACE == "AFR" ~ 0.4,
-    data$RACE == "SAS" ~ 0.5,
-    data$RACE == "EAS" ~ 0.3,
-    data$RACE == "AMR" ~ 0.2,
-    TRUE ~ 0.0
-  )
-  
-  eta_I <- (0.2 * A1c_sc + 0.6 * A1c_sc^2) +      # HbA1c: Quadratic
-    (0.5 * eGFR_sc) +                      # eGFR: Linear
-    (0.4 * BMI_sc) +                       # BMI: Linear
-    (-0.4 * A1c_sc * Age_sc) +             # Interaction
-    (0.5 * geno_eff) +                     # Genotype
-    (0.6 * as.numeric(data$SEX)) +         # Sex
-    (0.7 * as.numeric(data$SMOKE == 1)) +  # SMOKE (Current=1): Strong effect
-    race_eff                               # Race Effect
-  
-  # 4. TIME GENERATION
-  T_acute <- (12 * exp(-0.3 * eta_I)) * (-log(runif(n)))^(1/1.2)
-  
-  T_routine <- rlnorm(n, meanlog = log(26) - 0.2 * eta_I, sdlog = 0.5)
-  
-  T_I <- ifelse(is_acute, T_acute, T_routine)
-  
-  # 5. CENSORING & TRUE OBSERVED
-  # Weaker censoring to ensure we have enough events for significance
-  c_rate <- 0.02 * exp(-0.01 * (data$AGE - 60) + 0.05 * as.numeric(data$URBAN))
-  C <- pmin(rexp(n, c_rate), 48) 
-  
-  # TRUE OUTCOMES (For "True Model" Benchmark)
+  mm_T_I <- model.matrix(~ I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) + 
+                                I((HbA1c - 50) / 5):I((AGE - 50) / 5) + 
+                                rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) + 
+                                SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE, data = data)
+  betas_T_I <- log(c(1, 1.25, 1.1, 0.85, 1.02, 1.04, 1.05, 0.9,
+                     1.1, 1.2, 0.90, 0.90, 1, 0.9, 1.1, 0.85, 0.9))
+  eta_I <- as.vector(mm_T_I %*% betas_T_I)
+  k <- 2
+  lambda <- log(2) / (25 ^ k)
+  T_I <- (-log(runif(n)) / (lambda*exp(eta_I)))^(1/k)
+  scale_vec <- 10 * exp(0.05 * (data$AGE - 50) - 0.1 * as.numeric(data$URBAN))
+  C_drop <- rweibull(n, shape = 1.5, scale = scale_vec)
+  C <- pmin(C_drop, 24)
+  # True Event Time
   data$T_I <- pmin(T_I, C)
   data$C <- C
   data$EVENT <- as.integer(T_I <= C)
+  T_I_STAR_log <- (log(T_I) - 0.1 + 0.01 * ((data$AGE - 50)/15) - 
+                     0.02 * ((data$BMI - 30)/5) + rnorm(n, 0, 0.2)) / 0.95
+  T_I_STAR <- exp(T_I_STAR_log)
+  C_STAR_log <- (log(C_drop) + 0.05 * as.numeric(data$URBAN) + 
+                   rnorm(n, 0, 0.1)) / 0.98
+  C_STAR <- pmin(exp(C_STAR_log), 24)
+  data$C_STAR <- C_STAR
+  data$T_I_STAR <- pmin(T_I_STAR, C_STAR)
+  data$EVENT_STAR <- as.integer(T_I_STAR <= C_STAR)
   data <- add_measurement_errors(data)
-  
   cols_to_transform <- setdiff(data_info_srs$cat_vars, c("R", "EVENT", "EVENT_STAR"))
   data[cols_to_transform] <- lapply(data[cols_to_transform], as.character)
   
@@ -186,7 +145,7 @@ add_measurement_errors <- function(data) {
       }
     }
     val <- (val - rnorm(length(true_vec), mean = 0, sd = noise_sd)) / slope
-    return (pmax(min(true_vec), val))
+    return (pmax(0, val))
   }
   apply_cat_error <- function(true_vec, levels_vec, z_list = NULL, z_coeffs = NULL, base_accuracy = 0.80) {
     n_obs <- length(true_vec)
@@ -214,17 +173,17 @@ add_measurement_errors <- function(data) {
   
   data$HbA1c_STAR <- apply_linear_error(
     true_vec = data$HbA1c, 
-    slope = 1.02, 
-    intercept = 0.5, 
+    slope = 1.1, 
+    intercept = 1, 
     z_list = list(data$BMI - mean(data$BMI), 
                   mean(data$EDU) - data$EDU,
                   as.numeric(data$INSURANCE == F), 
                   data$MED_Count - mean(data$MED_Count)),
-    z_coeffs = c(0.02, 0.05, 0.3, -0.1), 
+    z_coeffs = c(0.25, 0.15, 0.3, -0.3), 
     noise_sd = sd(data$HbA1c, na.rm=TRUE) * 0.5)
   
   # eGFR: Recalculated from a very noisy Creatinine
-  data$Creatinine_STAR <- data$Creatinine + rnorm(n, 0, sd(data$Creatinine) * 0.20)
+  data$Creatinine_STAR <- data$Creatinine + rnorm(n, 0, sd(data$Creatinine) * 0.30)
   
   scr <- data$Creatinine_STAR / 88.4
   k <- ifelse(data$SEX, 0.9, 0.7); alpha <- ifelse(data$SEX, -0.411, -0.329)
@@ -234,35 +193,86 @@ add_measurement_errors <- function(data) {
   
   # BMI Components:
   data$WEIGHT_STAR <- apply_linear_error(data$WEIGHT, 
-                                         slope = 1.01, 
-                                         intercept = 1.5,
+                                         slope = 1.1, 
+                                         intercept = 5,
                                          z_list = list(data$BMI - mean(data$BMI), 
                                                        data$AGE - mean(data$AGE),
                                                        as.numeric(data$SEX == 2)),
-                                         z_coeffs = c(0.15, 0.05, 1.2), 
-                                         noise_sd = sd(data$WEIGHT) * 0.08)
+                                         z_coeffs = c(0.35, 0.1, 2), 
+                                         noise_sd = sd(data$WEIGHT) * 0.2)
   data$HEIGHT_STAR <- apply_linear_error(data$HEIGHT, 
-                                         slope = 0.99, 
-                                         intercept = -1.0, 
+                                         slope = 0.95, 
+                                         intercept = -3.0, 
                                          z_list = list(data$AGE - mean(data$AGE),
                                                        as.numeric(data$SEX == 1),
                                                        mean(data$EDU) - data$EDU),
-                                         z_coeffs = c(-0.05, -1.5, -0.2), 
-                                         noise_sd = sd(data$HEIGHT) * 0.04)
+                                         z_coeffs = c(-0.1, -2.5, -0.5), 
+                                         noise_sd = sd(data$HEIGHT) * 0.1)
   data$BMI_STAR <- data$WEIGHT_STAR / (data$HEIGHT_STAR / 100)^2
   
+  data$Glucose_STAR <- apply_linear_error(data$Glucose, 
+                                          slope = 1.0, 
+                                          intercept = -2.0, 
+                                          z_list = list(data$HbA1c - mean(data$HbA1c), 
+                                                        data$BMI - mean(data$BMI)), 
+                                          z_coeffs = c(-1.5, -0.5), 
+                                          noise_sd = sd(data$Glucose) * 0.15)
+  data$F_Glucose_STAR <- apply_linear_error(data$F_Glucose, 
+                                            slope = 0.98, 
+                                            intercept = -5.0, 
+                                            z_list = list(data$Insulin - mean(data$Insulin), 
+                                                          data$AGE - mean(data$AGE)), 
+                                            z_coeffs = c(-0.3, -0.1), 
+                                            noise_sd = sd(data$F_Glucose) * 0.10)
+  data$Insulin_STAR <- apply_linear_error(data$Insulin, 
+                                          slope = 1.05, 
+                                          intercept = 1.0, 
+                                          z_list = list(data$BMI - mean(data$BMI), 
+                                                        data$Glucose - mean(data$Glucose)), 
+                                          z_coeffs = c(0.4, 0.1), 
+                                          noise_sd = sd(data$Insulin) * 0.20)
+  
+  data$Na_INTAKE_STAR <- apply_linear_error(data$Na_INTAKE, 
+                                            slope = 1.1, 
+                                            intercept = 0.5, 
+                                            z_list = list(data$BMI - mean(data$BMI), 
+                                                          as.numeric(data$HYPERTENSION)), 
+                                            z_coeffs = c(0.05, 0.3), 
+                                            noise_sd = sd(data$Na_INTAKE) * 0.30)
+  
+  data$K_INTAKE_STAR <- apply_linear_error(data$K_INTAKE, 
+                                           slope = 1.0, 
+                                           intercept = 0.0, 
+                                           z_list = list(mean(data$EDU) - data$EDU), 
+                                           z_coeffs = c(0.05), 
+                                           noise_sd = sd(data$K_INTAKE) * 0.25)
+  
+  data$KCAL_INTAKE_STAR <- apply_linear_error(data$KCAL_INTAKE, 
+                                              slope = 1.15, 
+                                              intercept = 0.4, 
+                                              z_list = list(data$BMI - mean(data$BMI), 
+                                                            as.numeric(data$SEX == 2),
+                                                            data$AGE - mean(data$AGE)), 
+                                              z_coeffs = c(0.02, 0.15, 0.005), 
+                                              noise_sd = sd(data$KCAL_INTAKE) * 0.35)
+
+  data$PROTEIN_INTAKE_STAR <- apply_linear_error(data$PROTEIN_INTAKE, 
+                                                 slope = 1.05, 
+                                                 intercept = 1.0, 
+                                                 z_list = list(data$BMI - mean(data$BMI), 
+                                                               as.numeric(data$SEX == 2)), 
+                                                 z_coeffs = c(0.15, 0.5), 
+                                                 noise_sd = sd(data$PROTEIN_INTAKE) * 0.25)
   # ============================================================================
   # 2. NECESSARY CATEGORICAL CONTROLS & AUXILIARY Z
   # ============================================================================
-  
-  # SMOKE: Reduced base accuracy to 65% (Strong impact on Cox model)
   data$SMOKE_STAR <- apply_cat_error(data$SMOKE, 
                                      levels_vec = sort(unique(data$SMOKE)),
-                                     base_accuracy = 0.85, 
+                                     base_accuracy = 0.75, 
                                      z_list = list(data$AGE - mean(data$AGE), 
                                                    as.numeric(data$SEX == 1),
                                                    data$EDU - mean(data$EDU)), 
-                                     z_coeffs = c(0.3, -0.4, -0.2))
+                                     z_coeffs = c(0.5, -0.5, -0.5))
   data$INCOME_STAR <- apply_cat_error(data$INCOME, 
                                       levels_vec = sort(unique(data$INCOME)), 
                                       base_accuracy = 0.75, 
@@ -314,30 +324,147 @@ add_measurement_errors <- function(data) {
                                                              data$Glucose - mean(data$Glucose)), 
                                                z_coeffs = c(1.5, 3.0, 0.5), 
                                                noise_sd = sd(data$Triglyceride) * 0.25)
-  
-  # ============================================================================
-  # 3. SURVIVAL
-  # ============================================================================
-  # If Event=1, Latent_T is observed, Latent_C is > T_I
-  # If Event=0, Latent_C is observed, Latent_T is > T_I
-  random_gap <- rexp(nrow(data), rate = 1/mean(data$T_I))
-  Latent_T <- ifelse(data$EVENT == 1, data$T_I, data$T_I + random_gap)
-  Latent_C <- ifelse(data$EVENT == 0, data$T_I, data$T_I + random_gap)
-  error_T_linear <- 0.05 + 
-    0.01 * (data$AGE - mean(data$AGE)) + 
-    0.15 * data$INSURANCE == 0 +
-    rnorm(nrow(data), mean = 0, sd = 0.1)
-  Latent_T_STAR <- Latent_T * exp(error_T_linear)
-  error_C_linear <- -0.05 + 
-    0.02 * as.numeric(data$URBAN) - 
-    0.05 * (as.numeric(data$INCOME) - mean(as.numeric(data$INCOME))) +
-    rnorm(nrow(data), mean = 0, sd = 0.1)
-  Latent_C_STAR <- Latent_C * exp(error_C_linear)
-  data$C_STAR <- Latent_C_STAR
-  data$T_I_STAR <- pmin(Latent_T_STAR, Latent_C_STAR)
-  data$EVENT_STAR <- as.numeric(Latent_T_STAR <= Latent_C_STAR)
-  
   return(data)
+}
+
+scaleVariables <- function(data){
+  data$SBP <- scale(data$SBP) * 15 + 138
+  data$SBP <- pmin(pmax(data$SBP, 90), 190)
+  data$HYPERTENSION <- with(data, SBP >= 140)
+  
+  data$Temperature <- scale(data$Temperature) * 0.4 + 36.8
+  data$Temperature <- pmin(pmax(data$Temperature, 35.5), 39.0)
+  
+  data$HR <- scale(data$HR) * 12 + 76
+  data$HR <- pmin(pmax(data$HR, 45), 120)
+  
+  data$SpO2 <- scale(data$SpO2) * 1.5 + 97
+  data$SpO2 <- pmin(pmax(data$SpO2, 88), 100)
+  
+  data$Ferritin <- scale(data$Ferritin) * 100 + 150
+  data$Ferritin <- pmin(pmax(data$Ferritin, 10), 1000)
+  
+  data$F_Glucose <- scale(data$F_Glucose) * 2.5 + 9.5
+  data$F_Glucose <- pmax(data$F_Glucose, 4)
+  
+  data$Glucose <- scale(data$Glucose) * 3.5 + 11
+  data$Glucose <- pmax(data$Glucose, data$F_Glucose, 4.5)
+  
+  data$HbA1c <- scale(data$HbA1c) * 10 + 65
+  data$HbA1c <- pmax(data$HbA1c, 48)
+  
+  data$Insulin <- scale(data$Insulin) * 10 + 18 
+  data$Insulin <- pmax(data$Insulin, 2.0)
+  
+  data$Creatinine <- scale(data$Creatinine) * 25.0 + 88.0
+  data$Creatinine <- pmin(pmax(data$Creatinine, 45.0), 300.0)
+  
+  data$Urea <- scale(data$Urea) * 3.0 + 7.0
+  data$Urea <- pmax(data$Urea, 2.0)
+  
+  data$Potassium <- scale(data$Potassium) * 0.4 + 4.2
+  data$Potassium <- pmin(pmax(data$Potassium, 3.0), 6.5)
+  
+  data$Sodium <- scale(data$Sodium) * 3.0 + 139.0
+  data$Sodium <- pmin(pmax(data$Sodium, 125.0), 155.0)
+  
+  data$Chloride <- scale(data$Chloride) * 3.0 + 102.0
+  data$Chloride <- pmin(pmax(data$Chloride, 85.0), 120.0)
+  
+  data$Bicarbonate <- scale(data$Bicarbonate) * 2.5 + 25.0
+  data$Bicarbonate <- pmin(pmax(data$Bicarbonate, 15.0), 35.0)
+  
+  data$Calcium <- scale(data$Calcium) * 0.1 + 2.4
+  data$Calcium <- pmin(pmax(data$Calcium, 1.8), 3.0)
+  
+  data$Magnesium <- scale(data$Magnesium) * 0.1 + 0.8
+  data$Magnesium <- pmin(pmax(data$Magnesium, 0.4), 1.5)
+  
+  data$Phosphate <- scale(data$Phosphate) * 0.2 + 1.1
+  data$Phosphate <- pmin(pmax(data$Phosphate, 0.5), 2.5)
+  
+  data$Triglyceride <- scale(data$Triglyceride) * 1.0 + 2.1
+  data$Triglyceride <- pmax(data$Triglyceride, 0.5)
+  
+  data$HDL <- scale(data$HDL) * 0.3 + 1.1
+  data$HDL <- pmax(data$HDL, 0.5)
+  
+  data$LDL <- scale(data$LDL) * 0.8 + 2.8
+  data$LDL <- pmax(data$LDL, 1.0)
+  
+  data$Hb <- scale(data$Hb) * 15.0 + 135.0
+  data$Hb <- pmin(pmax(data$Hb, 80.0), 180.0)
+  
+  data$HCT <- scale(data$HCT) * 0.04 + 0.41
+  data$HCT <- pmin(pmax(data$HCT, 0.25), 0.55)
+  
+  data$RBC <- scale(data$RBC) * 0.5 + 4.8
+  data$RBC <- pmax(data$RBC, 3.0)
+  
+  data$WBC <- scale(data$WBC) * 2.0 + 7.5
+  data$WBC <- pmax(data$WBC, 2.0)
+  
+  data$Platelet <- scale(data$Platelet) * 60.0 + 250.0
+  data$Platelet <- pmax(data$Platelet, 50.0)
+  
+  data$MCV <- scale(data$MCV) * 5.0 + 90.0
+  data$MCV <- pmin(pmax(data$MCV, 60.0), 120.0)
+  
+  data$RDW <- scale(data$RDW) * 1.5 + 13.5
+  data$RDW <- pmax(data$RDW, 10.0)
+  
+  data$Neutrophils <- scale(data$Neutrophils) * 1.5 + 4.5
+  data$Neutrophils <- pmax(data$Neutrophils, 1.0)
+  
+  data$Lymphocytes <- scale(data$Lymphocytes) * 0.6 + 2.2
+  data$Lymphocytes <- pmax(data$Lymphocytes, 0.5)
+  
+  data$Monocytes <- scale(data$Monocytes) * 0.2 + 0.6
+  data$Monocytes <- pmax(data$Monocytes, 0.1)
+  
+  data$Eosinophils <- scale(data$Eosinophils) * 0.1 + 0.2
+  data$Eosinophils <- pmax(data$Eosinophils, 0.0)
+  
+  data$Basophils <- scale(data$Basophils) * 0.02 + 0.05
+  data$Basophils <- pmax(data$Basophils, 0.0)
+  
+  data$AST <- as.numeric(scale(data$AST)) * 18 + 32
+  data$AST <- pmin(pmax(data$AST, 10), 150)
+  
+  data$ALT <- as.numeric(scale(data$ALT)) * 22 + 38
+  data$ALT <- pmin(pmax(data$ALT, 10), 180)
+  
+  data$ALP <- as.numeric(scale(data$ALP)) * 25 + 85
+  data$ALP <- pmin(pmax(data$ALP, 30), 200)
+  
+  data$GGT <- as.numeric(scale(data$GGT)) * 40 + 55
+  data$GGT <- pmin(pmax(data$GGT, 10), 300)
+  
+  data$Bilirubin <- as.numeric(scale(data$Bilirubin)) * 6 + 12
+  data$Bilirubin <- pmin(pmax(data$Bilirubin, 3), 50)
+  
+  data$Albumin <- as.numeric(scale(data$Albumin)) * 4 + 42
+  data$Albumin <- pmin(pmax(data$Albumin, 25), 55)
+  
+  data$Globulin <- as.numeric(scale(data$Globulin)) * 4 + 28
+  data$Globulin <- pmin(pmax(data$Globulin, 15), 45)
+  
+  data$Protein <- as.numeric(scale(data$Protein)) * 5 + 70
+  data$Protein <- pmin(pmax(data$Protein, 50), 90)
+  
+  data$Na_INTAKE <- scale(data$Na_INTAKE) * 0.4 + 8.2
+  data$Na_INTAKE <- pmin(pmax(data$Na_INTAKE, 7.3), 9.2)
+  
+  data$K_INTAKE <- scale(data$K_INTAKE) * 0.3 + 7.9
+  data$K_INTAKE <- pmin(pmax(data$K_INTAKE, 6.9), 8.5)
+  
+  data$KCAL_INTAKE <- scale(data$KCAL_INTAKE) * 0.2 + 7.7
+  data$KCAL_INTAKE <- pmin(pmax(data$KCAL_INTAKE, 7.1), 8.3)
+  
+  data$PROTEIN_INTAKE <- scale(data$PROTEIN_INTAKE) * 0.25 + 4.45
+  data$PROTEIN_INTAKE <- pmin(pmax(data$PROTEIN_INTAKE, 3.7), 5.0)
+  
+  return (data)
 }
 
 loadGenotypeInfo <- function(){
@@ -1049,32 +1176,22 @@ for (i in 1:replicate){
 }
 
 
-data$HbA1c_c  <- (data$HbA1c - 50) / 15
-data$eGFR_c <- (data$eGFR - 60) / 20
-data$BMI_c <- (data$BMI - 30) / 5
-data$AGE_c <- (data$AGE - 60) / 15
-data$SMOKE <- as.character(data$SMOKE)
-data$HbA1c_STAR_c  <- (data$HbA1c_STAR - 50) / 15
-data$eGFR_STAR_c <- (data$eGFR_STAR - 60) / 20
-data$BMI_STAR_c <- (data$BMI_STAR - 30) / 5
-data$SMOKE_STAR <- as.character(data$SMOKE_STAR)
-
-fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                    poly(HbA1c_STAR_c, 2, raw = TRUE) + eGFR_STAR_c + BMI_STAR_c +
-                    rs4506565_STAR + AGE_c + SEX +
-                    INSURANCE + RACE + SMOKE_STAR +
-                    HbA1c_STAR_c:AGE_c,
-                  data = data)
-fit.TRUE <- coxph(Surv(T_I, EVENT) ~
-                    poly(HbA1c_c, 2, raw = TRUE) + eGFR_c + BMI_c +
-                    rs4506565 + AGE_c + SEX +
-                    INSURANCE + RACE + SMOKE +
-                    HbA1c_c:AGE_c,
-                  data = data)
-exp(coef(fit.TRUE)) - exp(coef(fit.STAR))
-ggplot(data) + 
-  geom_point(aes(x = T_I, y = T_I_STAR))
-ggplot(data) +
-  geom_point(aes(x = HbA1c, y = HbA1c_STAR)) +
-  geom_abline()
+# fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
+#                     I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
+#                     I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
+#                     rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
+#                     SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE_STAR,
+#                   data = data)
+# fit.TRUE <- coxph(Surv(T_I, EVENT) ~
+#                     I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+#                     I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+#                     rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+#                     SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+#                   data = data)
+# exp(coef(fit.TRUE)) - exp(coef(fit.STAR))
+# ggplot(data) +
+#   geom_point(aes(x = T_I, y = T_I_STAR))
+# ggplot(data) +
+#   geom_point(aes(x = HbA1c, y = HbA1c_STAR)) +
+#   geom_abline()
 

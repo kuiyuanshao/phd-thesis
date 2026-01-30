@@ -22,11 +22,12 @@ model:
   channels: 64
   nheads: 4
   layers: 3
-  dropout: 0.25
+  dropout: 0.2
 # ==========================================
 # Testing / Imputation
 # ==========================================
 else:
+  samp: "BLS"
   task: "Res-N"
   m: 5
   mi_approx: "None" # switching between "SWAG", "CRC, "dropout", "bootstrap", "None"
