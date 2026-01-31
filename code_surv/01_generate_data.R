@@ -145,7 +145,7 @@ add_measurement_errors <- function(data) {
       }
     }
     val <- (val + rnorm(length(true_vec), mean = 0, sd = noise_sd)) / slope
-    return (pmax(0, val))
+    return (val)
   }
   apply_cat_error <- function(true_vec, levels_vec, z_list = NULL, z_coeffs = NULL, base_accuracy = 0.80) {
     n_obs <- length(true_vec)
@@ -165,26 +165,21 @@ add_measurement_errors <- function(data) {
     }
     return(res)
   }
-  
-  # ============================================================================
-  # 1. PRIMARY PREDICTORS 
-  # ============================================================================
-  # HbA1c_STAR ~  (HbA1c - alpha_0 - alphas * [URBAN, AGE, RACE, BMI, INSURANCE] + U) / alpha_1
-
+  # HbA1c_STAR ~
   data$HbA1c_STAR <- apply_linear_error(
     true_vec = data$HbA1c, 
-    slope = 1.05, 
-    intercept = 1, 
+    slope = 1.1, 
+    intercept = 15, 
     z_list = list(data$SEX, data$BMI - mean(data$BMI), 
                   mean(data$EDU) - data$EDU,
                   as.numeric(data$INSURANCE == F), 
                   data$MED_Count - mean(data$MED_Count),
                   as.numeric(data$RACE %in% c("SAS", "AMR"))),
-    z_coeffs = c(0.1, 0.2, 0.15, 0.2, -0.2, -0.2), 
-    noise_sd = sd(data$HbA1c, na.rm=TRUE) * 0.75)
+    z_coeffs = c(0.1, 0.1, 0.15, 0.1, -0.2, -0.2), 
+    noise_sd = sd(data$HbA1c, na.rm=TRUE) * 0.8)
   
   # eGFR: Recalculated from a very noisy Creatinine
-  data$Creatinine_STAR <- data$Creatinine + rnorm(n, 0, sd(data$Creatinine) * 0.80)
+  data$Creatinine_STAR <- data$Creatinine + rnorm(n, 0, sd(data$Creatinine) * 0.2)
   
   scr <- data$Creatinine_STAR / 88.4
   k <- ifelse(data$SEX, 0.9, 0.7); alpha <- ifelse(data$SEX, -0.411, -0.329)
@@ -1161,7 +1156,7 @@ if (file.exists("./data/data_generation_seed.RData")){
   save(seed, file = "./data/data_generation_seed.RData")
 }
 
-for (i in 1:replicate){
+for (i in 1:1){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   data <- suppressMessages({generateData(n, seed[i])})
@@ -1173,7 +1168,7 @@ fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
                     I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
                     I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
                     rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
-                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE_STAR,
+                    SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
                   data = data)
 fit.TRUE <- coxph(Surv(T_I, EVENT) ~
                     I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
