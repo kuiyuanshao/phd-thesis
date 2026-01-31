@@ -8,7 +8,7 @@ generateSample <- function(data, proportion, seed){
   p2vars <- c("rs10811661", "rs7756992", "rs11708067", "rs17036101", "rs17584499", 
               "rs1111875", "rs4402960", "rs4607103", "rs7754840", "rs9300039", 
               "rs5015480", "rs9465871", "rs4506565", "rs5219", "rs358806",
-              "HbA1c", "Creatinine", "eGFR", "WEIGHT", "HEIGHT", "BMI", 
+              "HbA1c", "Creatinine", "eGFR", "WEIGHT", "BMI", 
               "SMOKE", "INCOME", "ALC", "EXER", "EDU", "SBP", "Triglyceride", 
               "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE", 
               "KCAL_INTAKE", "PROTEIN_INTAKE", "HYPERTENSION",
@@ -51,20 +51,14 @@ generateSample <- function(data, proportion, seed){
                   across(all_of(p2vars), ~ ifelse(R == 0, NA, .)))
   # Stratified Sampling with Neyman Allocation
   ### Getting Influence Function by auxiliary variables
-  copy <- data
-  copy$HbA1c_STAR_c  <- (copy$HbA1c_STAR - 50) / 15
-  copy$eGFR_STAR_c <- (copy$eGFR_STAR - 60) / 20
-  copy$BMI_STAR_c <- (copy$BMI_STAR - 30) / 5
-  copy$SMOKE_STAR <- copy$SMOKE_STAR
-  copy$AGE_c <- (copy$AGE - 60) / 15
 
   mod.aux <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                      poly(HbA1c_STAR_c, 2, raw = TRUE) + eGFR_STAR_c + BMI_STAR_c +
-                      rs4506565_STAR + AGE_c + SEX +
-                      INSURANCE + RACE + SMOKE_STAR +
-                      HbA1c_STAR_c:AGE_c,
-                    data = copy, y = T, x = T)
-  inf <- residuals(mod.aux, type = "dfbeta")[, 2]
+                     I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
+                     I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
+                     rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
+                     SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
+                   data = data, x = T, y = T)
+  inf <- residuals(mod.aux, type = "dfbeta")[, 1]
   data$inf <- inf
   neyman_alloc <- exactAllocation(data, stratum_variable = "STRATA", 
                                   target_variable = "inf", 

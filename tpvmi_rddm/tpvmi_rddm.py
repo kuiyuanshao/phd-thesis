@@ -359,12 +359,10 @@ class TPVMI_RDDM:
                 K = var['num_classes']
                 oh_p1 = F.one_hot(batch_p1_cat[:, i], K).float()
                 oh_p2 = F.one_hot(batch_p2_cat[:, i], K).float()
-
                 p1_indices = batch_p1_cat[:, i]  # B
                 noise_dist = self.Q_dict[name][p1_indices]
                 proxy_mix = (1 - b_bar) * oh_p1 + b_bar * noise_dist
-
-                pi_t = (1 - a_bar) * oh_p2 + a_bar * proxy_mix
+                pi_t = oh_p2 + a_bar * (proxy_mix - oh_p2)
                 x_t_indices = torch.multinomial(pi_t, 1).squeeze(-1)
                 x_t_dict[name] = F.one_hot(x_t_indices, K).float()
                 p1_dict[name] = oh_p1
@@ -572,7 +570,7 @@ class TPVMI_RDDM:
 
             for c in df_p2.columns:
                 if c in df_f.columns:
-                    df_f[c] = df_f[c].fillna(df_p2[c])
+                    df_f[c] = df_p2[c]#df_f[c].fillna(df_p2[c])
 
             df_f.insert(0, "imp_id", samp_i)
             all_imputed_dfs.append(df_f)

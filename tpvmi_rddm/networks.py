@@ -9,11 +9,12 @@ class DiffusionEmbedding(nn.Module):
         self.register_buffer("embedding", self._build_embedding(num_steps, embedding_dim // 2), persistent=False)
         self.projection1 = nn.Linear(embedding_dim, embedding_dim)
         self.projection2 = nn.Linear(embedding_dim, embedding_dim)
+        self.input_dropout = nn.Dropout(dropout_rate / 2)
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, diffusion_step):
         x = self.embedding[diffusion_step]
-        return F.silu(self.projection2(self.dropout(F.silu(self.projection1(self.dropout(x))))))
+        return F.silu(self.projection2(self.dropout(F.silu(self.projection1(self.input_dropout(x))))))
 
     def _build_embedding(self, num_steps, dim=64):
         steps = torch.arange(num_steps).unsqueeze(1)
@@ -66,6 +67,7 @@ class RDDM_NET(nn.Module):
         self.diffusion_embedding = DiffusionEmbedding(self.num_steps, self.time_emb_dim, self.dropout_rate)
 
         self.project_in = nn.Linear(self.input_dim + self.time_emb_dim, self.hidden_dim)
+        self.input_dropout = nn.Dropout(self.dropout_rate)
         self.dropout = nn.Dropout(self.dropout_rate)
 
         self.blocks = nn.ModuleList()
@@ -111,7 +113,7 @@ class RDDM_NET(nn.Module):
             flat_list.append(aux_dict[var['name']])
         t_emb = self.diffusion_embedding(t)  # (Batch, time_emb_dim)
         x = torch.cat(flat_list + [t_emb], dim=1)
-        x = self.dropout(self.project_in(self.dropout(x)))
+        x = self.input_dropout(self.project_in(self.input_dropout(x)))
         for block in self.blocks:
             x = block(x)
         x = self.final_activation(self.final_norm(x))

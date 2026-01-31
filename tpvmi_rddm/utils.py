@@ -78,13 +78,9 @@ def process_data(filepath, data_info):
             # We use all available observed points from both columns
             valid_p1_log = v1_log[m1 == 1]
             valid_p2_log = v2_log[m2 == 1]
-            combined_points = np.concatenate([valid_p1_log, valid_p2_log])
 
-            if len(combined_points) > 0:
-                mu, sigma = np.mean(combined_points), np.std(combined_points)
-                if sigma < 1e-6: sigma = 1.0
-            else:
-                mu, sigma = 0.0, 1.0
+            mu, sigma = np.mean(valid_p2_log), np.std(valid_p2_log)
+            if sigma < 1e-6: sigma = 1.0
 
             # Standardize both using the combined stats
             d1 = (v1_log - mu) / sigma

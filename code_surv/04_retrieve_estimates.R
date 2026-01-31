@@ -159,16 +159,23 @@ combine <- function(){
 
 combine()
 
-i <- 4
+i <- 1
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
+samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
 cox.fit <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                  data = data)
+cox.samp <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+                 data = match_types(samp, data))
 multi_impset <- read_parquet(paste0("./simulations/SRS/tpvmi_rddm/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
@@ -181,9 +188,10 @@ cox.mod <- with(data = imp.mids,
                               I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                               I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+                             SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
-print(as.vector(exp(coef(cox.fit)) - exp(pooled$coefficients)))
+print(as.vector(exp(coef(cox.fit)) - exp(cox.mod$coefficients)))
+print(as.vector(exp(coef(cox.samp)) - exp(pooled$coefficients)))
 
 samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
 compare_variances(data, multi_impset, 
@@ -191,6 +199,34 @@ compare_variances(data, multi_impset,
                   categorical_vars = data_info_srs$cat_vars)
 
 table(data$EVENT, multi_impset[[1]]$EVENT)
+
+library(mice)
+library(mitools)
+samp_srs <- match_types(samp_srs, data)
+mice_imp <- mice(samp_srs, m = 1, print = T, maxit = 50,
+       maxcor = 1.0001, ls.meth = "ridge", ridge = 0.05,
+       predictorMatrix = quickpred(samp_srs, mincor = 0.15))
+multi_impset <- mice::complete(mice_imp, "all")
+multi_impset <- lapply(multi_impset, function(dat){
+  match_types(dat, data)
+})
+imp.mids <- imputationList(multi_impset)
+cox.mod <- with(data = imp.mids, 
+                exp = coxph(Surv(T_I, EVENT) ~
+                              I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                              I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                              rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+pooled <- MIcombine(cox.mod)
+cox.fit <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+                 data = data)
+print(as.vector(exp(coef(cox.fit)) - exp(pooled$coefficients)))
+
+
 
 library(ggplot2)
 
@@ -239,4 +275,5 @@ ggplot() +
 mean((multi_impset[[1]]$HbA1c - data$HbA1c_STAR)^2)
 mean((data$HbA1c_STAR - data$HbA1c)^2)
 mean((multi_impset[[1]]$HbA1c - data$HbA1c)^2)
+
  
