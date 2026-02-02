@@ -218,7 +218,6 @@ cox.mod <- with(data = imp.mids,
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
-mean((coef(cox.fit) - pooled$coefficients)^2 / sd((coef(cox.fit) - pooled$coefficients)^2))
 exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 library(ggplot2)

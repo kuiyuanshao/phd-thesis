@@ -57,7 +57,7 @@ samp_ney <- samp_ney %>%
 search_space = ps(
   lr_d       = p_dbl(lower = 1e-5, upper = 5e-4),
   g_d_ratio  = p_dbl(lower = 0.2, upper = 1),
-  pac        = p_int(lower = 1, upper = 100),
+  pac        = p_int(lower = 2, upper = 50),
   common_width = p_int(lower = 128, upper = 512),
   common_depth = p_int(lower = 2, upper = 4),
   weight_decay = p_dbl(lower = 1e-6, upper = 1e-3)
