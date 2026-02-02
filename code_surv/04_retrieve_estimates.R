@@ -159,7 +159,7 @@ combine <- function(){
 
 combine()
 
-i <- 1
+i <- 3
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
@@ -170,12 +170,6 @@ cox.fit <- coxph(Surv(T_I, EVENT) ~
                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                  data = data)
-cox.samp <- coxph(Surv(T_I, EVENT) ~
-                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-                 data = match_types(samp, data))
 multi_impset <- read_parquet(paste0("./simulations/SRS/tpvmi_rddm/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
@@ -190,22 +184,23 @@ cox.mod <- with(data = imp.mids,
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
-print(as.vector(exp(coef(cox.fit)) - exp(cox.mod$coefficients)))
-print(as.vector(exp(coef(cox.samp)) - exp(pooled$coefficients)))
+exp(coef(cox.fit)) - exp(pooled$coefficients)
 
-samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
-compare_variances(data, multi_impset, 
-                  target_vars = data_info_srs$phase2_vars,
-                  categorical_vars = data_info_srs$cat_vars)
-
-table(data$EVENT, multi_impset[[1]]$EVENT)
 
 library(mice)
 library(mitools)
-samp_srs <- match_types(samp_srs, data)
-mice_imp <- mice(samp_srs, m = 1, print = T, maxit = 50,
-       maxcor = 1.0001, ls.meth = "ridge", ridge = 0.05,
-       predictorMatrix = quickpred(samp_srs, mincor = 0.15))
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+                 data = data)
+samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
+samp <- match_types(samp, data)
+mice_imp <- mice(samp, m = 5, print = T, maxit = 25,
+       maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
+       predictorMatrix = quickpred(samp, mincor = 0.35))
 multi_impset <- mice::complete(mice_imp, "all")
 multi_impset <- lapply(multi_impset, function(dat){
   match_types(dat, data)
@@ -218,13 +213,7 @@ cox.mod <- with(data = imp.mids,
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
-cox.fit <- coxph(Surv(T_I, EVENT) ~
-                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-                 data = data)
-print(as.vector(exp(coef(cox.fit)) - exp(pooled$coefficients)))
+exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 
 
@@ -235,12 +224,6 @@ ggplot(data %>% filter(EVENT == 1)) +
   geom_density(aes(x = HbA1c_STAR), colour = "black") +
   geom_density(data = multi_impset[[1]] %>% filter(EVENT == 1), 
                aes(x = HbA1c), colour = "blue")
-
-ggplot(data %>% filter(EVENT == 1)) + 
-  geom_density(aes(x = log(T_I)), colour = "red") +
-  geom_density(aes(x = log(T_I_STAR)), colour = "black") +
-  geom_density(data = multi_impset[[1]] %>% filter(EVENT == 1), 
-               aes(x = log(T_I)), colour = "blue")
 
 ggplot(data) + 
   geom_density(aes(x = T_I), colour = "red") +
@@ -262,18 +245,5 @@ ggplot(data) +
   geom_density(aes(x = BMI_STAR), colour = "black") +
   geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
 
-
-ggplot() + 
-  geom_point(aes(x = multi_impset[[1]]$T_I, y = data$T_I)) + 
-  geom_abline()
-
-ggplot() + 
-  geom_point(aes(x = multi_impset[[1]]$HbA1c, y = data$HbA1c)) + 
-  geom_abline()
-
-
-mean((multi_impset[[1]]$HbA1c - data$HbA1c_STAR)^2)
-mean((data$HbA1c_STAR - data$HbA1c)^2)
-mean((multi_impset[[1]]$HbA1c - data$HbA1c)^2)
 
  

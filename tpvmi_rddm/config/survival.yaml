@@ -2,34 +2,35 @@
 # Training Hyperparameters
 # ==========================================
 train:
-  epochs: 5000
-  batch_size: 64
+  epochs: 1
+  batch_size: 128
   eval_batch_size: 1024
   lr: 0.0002 # 0.01 would be a good start for SGD
+  weight_decay: 0.00001 # only used for Adam
 # ==========================================
 # Diffusion Model Architecture & Schedule
 # ==========================================
 diffusion:
   diffusion_embedding_dim: 128
-  num_steps: 50
-  sum_scale: 0.2
+  num_steps: 25
+  sum_scale: 0.5
 # ==========================================
 # Model Feature Embeddings
 # ==========================================
 model:
   net: "Dense"
   featureemb: 64
-  channels: 64
-  nheads: 4
+  channels: 512
+  nheads: 8
   layers: 3
   dropout: 0.25
 # ==========================================
 # Testing / Imputation
 # ==========================================
 else:
-  samp: "BLS"
+  samp: "SRS"
   task: "Res-N"
-  m: 1
+  m: 20
   mi_approx: "dropout"    # switching between "SWAG", "dropout", "bootstrap", "None"
                        # "SWAG" is very unstable due to SGD optimizer
                        # "dropout" may lose some uncertainty

@@ -29,13 +29,13 @@ cat("Task", task_id,
 
 ## ---------- helper: run & save one mice call ----------------
 do_mice <- function(dat, nm, digit) {
-  mincor <- 0.15
+  mincor <- 0.35
   repeat {
     cat(sprintf("      trying mincor = %.2f\n", mincor))
     tm <- system.time({
       mice_imp <- tryCatch(
-        mice(dat, m = 20, print = T, maxit = 50,
-             maxcor = 1.0001, ls.meth = "ridge", ridge = 0.05,
+        mice(dat, m = 20, print = T, maxit = 25,
+             maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
              predictorMatrix = quickpred(dat, mincor = mincor)),
         error = identity
       )
@@ -54,13 +54,6 @@ do_mice <- function(dat, nm, digit) {
     mincor <- mincor + 0.05
   }
 }
-
-# mice_imp <- mice(dat, m = 20, print = T, maxit = 50,
-#                  maxcor = 1.0001, ls.meth = "ridge", ridge = 0.05,
-#                  predictorMatrix = quickpred(dat, mincor = 0.15))
-# save(mice_imp, file = file.path("./simulations", nm, "mice",
-#                                 paste0(digit, ".RData")))
-
 
 ## ---------- main loop ---------------------------------------
 for (i in first_rep:last_rep) {

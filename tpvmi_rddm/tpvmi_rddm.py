@@ -13,7 +13,7 @@ from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from networks import RDDM_NET
+from networks_attn import RDDM_NET
 from utils import inverse_transform_data, process_data
 
 
@@ -149,7 +149,7 @@ class TPVMI_RDDM:
         self.num_idxs = torch.tensor(num_indices_list, device=self.device).long()
         self.cat_idxs = torch.tensor(cat_indices_list, device=self.device).long()
 
-    def fit(self, file_path):
+    def fit(self, file_path, train_indices = None, val_indices=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         lr = self.config["train"]["lr"]
         epochs = self.config["train"]["epochs"]
@@ -166,6 +166,8 @@ class TPVMI_RDDM:
         valid_rows = np.where(p2_mask.mean(axis=1) > 0.5)[0]
 
         print(f"[Fit] Global Valid Rows: {len(valid_rows)}")
+        if train_indices is not None:
+            print(f"[Fit] OVERRIDE: Using provided training subset (N={len(train_indices)})")
 
         self._global_p1 = torch.from_numpy(proc_data[:, p1_idx]).float().to(self.device)
         self._global_p2 = torch.from_numpy(proc_data[:, p2_idx]).float().to(self.device)
@@ -195,12 +197,21 @@ class TPVMI_RDDM:
 
         for k in range(num_train_mods):
             print(f"\n[TPVMI-RDDM] Training Model {k + 1}/{num_train_mods}...")
-            rng = np.random.default_rng()
-            if mi_approx == "bootstrap":
-                current_rows_indices = rng.choice(np.arange(len(valid_rows)), size=len(valid_rows), replace=True)
-                train_rows = valid_rows[current_rows_indices]
+            if train_indices is not None:
+                train_rows = train_indices
             else:
-                train_rows = valid_rows.copy()
+                rng = np.random.default_rng()
+                if mi_approx == "bootstrap":
+                    current_rows_indices = rng.choice(np.arange(len(valid_rows)), size=len(valid_rows), replace=True)
+                    train_rows = valid_rows[current_rows_indices]
+                else:
+                    train_rows = valid_rows.copy()
+
+            if val_indices is not None:
+                self.best_epoch_ = 0
+                val_p1 = self._global_p1[val_indices]
+                val_p2 = self._global_p2[val_indices]
+                val_aux = self._global_aux[val_indices]
 
             if self.config["else"]["samp"] == "BLS":
                 cat_class_indices = {}
@@ -259,7 +270,13 @@ class TPVMI_RDDM:
                 scheduler = CosineAnnealingLR(optimizer, T_max=swa_start_iter, eta_min=lr * 0.5)
                 self.swag_model = FullSWAG(self.model, max_num_models=int(self.config["else"]["m"] * 5)).to(self.device)
             else:
-                optimizer = Adam(self.model.parameters(), lr=lr)
+                optimizer = Adam(self.model.parameters(), lr=lr, weight_decay=self.config["train"]["weight_decay"])
+
+            # --- Early Stopping Variables ---
+            best_val_loss = float('inf')
+            patience_counter = 0
+            patience_limit = 20  # Stop after 10 checks (20 * 50 = 1000 epochs) without improvement
+            best_model_state = None
 
             pbar = tqdm(range(epochs), desc=f"Training M{k+1}", file=sys.stdout)
             for step in pbar:
@@ -293,15 +310,32 @@ class TPVMI_RDDM:
 
                 if mi_approx == "SWAG":
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-
                 optimizer.step()
 
                 if step % 50 == 0:
-                    if self.config["else"]["samp"] == "BLS":
-                        var_tag = f"Bal:{current_var_name}" if current_var_name else "Std"
-                        pbar.set_postfix(loss=f"{loss.item():.4f}", v=var_tag)
+                    status_str = f"L:{loss.item():.4f}"
+                    if val_indices is not None:
+                        current_val_loss = self._validate(val_p1, val_p2, val_aux, bs=1024)
+                        status_str += f" | Val:{current_val_loss:.4f}"
+                        if current_val_loss < best_val_loss:
+                            best_val_loss = current_val_loss
+                            current_model_best_epoch = step
+                            best_model_state = copy.deepcopy(self.model.state_dict())
+                            patience_counter = 0
+                        else:
+                            patience_counter += 1
+                        if patience_counter >= patience_limit:
+                            print(f"\n[Early Stopping] No improvement for {patience_limit * 50} epochs. Stopping.")
+                            if best_model_state is not None:
+                                self.model.load_state_dict(best_model_state)
+                            break
                     else:
-                        pbar.set_postfix(loss=f"{loss.item():.4f}")
+                        if self.config["else"]["samp"] == "BLS":
+                            var_tag = f"Bal:{current_var_name}" if current_var_name else "Std"
+                            pbar.set_postfix(loss=f"{loss.item():.4f}", v=var_tag)
+
+                    pbar.set_postfix_str(status_str)
+
                 if mi_approx == "SWAG":
                     if step < swa_start_iter:
                         scheduler.step()
@@ -309,7 +343,8 @@ class TPVMI_RDDM:
                         for param_group in optimizer.param_groups: param_group['lr'] = lr * 0.5
                         if (step - swa_start_iter) % 50 == 0:
                             self.swag_model.collect_model(self.model)
-
+            if val_indices is not None:
+                self.best_epoch_ = current_model_best_epoch
             self.model_list.append(self.model)
         return self
 
@@ -366,7 +401,6 @@ class TPVMI_RDDM:
                 x_t_indices = torch.multinomial(pi_t, 1).squeeze(-1)
                 x_t_dict[name] = F.one_hot(x_t_indices, K).float()
                 p1_dict[name] = oh_p1
-
                 target_cat_list.append(batch_p2_cat[:, i])
 
         if aux.shape[1] > 0:
@@ -570,7 +604,7 @@ class TPVMI_RDDM:
 
             for c in df_p2.columns:
                 if c in df_f.columns:
-                    df_f[c] = df_p2[c]#df_f[c].fillna(df_p2[c])
+                    df_f[c] = df_f[c].fillna(df_p2[c])
 
             df_f.insert(0, "imp_id", samp_i)
             all_imputed_dfs.append(df_f)

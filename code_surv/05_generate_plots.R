@@ -1,4 +1,4 @@
-lapply(c("ggplot2", "dplyr", "tidyr", "RColorBrewer", "ggh4x", "extrafont"), require, character.only = T)
+lapply(c("ggplot2", "dplyr", "tidyr", "RColorBrewer", "ggh4x", "extrafont", "patchwork"), require, character.only = T)
 source("00_utils_functions.R")
 # font_import()
 # loadfonts(device="win") 
@@ -139,13 +139,7 @@ ggplot(CIcoverage_long) +
   geom_hline(aes(yintercept = 0.95), lty = 2) + 
   facet_wrap(~ Covariate, scales = "free") + 
   theme_minimal() + 
-  theme(axis.title.x = element_text(family = "Times New Roman"),
-        axis.title.y = element_text(family = "Times New Roman"),
-        axis.text.x = element_text(family = "Times New Roman"),
-        axis.text.y = element_text(family = "Times New Roman"),
-        legend.title = element_text(family = "Times New Roman"),
-        legend.text = element_text(family = "Times New Roman"),
-        strip.text = element_text(family = "Times New Roman")) + 
+  theme(text = element_text(family = "Times New Roman")) + 
   scale_fill_manual(
     values = c("SRS" = "red", "BALANCE" = "green", "NEYMAN" = "blue", "NA" = "black"),
     breaks = c("SRS", "BALANCE", "NEYMAN")) +
@@ -158,13 +152,7 @@ ggplot(rmse_result_long) +
                fill = `Sampling Design`), position = "dodge") + 
   facet_wrap(~ Covariate, scales = "free") + 
   theme_minimal() + 
-  theme(axis.title.x = element_text(family = "Times New Roman"),
-        axis.title.y = element_text(family = "Times New Roman"),
-        axis.text.x = element_text(family = "Times New Roman"),
-        axis.text.y = element_text(family = "Times New Roman"),
-        legend.title = element_text(family = "Times New Roman"),
-        legend.text = element_text(family = "Times New Roman"),
-        strip.text = element_text(family = "Times New Roman")) + 
+  theme(text = element_text(family = "Times New Roman")) + 
   scale_fill_manual(
     values = c("SRS" = "red", "BALANCE" = "green", "NEYMAN" = "blue", "NA" = "black"),
     breaks = c("SRS", "BALANCE", "NEYMAN"))
@@ -180,13 +168,7 @@ ggplot(combined_resultCoeff_long) +
   geom_hline(data = means.coef, aes(yintercept = mean), lty = 2) + 
   facet_wrap(~ Covariate, scales = "free") + 
   theme_minimal() + 
-  theme(axis.title.x = element_text(family = "Times New Roman"),
-        axis.title.y = element_text(family = "Times New Roman"),
-        axis.text.x = element_text(family = "Times New Roman"),
-        axis.text.y = element_text(family = "Times New Roman"),
-        legend.title = element_text(family = "Times New Roman"),
-        legend.text = element_text(family = "Times New Roman"),
-        strip.text = element_text(family = "Times New Roman")) + 
+  theme(text = element_text(family = "Times New Roman")) + 
   scale_fill_manual(
     values = c("SRS" = "red", "BALANCE" = "green", "NEYMAN" = "blue", "NA" = "black"),
     breaks = c("SRS", "BALANCE", "NEYMAN")) + 
@@ -200,13 +182,7 @@ ggplot(combined_resultStdError_long) +
                    colour = factor(Design, levels = c("SRS", "BALANCE", "NEYMAN")))) + 
   theme_minimal() + 
   labs(x = "Methods", y = "Standard Errors") + 
-  theme(axis.title.x = element_text(family = "Times New Roman"),
-        axis.title.y = element_text(family = "Times New Roman"),
-        axis.text.x = element_text(family = "Times New Roman"),
-        axis.text.y = element_text(family = "Times New Roman"),
-        legend.title = element_text(family = "Times New Roman"),
-        legend.text = element_text(family = "Times New Roman"),
-        strip.text = element_text(family = "Times New Roman")) + 
+  theme(text = element_text(family = "Times New Roman")) + 
   facet_wrap(~ Covariate, scales = "free") + 
   scale_colour_manual(
     name = "Sampling Design",
@@ -215,3 +191,46 @@ ggplot(combined_resultStdError_long) +
   )
 
 ggsave("./simulations/Imputation_StdError_Boxplot.png", width = 30, height = 10, limitsize = F)
+
+generateNumD <- function(data, info){
+  info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
+  phase2_target <- info$phase2_vars[info$phase2_vars %in% info$num_vars]
+  phase1_target <- info$phase1_vars[info$phase1_vars %in% info$num_vars]
+  
+  npg_cols <- c("#E64B35", "#4DBBD5")
+  plot_list <- list()
+  
+  for (i in seq_along(phase2_target)){
+    v2_name <- phase2_target[i]
+    v1_name <- phase1_target[i]
+    val_range <- range(c(data[[v2_name]], data[[v1_name]]), na.rm = TRUE)
+    
+    p <- ggplot(data) + 
+      geom_density(aes(x = .data[[v2_name]], fill = "Validated"), 
+                   alpha = 0.5, color = NA) +
+      geom_density(aes(x = .data[[v1_name]], fill = "Unvalidated"), 
+                   alpha = 0.5, color = NA) +
+      
+      xlim(val_range[1], val_range[2]) +
+      labs(x = "Value", y = "Density", title = v2_name) +
+      
+      scale_fill_manual(name = "Type",
+                        values = c("Validated" = npg_cols[1], 
+                                   "Unvalidated" = npg_cols[2])) +
+      theme_minimal() + 
+      theme(
+        text = element_text(family = "Times New Roman"),
+        plot.title = element_text(hjust = 0.5)
+      )
+    plot_list[[i]] <- p
+  }
+  
+  return(plot_list)
+}
+load("./data/True/0001.RData")
+p_list <- generateNumD(data, data_info_srs)
+wrap_plots(p_list, ncol = 4) + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom",
+        text = element_text(family = "Times New Roman"))
+ggsave("./simulations/Density.png", width = 20, height = 20, limitsize = F)

@@ -60,7 +60,6 @@ grid <- tidyr::expand_grid(max_depth = 1:5,
                            colsample_bytree = seq(0.1, 1, by = 0.1),
                            subsample = seq(0.6, 0.9, by = 0.1))
 
-
 tuning <- function(X, outcomes, types, eval_metric, grid, nrounds = 500, k = 5, seed = 1){
   set.seed(seed)
   res_rows <- list()
@@ -131,7 +130,7 @@ save(balance_tune, file = "../../data/Params/mixgb/mixgb_balanceParams.RData")
 neyman_tune <- tuning(X_neyman, Outcomes_neyman, types.neyman, eval_metric.neyman, grid, nrounds = 100, k = 5, seed = 1)
 save(neyman_tune, file = "../../data/Params/mixgb/mixgb_neymanParams.RData")
 
-### With large amount of covariates, we use less column subsample
+### With large amount of covariates, we use a less value of column subsample
 ### So we choose the parameter combinations with lower colsubsample rate while maintaining good total loss.
 set.seed(100)
 srs_chose <- as.list(srs_tune$cv_table["864", 1:4])

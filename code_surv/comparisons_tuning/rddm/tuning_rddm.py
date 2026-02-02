@@ -1,17 +1,5 @@
-import yaml
-from tpvmi_rddm.tpvmi_rddm import TPVMI_RDDM
-import os
+from tpvmi_rddm.tuner import RDDMTuner
 
-if not os.path.exists("./simulations/SRS/tpvmi_rddm"):
-    os.makedirs("./simulations/SRS/tpvmi_rddm")
-
-if not os.path.exists("./simulations/Balance/tpvmi_rddm"):
-    os.makedirs("./simulations/Balance/tpvmi_rddm")
-
-if not os.path.exists("./simulations/Neyman/tpvmi_rddm"):
-    os.makedirs("./simulations/Neyman/tpvmi_rddm")
-
-# 1. SRS (Simple Random Sampling) Dictionary
 data_info_srs = {
     "weight_var": "W",
     "cat_vars": [
@@ -88,52 +76,66 @@ data_info_neyman = {
     "phase1_vars": data_info_srs["phase1_vars"]
 }
 
-with open("./data/best_config_srs.yaml", "r") as f:
-    config_srs = yaml.safe_load(f)
-with open("./data/best_config_bal.yaml", "r") as f:
-    config_bal = yaml.safe_load(f)
-with open("./data/best_config_ney.yaml", "r") as f:
-    config_ney = yaml.safe_load(f)
+base_config = {
+        "train": {
+            "epochs": 5000,
+            "batch_size": 128,
+            "weight_decay": 1e-5,
+            "eval_batch_size": 1024,
+            "lr": 0.0002,
+        },
+        "diffusion": {
+            "diffusion_embedding_dim": 128,
+            "num_steps": 25,
+            "sum_scale": 0.5,
+        },
+        "model": {
+            "net": "Dense",
+            "channels": 512,
+            "nheads": 8,
+            "layers": 3,
+            "dropout": 0.25,
+        },
+        "else": {
+            "samp": "SRS",
+            "task": "Res-N",
+            "m": 1,
+            "mi_approx": "dropout"
+        }
+    }
 
-for i in range(1, 101):
-    digit = str(i).zfill(4)
-    file_path_srs = "F:/phd-thesis/code_surv/data/Sample/SRS/" + digit + ".csv"
-    file_path_bal = "F:/phd-thesis/code_surv/data/Sample/Balance/" + digit + ".csv"
-    file_path_ney = "F:/phd-thesis/code_surv/data/Sample/Neyman/" + digit + ".csv"
+tuning_grid = {
+        "nheads": [4, 8],
+        "layers": [3, 4, 5]
+    }
 
-    save_path_srs = "F:/phd-thesis/code_surv/simulations/SRS/tpvmi_rddm/" + digit + ".parquet"
-    save_path_bal = "F:/phd-thesis/code_surv/simulations/Balance/tpvmi_rddm/" + digit + ".parquet"
-    save_path_ney = "F:/phd-thesis/code_surv/simulations/Neyman/tpvmi_rddm/" + digit + ".parquet"
+file_path_srs = "../../data/Sample/SRS/0001.csv"
+file_path_bal = "../../data/Sample/Balance/0001.csv"
+file_path_ney = "../../data/Sample/Neyman/0001.csv"
 
-    rddm_mod_srs = TPVMI_RDDM(config_srs, data_info_srs)
-    rddm_mod_srs.fit(file_path_srs)
-    rddm_mod_srs.impute(save_path=save_path_srs)
+tuner_srs = RDDMTuner(
+    base_config=base_config,
+    data_info=data_info_srs,
+    param_grid=tuning_grid,
+    file_path=file_path_srs,
+    n_trials=30
+)
+best_conf_srs = tuner_srs.tune(config_path="../../data/best_config_srs.yaml")
 
-    # # --- 1. Simple Random Sampling ---
-    # if not os.path.exists(save_path_srs):
-    #     print(f"[SRS] Result not found at {save_path_srs}. Starting training and imputation...")
-    #     rddm_mod_srs = TPVMI_RDDM(config, data_info_srs)
-    #     rddm_mod_srs.fit(file_path_srs)
-    #     rddm_mod_srs.impute(save_path=save_path_srs)
-    # else:
-    #     print(f"[SRS] Result exists at {save_path_srs}. Skipping.")
-    #
-    # # --- 2. Balanced Sampling ---
-    # if not os.path.exists(save_path_bal):
-    #     print(f"[Balance] Result not found at {save_path_bal}. Starting training and imputation...")
-    #     rddm_mod_bal = TPVMI_RDDM(config, data_info_balance)
-    #     rddm_mod_bal.fit(file_path_bal)
-    #     rddm_mod_bal.impute(save_path=save_path_bal)
-    # else:
-    #     print(f"[Balance] Result exists at {save_path_bal}. Skipping.")
-    #
-    # # --- 3. Neyman Allocation ---
-    # if not os.path.exists(save_path_ney):
-    #     print(f"[Neyman] Result not found at {save_path_ney}. Starting training and imputation...")
-    #     rddm_mod_ney = TPVMI_RDDM(config, data_info_neyman)
-    #     rddm_mod_ney.fit(file_path_ney)
-    #     rddm_mod_ney.impute(save_path=save_path_ney)
-    # else:
-    #     print(f"[Neyman] Result exists at {save_path_ney}. Skipping.")
+tuner_bal = RDDMTuner(
+    base_config=base_config,
+    data_info=data_info_balance,
+    param_grid=tuning_grid,
+    file_path=file_path_bal,
+    n_trials=30
+)
+best_conf_bal = tuner_bal.tune(config_path="../../data/best_config_bal.yaml")
 
-
+tuner_ney = RDDMTuner(
+    base_config=base_config,
+    data_info=data_info_neyman,
+    param_grid=tuning_grid,
+    file_path=file_path_ney,
+    n_trials=30
+)
+best_conf_ney = tuner_ney.tune(config_path="../../data/best_config_ney.yaml")

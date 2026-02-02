@@ -2,177 +2,131 @@ lapply(c("stringr", "dplyr", "data.table"), require, character.only = T)
 source("./00_utils_functions.R")
 source("./01_generate_data.R")
 
-generateSamples <- function(population, n_phase2, stratum_variable, 
-                            outcome_variable, target_variables_1, target_variables_2, model_formula, digit){
-  nrow <- dim(population)[1]
+generateSamples <- function(data, proportion, seed, digit){
+  set.seed(seed)
+  nrow <- dim(data)[1]
+  n_phase2 <- nrow * proportion
+  covars <- c("c_age", "c_bmi", "female", "usborn", "high_chol", 
+              "bkg_pr", "bkg_o")
+  aux_vars <- c("c_ln_na_avg", "c_ln_k_avg", "c_ln_kcal_avg", "c_ln_protein_avg")
+  target_vars <- c("c_ln_na_bio1", "c_ln_k_bio1", "c_ln_kcal_bio1", "c_ln_protein_bio1")
+  model_formula <- "sbp ~ c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr"
   
   mainDir <- "./data"
-  dir.create(file.path(mainDir, "True"), showWarnings = FALSE)
-  
-  dir.create(file.path(mainDir, paste0("True", "/SRS")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/RS")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/WRS")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/SFS")), showWarnings = FALSE)
-  
-  dir.create(file.path(mainDir, paste0("True", "/ODS_extTail")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/SSRS_exactAlloc")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/ODS_exactAlloc")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/RS_exactAlloc")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/WRS_exactAlloc")), showWarnings = FALSE)
-  dir.create(file.path(mainDir, paste0("True", "/SFS_exactAlloc")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/SRS")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/RS")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/WRS")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/SFS")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/ODS_TAIL")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/Neyman_INF")), showWarnings = FALSE)
+  dir.create(file.path(mainDir, paste0("Sample", "/Neyman_ODS")), showWarnings = FALSE)
   
   # SRS
   id_phase2 <- sample(nrow, n_phase2)
-  data_srs <- population %>%
+  data_srs <- data %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = 1,
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_srs, file = paste0(file.path(mainDir, paste0(population_name, "/SRS")), "/", "SRS_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_srs, file = paste0(".data/Sample/SRS/", digit, ".csv"))
   
   # ODS with extreme tails
-  order_outcome <- order(population[[outcome_variable]])
+  order_outcome <- order(data[["sbp"]])
   id_phase2 <- c(order_outcome[1:(n_phase2 %/% 2)], order_outcome[(nrow - n_phase2 %/% 2 + 1):nrow])
-  data_ods <- population %>%
+  data_ods <- data %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = 1,
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_ods, file = paste0(file.path(mainDir, paste0(population_name, "/ODS_extTail")), "/", "ODS_extTail_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_ods, file = paste0(".data/Sample/ODS_TAIL/", digit, ".csv"))
   
   # RS
-  modphase1 <- lm(as.formula(paste0(model_formula, " + ", target_variables_1[[1]])), data = population)
+  modphase1 <- lm(as.formula(paste0(model_formula, " + ", paste0(aux_vars, collapse = " + "))), data = data)
   rs <- residuals(modphase1)
   order_residual <- order(rs)
   id_phase2 <- c(order_residual[1:(n_phase2 %/% 2)], order_residual[(nrow - n_phase2 %/% 2 + 1):nrow])
-  data_rs <- population %>%
+  data_rs <- data %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = 1,
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_rs, file = paste0(file.path(mainDir, paste0(population_name, "/RS")), "/", "RS_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_rs, file = paste0(".data/Sample/RS/", digit, ".csv"))
   
   # WRS
-  vart_mat <- NULL
-  for (j in 1:length(target_variables_1)){
-    vs <- NULL
-    for (t in unique(population[[stratum_variable]])){
-      v <- sd(residuals(lm(as.formula(paste0(target_variables_2[j], " ~ ", 
-                                               sub(".*~", "", model_formula), 
-                                               " + ", target_variables_1[j])), 
-                           data = population))[population[[stratum_variable]] == t])
-      vs <- c(vs, v)
-    }
-    vart_mat <- rbind(vart_mat, vs)
-  }
-  wrs <- rs * vart_mat[1, population[[stratum_variable]]]
-  order_weighted_residual <- order(wrs)
-  id_phase2 <- c(order_weighted_residual[1:(n_phase2 %/% 2)], order_weighted_residual[(nrow - n_phase2 %/% 2 + 1):nrow])
-  data_wrs <- population %>%
+  pilot_prop <- 0.1
+  n_pilot <- round(n_phase2 * pilot_prop)
+  pilot_indices <- sample(1:nrow(data), n_pilot)
+  pilot_data <- data[pilot_indices, ]
+  var_formula <- as.formula(paste(target_vars[1], "~", aux_vars[1], "+", 
+                                  paste(covars, collapse = "+")))
+  pilot_model <- lm(var_formula, data = pilot_data)
+  outcome_model <- lm(model_formula, data = data[-pilot_indices, ])
+  sd_pilot <- sd(resid(pilot_model))
+  resid_outcome <- resid(outcome_model)
+  wrs <- order(resid_outcome * sd_pilot)
+  n_rest <- n_phase2 - n_pilot
+  id_phase2 <- c(wrs[1:(n_rest %/% 2)], wrs[(nrow - n_pilot - n_rest %/% 2 + 1):(nrow - n_pilot)])
+  data_wrs <- data %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = 1,
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_wrs, file = paste0(file.path(mainDir, paste0(population_name, "/WRS")), "/", "WRS_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_wrs, file = paste0(".data/Sample/WRS/", digit, ".csv"))
   
   # SFS
-  score <- residuals(modphase1) * population[[target_variables_1[1]]]
+  modphase1 <- lm(as.formula(model_formula), data = data)
+  score <- residuals(modphase1) * data[[aux_vars[1]]]
   order_score <- order(score)
   id_phase2 <- c(order_score[1:(n_phase2 %/% 2)], order_score[(nrow - n_phase2 %/% 2 + 1):nrow])
-  data_sfs <- population %>%
+  data_sfs <- data %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = 1,
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_sfs, file = paste0(file.path(mainDir, paste0(population_name, "/SFS")), "/", "SFS_", digit, ".csv"))
-  
-  # SSRS with exact allocation
-  alloc <- exactAllocation(data = population, stratum_variable = stratum_variable, 
-                           target_variable = target_variables_1[1], sample_size = n_phase2, type = 2)
-  weights <- table(population[[stratum_variable]]) / alloc
-  data_ssrs_exactAlloc <- population
-  id_phase2 <- lapply(1:length(table(data_ssrs_exactAlloc[[stratum_variable]])), 
-                      function(j){sample((1:nrow)[data_ssrs_exactAlloc[[stratum_variable]] == j], alloc[j])})
-  id_phase2 <- unlist(id_phase2)
-  
-  data_ssrs_exactAlloc <- data_ssrs_exactAlloc %>%
-    dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
-                  W = case_when(!!!lapply(names(weights), function(value){
-                                expr(.data[[stratum_variable]] == !!value ~ !!weights[[value]])
-                                })),
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_ssrs_exactAlloc, file = paste0(file.path(mainDir, paste0(population_name, "/SSRS_exactAlloc")), "/", "SSRS_exactAlloc_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_sfs, file = paste0(".data/Sample/SFS/", digit, ".csv"))
   
   # ODS with exact allocation
   quantile_split <- c(0.19, 0.81)
-  outcome <- cut(population[[outcome_variable]], breaks = c(-Inf, quantile(population[[outcome_variable]], probs = quantile_split), Inf), 
+  outcome <- cut(data[["sbp"]], breaks = c(-Inf, quantile(data[["sbp"]], probs = quantile_split), Inf), 
                  labels = paste(1:(length(quantile_split) + 1), sep=','))
-  data_ods_exactAlloc <- population
+  data_ods_exactAlloc <- data
   data_ods_exactAlloc$outcome_strata <- as.numeric(outcome)
   alloc <- exactAllocation(data = data_ods_exactAlloc, stratum_variable = "outcome_strata", 
-                           target_variable = target_variables_1[1], sample_size = n_phase2, type = 2)
+                           target_variable = target_vars[1], sample_size = n_phase2)
   weights <- table(data_ods_exactAlloc[["outcome_strata"]]) / alloc
-  id_phase2 <- lapply(1:length(table(data_ods_exactAlloc[["outcome_strata"]])), function(j){sample((1:nrow)[data_ods_exactAlloc[["outcome_strata"]] == j], alloc[j])})
+  id_phase2 <- lapply(1:length(table(data_ods_exactAlloc[["outcome_strata"]])), 
+                      function(j){sample((1:nrow)[data_ods_exactAlloc[["outcome_strata"]] == j], alloc[j])})
   id_phase2 <- unlist(id_phase2)
   data_ods_exactAlloc <- data_ods_exactAlloc %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = case_when(!!!lapply(names(weights), function(value){
                                 expr(.data[["outcome_strata"]] == !!value ~ !!weights[[value]])
                                 })),
-           across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_ods_exactAlloc, file = paste0(file.path(mainDir, paste0(population_name, "/ODS_exactAlloc")), "/", "ODS_exactAlloc_", digit, ".csv"))
+           across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_ods_exactAlloc, file = paste0(".data/Sample/Neyman_ODS/", digit, ".csv"))
   
-  # RS with exact allocation
-  rs_cut <- cut(rs, breaks = c(-Inf, quantile(rs, probs = quantile_split), Inf), 
-                labels = paste(1:(length(quantile_split) + 1), sep=','))
-  data_rs_exactAlloc <- population
-  data_rs_exactAlloc$rs_strata <- rs_cut
-  alloc <- exactAllocation(data = data_rs_exactAlloc, stratum_variable = "rs_strata", 
-                           target_variable = target_variables_1[1], sample_size = n_phase2, type = 2)
-  weights <- table(data_rs_exactAlloc[["rs_strata"]]) / alloc
-  id_phase2 <- lapply(1:length(table(data_rs_exactAlloc[["rs_strata"]])), 
-                      function(j){sample((1:nrow)[data_rs_exactAlloc[["rs_strata"]] == j], alloc[j])})
+  # Neyman Allocation By Influence Function.
+  data_inf_exactAlloc <- data
+  infl = dfbeta(lm(as.formula(paste0(model_formula, " + ", 
+                                     paste0(aux_vars[1], collapse = " + "))), 
+                   data = data))[, 2]
+  data_inf_exactAlloc$outcome_strata <- as.numeric(outcome)
+  neyman_alloc <- exactAllocation(data_inf_exactAlloc, stratum_variable = "STRATA", 
+                                  target_variable = "inf", 
+                                  sample_size = n_phase2)
+  neyman_weights <- table(data[["outcome_strata"]]) / neyman_alloc
+  id_phase2 <- lapply(1:length(table(data_inf_exactAlloc[["outcome_strata"]])), 
+                      function(j){sample((1:nrow)[data_inf_exactAlloc[["outcome_strata"]] == j], alloc[j])})
   id_phase2 <- unlist(id_phase2)
-  data_rs_exactAlloc <- data_rs_exactAlloc %>%
+  data_inf_exactAlloc <- data_inf_exactAlloc %>%
     dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
                   W = case_when(!!!lapply(names(weights), function(value){
-                                expr(.data[["rs_strata"]] == !!value ~ !!weights[[value]])
-                                })),
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_rs_exactAlloc, file = paste0(file.path(mainDir, paste0(population_name, "/RS_exactAlloc")), "/", "RS_exactAlloc_", digit, ".csv"))
-  
-  # WRS with exact allocation
-  wrs_cut <- cut(wrs, breaks = c(-Inf, quantile(wrs, probs = quantile_split), Inf), 
-                 labels = paste(1:(length(quantile_split) + 1), sep=','))
-  data_wrs_exactAlloc <- population
-  data_wrs_exactAlloc$wrs_strata <- wrs_cut
-  alloc <- exactAllocation(data = data_wrs_exactAlloc, stratum_variable = "wrs_strata", 
-                           target_variable = target_variables_1[1], sample_size = n_phase2, type = 2)
-  weights <- table(data_wrs_exactAlloc[["wrs_strata"]]) / alloc
-  id_phase2 <- lapply(1:length(table(data_wrs_exactAlloc[["wrs_strata"]])), 
-                      function(j){sample((1:nrow)[data_wrs_exactAlloc[["wrs_strata"]] == j], alloc[j])})
-  id_phase2 <- unlist(id_phase2)
-  data_wrs_exactAlloc <- data_wrs_exactAlloc %>%
-    dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
-                  W = case_when(!!!lapply(names(weights), function(value){
-                                expr(.data[["wrs_strata"]] == !!value ~ !!weights[[value]])
-                                })),
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_wrs_exactAlloc, file = paste0(file.path(mainDir, paste0(population_name, "/WRS_exactAlloc")), "/", "WRS_exactAlloc_", digit, ".csv"))
-  
-  # SFS with exact allocation
-  quantile_split <- c(0.19, 0.81)
-  scores_phase1_cut <- cut(score, breaks = c(-Inf, quantile(score, probs = quantile_split), Inf), labels = paste(1:(length(quantile_split) + 1), sep=','))
-  data_sfs_exactAlloc <- population
-  data_sfs_exactAlloc$sfs_strata <- scores_phase1_cut
-  alloc <- exactAllocation(data = data_sfs_exactAlloc, stratum_variable = "sfs_strata", 
-                           target_variable = target_variables_1[1], sample_size = n_phase2, type = 2)
-  weights <- (table(data_sfs_exactAlloc[["sfs_strata"]]) / alloc)
-  id_phase2 <- lapply(1:length(table(data_sfs_exactAlloc[["sfs_strata"]])), 
-                      function(j){sample((1:nrow)[data_sfs_exactAlloc[["sfs_strata"]] == j], alloc[j])})
-  id_phase2 <- unlist(id_phase2)
-  data_sfs_exactAlloc <- data_sfs_exactAlloc %>%
-    dplyr::mutate(R = ifelse(1:nrow %in% id_phase2, 1, 0),
-                  W = case_when(!!!lapply(names(weights), function(value){
-                    expr(.data[["sfs_strata"]] == !!value ~ !!weights[[value]])
+                    expr(.data[["outcome_strata"]] == !!value ~ !!weights[[value]])
                   })),
-                  across(all_of(target_variables_2), ~ ifelse(R == 0, NA, .)))
-  write.csv(data_sfs_exactAlloc, file = paste0(file.path(mainDir, paste0(population_name, "/SFS_exactAlloc")), "/", "SFS_exactAlloc_", digit, ".csv"))
+                  across(all_of(target_vars), ~ replace(., R == 0, NA)))
+  write.csv(data_ods_exactAlloc, file = paste0(".data/Sample/Neyman_INF/", digit, ".csv"))
+}
+
+if (file.exists("./data/data_sampling_seed.RData")){
+  load("./data/data_sampling_seed.RData")
+}else{
+  seed <- sample(1:100000, 500)
+  save(seed, file = "./data/data_sampling_seed.RData")
 }
 
 n <- 500
@@ -181,12 +135,8 @@ for (i in 1:n){
   set.seed(i)
   setTxtProgressBar(pb, i)
   digit <- str_pad(i, nchar(4444), pad=0)
-  generateNutritionalData(digit)
   load(paste0("./data/", digit, ".RData"))
-  generateSamples(as.data.frame(pop), 200, "idx", "sbp", 
-                  c("c_ln_na_bio1", "c_ln_k_bio1", "c_ln_kcal_bio1", "c_ln_protein_bio1"), 
-                  c("c_ln_na_true", "c_ln_k_true", "c_ln_kcal_true", "c_ln_protein_true"), 
-                  "sbp ~ c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr", digit)
+  generateSamples(as.data.frame(data), 0.05, seed[i], digit)
 }
 close(pb)
 

@@ -18,7 +18,7 @@ generateSample <- function(data, proportion, seed){
   samp_srs <- data %>%
     dplyr::mutate(R = ifelse(1:nRow %in% srs_ind, 1, 0),
                   W = 1,
-                  across(all_of(p2vars), ~ ifelse(R == 0, NA, .)))
+                  across(all_of(p2vars), ~ replace(., R == 0, NA)))
   # Balanced Sampling
   time_cut <- as.numeric(cut(data$T_I_STAR, breaks = c(-Inf, 6, 12, 18, Inf), 
                              labels = 1:4))
@@ -48,7 +48,7 @@ generateSample <- function(data, proportion, seed){
                   W = case_when(!!!lapply(names(balanced_weights), function(value){
                     expr(STRATA == !!value ~ !!balanced_weights[[value]])
                   })),
-                  across(all_of(p2vars), ~ ifelse(R == 0, NA, .)))
+                  across(all_of(p2vars), ~ replace(., R == 0, NA)))
   # Stratified Sampling with Neyman Allocation
   ### Getting Influence Function by auxiliary variables
 
@@ -72,12 +72,12 @@ generateSample <- function(data, proportion, seed){
                   W = case_when(!!!lapply(names(neyman_weights), function(value){
                     expr(STRATA == !!value ~ !!neyman_weights[[value]])
                   })),
-                  across(all_of(p2vars), ~ ifelse(R == 0, NA, .))) %>%
+                  across(all_of(p2vars), ~ replace(., R == 0, NA))) %>%
     select(-inf)
   
-  return (list(samp_srs = match_types(samp_srs, data),
-               samp_balance = match_types(samp_balance, data),
-               samp_neyman = match_types(samp_neyman, data)))
+  return (list(samp_srs = samp_srs, data,
+               samp_balance = samp_balance, data,
+               samp_neyman = samp_neyman, data))
 }
 
 ####### STARTING SIMULATION.  SAVING FILES ########
@@ -92,7 +92,7 @@ if (file.exists("./data/data_sampling_seed.RData")){
   seed <- sample(1:100000, 500)
   save(seed, file = "./data/data_sampling_seed.RData")
 }
-for (i in 1:replicate){
+for (i in 1:10){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/True/", digit, ".RData"))
