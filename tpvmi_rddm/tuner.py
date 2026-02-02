@@ -48,6 +48,11 @@ class RDDMTuner:
             'stats': stats
         }
 
+        N = self.tensor_data['p1'].shape[0]
+        self.cv_indices = np.arange(N)
+        rng = np.random.default_rng(42)
+        rng.shuffle(self.cv_indices)
+
     def _update(self, d, target_key, target_val):
         for k, v in d.items():
             if k == target_key:
@@ -85,9 +90,7 @@ class RDDMTuner:
 
     def objective(self, trial):
         trial_config = self._get_trial_config(trial)
-        N = self.tensor_data['p1'].shape[0]
-        indices = np.arange(N)
-        np.random.shuffle(indices)
+        N = len(self.cv_indices)
         fold_size = N // self.n_folds
         all_folds_imputed = []
 
@@ -95,8 +98,8 @@ class RDDMTuner:
             val_start = k * fold_size
             val_end = (k + 1) * fold_size
 
-            val_idx = indices[val_start:val_end]
-            train_idx = np.concatenate([indices[:val_start], indices[val_end:]])
+            val_idx = self.cv_indices[val_start:val_end]
+            train_idx = np.concatenate([self.cv_indices[:val_start], self.cv_indices[val_end:]])
 
             train_data_subset = {
                 'p1': self.tensor_data['p1'][train_idx],
@@ -133,15 +136,6 @@ class RDDMTuner:
 
     def tune(self, save_best_config=True, config_path="best_config.yaml",
              save_results_log=True, results_path="tuning_results.csv"):
-        """
-        Executes the tuning process.
-
-        Args:
-            save_best_config (bool): Whether to save the YAML of the best run.
-            config_path (str): Filename for the best YAML.
-            save_results_log (bool): Whether to save a CSV of all trials and their bias.
-            results_path (str): Filename for the CSV log.
-        """
         self.study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
         print(
             f"\n[RDDMTuner] Starting Optimization (Metric: Mean Bias Ratio): {self.n_trials} trials, {self.n_folds}-Fold CV")
@@ -150,13 +144,9 @@ class RDDMTuner:
 
         print("\n[RDDMTuner] Optimization Finished.")
 
-        # --- NEW LOGIC: EXPORT ALL RESULTS ---
         if save_results_log:
             try:
-                # trials_dataframe() returns columns: number, value, datetime_start, params_*, etc.
                 df_results = self.study.trials_dataframe()
-
-                # Sort by performance (ascending bias)
                 if 'value' in df_results.columns:
                     df_results = df_results.sort_values(by='value', ascending=True)
 
@@ -166,7 +156,6 @@ class RDDMTuner:
                 print(f"[RDDMTuner] Warning: Failed to save results log. Error: {e}")
         # -------------------------------------
 
-        # Check for valid trials before accessing best_value
         complete_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
 
         if len(complete_trials) == 0:

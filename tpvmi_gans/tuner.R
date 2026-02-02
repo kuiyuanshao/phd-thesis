@@ -17,6 +17,8 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
   
   model_family <- if(inherits(target_model, c("glm", "svyglm"))) family(target_model) else NULL
   
+  fold_indices <- split(sample(1:nrow(data)), rep(1:folds, length.out = nrow(data)))
+  
   objective_fun = function(xs) {
     xs$g_weight_decay <- xs$d_weight_decay <- xs$weight_decay
     xs$weight_decay <- NULL
@@ -61,8 +63,6 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
     if(curr_params$pac > 1) {
       curr_params$batch_size <- curr_params$pac * round(curr_params$batch_size / curr_params$pac)
     }
-    
-    fold_indices <- split(sample(1:nrow(data)), rep(1:folds, length.out = nrow(data)))
     fold_pieces <- vector("list", m) 
     for(i in 1:m) fold_pieces[[i]] <- list()
     all_val_indices <- list()
@@ -118,9 +118,6 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
     objective = obj,
     terminator = trm("evals", n_evals = n_evals)
   )
-  
-  design = generate_design_random(search_space, n = 1)$data
-  opt_instance$eval_batch(design)
   
   learner_km = lrn("regr.km", covtype = "matern5_2", control = list(trace = FALSE))
   surrogate_object = SurrogateLearner$new(learner_km)

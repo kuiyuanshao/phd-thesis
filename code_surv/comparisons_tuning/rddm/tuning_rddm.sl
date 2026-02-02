@@ -22,6 +22,6 @@ CURRENT_TASK=${TASKS[$SLURM_ARRAY_TASK_ID]}
 
 echo "Running Python Tuning for: $CURRENT_TASK"
 
-python tuning_rddm.py --task $CURRENT_TASK > /dev/null
+python tuning_rddm.py --task $CURRENT_TASK > /dev/null 2>&1
 
 echo "Python finished for $CURRENT_TASK."

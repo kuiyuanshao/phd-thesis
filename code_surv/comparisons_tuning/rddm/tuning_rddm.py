@@ -116,7 +116,7 @@ tuning_grid = {
     "channels": ("cat", [64, 128, 256, 512]),
     "layers": ("int", 2, 6),
     "weight_decay": ("log_float", 1e-6, 1e-3),
-    "sum_scale": ("log_float", 0.01, 1.0),
+    "sum_scale": ("log_float", 0.01, 0.25),
     "dropout": ("float", 0.1, 0.5),
     "net": ("cat", ["DenseNet", "ResNet", "AttnNet"]),
 }
