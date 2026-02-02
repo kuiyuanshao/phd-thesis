@@ -161,7 +161,8 @@ def main():
             param_grid=tuning_grid,
             file_path=file_path,
             n_trials=70,
-            n_folds=4
+            n_folds=4,
+            weights=[10] + [1] * 7 + [2] * 4 + [1] + [3] * 3
         )
         tuner.tune(config_path="../../data/best_config_srs.yaml",
                    results_path="tuning_results_srs.csv")
@@ -185,7 +186,8 @@ def main():
             param_grid=tuning_grid,
             file_path=file_path,
             n_trials=70,
-            n_folds=4
+            n_folds=4,
+            weights=[10] + [1] * 7 + [2] * 4 + [1] + [3] * 3
         )
         tuner.tune(config_path="../../data/best_config_bal.yaml",
                    results_path="tuning_results_bal.csv")
@@ -209,7 +211,8 @@ def main():
             param_grid=tuning_grid,
             file_path=file_path,
             n_trials=70,
-            n_folds=4
+            n_folds=4,
+            weights=[10] + [1] * 7 + [2] * 4 + [1] + [3] * 3
         )
         tuner.tune(config_path="../../data/best_config_ney.yaml",
                    results_path="tuning_results_ney.csv")

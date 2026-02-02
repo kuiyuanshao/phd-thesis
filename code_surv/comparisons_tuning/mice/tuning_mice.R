@@ -84,8 +84,10 @@ tune_mice <- function(data, data_ori, data_info, target_model, search_space,
       bound_df <- do.call(rbind, fold_pieces[[i]])
       reordered_df <- data 
       reordered_df[flat_indices, ] <- bound_df
+      reordered_df <- reordered_df[order(flat_indices), ]
       
       reordered_df <- match_types(reordered_df, data_ori)
+      
       if (is_survey) {
         curr_design <- base_design
         curr_design$variables <- reordered_df
@@ -96,23 +98,12 @@ tune_mice <- function(data, data_ori, data_info, target_model, search_space,
       coef_mat[i, ] <- coef(fit)
     }
     
-    betameans <- colMeans(coef_mat, na.rm = TRUE)
-    if (is_survey) {
-      if (is_cox){
-        fit <- svycoxph(model_formula, design = base_design, init = betameans, iter.max = 0)
-      }else{
-        fit <- svyglm(model_formula, design = base_design, family = model_family, start = betameans, control = list(maxit = 0))
-      }
-    } else {
-      if (is_cox){
-        fit <- coxph(model_formula, data = match_types(data, data_ori), init = betameans, iter.max = 0)
-      }else{
-        fit <- glm(model_formula, data = match_types(data, data_ori), family = model_family, start = betameans, control = list(maxit = 0))
-      }
-    }
-    nll <- -as.numeric(logLik(fit))
-    
-    return (nll)
+    diff_mat <- sweep(coef_mat, 2, true_coeffs, "-")
+    avg_beta <- mean(abs(true_coeffs))
+    # Formula: |diff| / (|truth| + avg_beta)
+    rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + avg_beta, "/")
+    weighted_err <- sweep(rel_err_mat, 2, weights, "*")
+    return(list(bias = mean(weighted_err, na.rm = TRUE)))
   }
   
   obj = ObjectiveRFun$new(
