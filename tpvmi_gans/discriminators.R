@@ -19,3 +19,43 @@ discriminator.mlp <- torch::nn_module(
     return (out)
   }
 )
+
+SpectralNormLinear <- nn_module(
+  "SpectralNormLinear",
+  initialize = function(in_features, out_features, bias = TRUE, 
+                        power_iterations = 1, eps = 1e-12) {
+    self$linear <- nn_linear(in_features, out_features, bias = bias)
+    self$power_iterations <- power_iterations
+    self$eps <- eps
+    self$register_buffer("u", torch_randn(out_features))
+    self$register_buffer("v", torch_randn(in_features))
+  },
+  
+  compute_weight = function() {
+    W <- self$linear$weight
+    u <- self$u
+    v <- self$v
+    with_no_grad({
+      for (i in 1:self$power_iterations) {
+        v_s <- torch_mv(W$t(), u)
+        v_norm <- v_s$norm()$clamp(min = self$eps)
+        v <- v_s / v_norm
+        u_s <- torch_mv(W, v)
+        u_norm <- u_s$norm()$clamp(min = self$eps)
+        u <- u_s / u_norm
+      }
+      self$u$copy_(u)
+      self$v$copy_(v)
+    })
+    
+    sigma <- torch_dot(u, torch_mv(W, v))
+    W_sn <- W / sigma
+    
+    return(W_sn)
+  },
+  
+  forward = function(x) {
+    W_sn <- self$compute_weight()
+    nnf_linear(x, W_sn, self$linear$bias)
+  }
+)

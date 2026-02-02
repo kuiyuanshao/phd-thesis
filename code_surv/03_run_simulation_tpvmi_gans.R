@@ -1,4 +1,4 @@
-lapply(c("dplyr", "stringr", "torch", "coro", "survival", "mclust", "mitools"), require, character.only = T)
+lapply(c("dplyr", "stringr", "torch", "survival", "mitools"), require, character.only = T)
 files <- list.files("../tpvmi_gans", full.names = TRUE, recursive = FALSE)
 files <- files[!grepl("tests", files)]
 lapply(files, source)

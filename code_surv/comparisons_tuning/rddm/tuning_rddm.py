@@ -83,7 +83,7 @@ data_info_neyman = {
 
 base_config = {
     "train": {
-        "epochs": 5000,
+        "epochs": 2000,
         "batch_size": 128,
         "weight_decay": 1e-6,
         "eval_batch_size": 1024,
@@ -112,12 +112,13 @@ base_config = {
 }
 
 tuning_grid = {
-    "channels": [64, 128, 256, 512],
-    "layers": [3, 5],
-    "sum_scale": [0.01, 0.1],
-    "dropout": [0.25, 0.5],
-    "weight_decay": [1e-3, 1e-4, 1e-5],
-    "net": ["DenseNet", "ResNet", "AttnNet"]
+    "lr": ("log_float", 1e-5, 1e-2),
+    "channels": ("cat", [64, 128, 256, 512]),
+    "layers": ("int", 2, 6),
+    "weight_decay": ("log_float", 1e-6, 1e-3),
+    "sum_scale": ("log_float", 0.01, 1.0),
+    "dropout": ("float", 0.1, 0.5),
+    "net": ("cat", ["DenseNet", "ResNet", "AttnNet"]),
 }
 
 cox_formula = """
@@ -142,29 +143,24 @@ def main():
 
     categorical_cols = ["rs4506565", "SEX", "INSURANCE", "RACE", "SMOKE"]
 
-    # --- TASK EXECUTION BLOCK ---
-
     if args.task == "srs":
         print("[Task] Starting Tuning for SRS...")
         file_path = "../../data/Sample/SRS/0001.csv"
         df = pd.read_csv(file_path)
 
-        # Preprocessing
         for col in categorical_cols:
             df[col] = df[col].astype('category')
 
-        # Fit Reference Model
         mod = CoxPHFitter()
         mod.fit(df.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
 
-        # Tuning
         tuner = RDDMTuner(
             model=mod,
             base_config=base_config,
             data_info=data_info_srs,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=30,
+            n_trials=100,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_srs.yaml",
@@ -188,7 +184,7 @@ def main():
             data_info=data_info_balance,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=30,
+            n_trials=100,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_bal.yaml",
@@ -212,7 +208,7 @@ def main():
             data_info=data_info_neyman,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=30,
+            n_trials=100,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_ney.yaml",

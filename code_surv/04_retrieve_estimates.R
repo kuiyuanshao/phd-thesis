@@ -159,11 +159,10 @@ combine <- function(){
 
 combine()
 
-i <- 4
+i <- 3
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
-samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
 cox.fit <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
@@ -182,38 +181,38 @@ cox.mod <- with(data = imp.mids,
                               I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                               I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                             SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
-round(exp(coef(cox.fit)) - exp(pooled$coefficients), 3)
+exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 
-# library(mice)
-# library(mitools)
-# load(paste0("./data/True/", digit, ".RData"))
-# cox.fit <- coxph(Surv(T_I, EVENT) ~
-#                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-#                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-#                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-#                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-#                  data = data)
-# samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
-# samp <- match_types(samp, data)
-# mice_imp <- mice(samp, m = 5, print = T, maxit = 25,
-#        maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
-#        predictorMatrix = quickpred(samp, mincor = 0.35))
-# multi_impset <- mice::complete(mice_imp, "all")
-# multi_impset <- lapply(multi_impset, function(dat){
-#   match_types(dat, data)
-# })
-# imp.mids <- imputationList(multi_impset)
-# cox.mod <- with(data = imp.mids, 
-#                 exp = coxph(Surv(T_I, EVENT) ~
-#                               I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-#                               I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-#                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-#                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
-# pooled <- MIcombine(cox.mod)
-# round(exp(coef(cox.fit)) - exp(pooled$coefficients), 3)
+library(mice)
+library(mitools)
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+                 data = data)
+samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
+samp <- match_types(samp, data)
+mice_imp <- mice(samp, m = 5, print = T, maxit = 25,
+                 maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
+                 predictorMatrix = quickpred(samp, mincor = 0.35))
+multi_impset <- mice::complete(mice_imp, "all")
+multi_impset <- lapply(multi_impset, function(dat){
+  match_types(dat, data)
+})
+imp.mids <- imputationList(multi_impset)
+cox.mod <- with(data = imp.mids, 
+                exp = coxph(Surv(T_I, EVENT) ~
+                              I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                              I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                              rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+pooled <- MIcombine(cox.mod)
+exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 
 
@@ -246,4 +245,42 @@ ggplot(data) +
   geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
 
 
- 
+i <- 1
+digit <- stringr::str_pad(i, 4, pad = 0)
+lapply(c("dplyr", "stringr", "torch", "coro", "survival", "mclust", "mitools"), require, character.only = T)
+files <- list.files("../tpvmi_gans", full.names = TRUE, recursive = FALSE)
+files <- files[!grepl("tests", files)]
+lapply(files, source)
+source("00_utils_functions.R")
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                   SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
+                 data = data)
+samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
+samp <- match_types(samp, data) %>% 
+  mutate(across(all_of(data_info_srs$cat_vars), as.factor, .names = "{.col}"),
+         across(all_of(data_info_srs$num_vars), as.numeric, .names = "{.col}"))
+tpvmi_gans_imp <- tpvmi_gans(samp, m = 5, epochs = 2000,
+                             data_info = data_info_srs, 
+                             params = list(mi_approx = "dropout", lr_d = 2e-4,
+                                           g_dropout = 0.5, pac = 50, lambda = 10),
+                             device = "cuda")
+multi_impset <- lapply(tpvmi_gans_imp$imputation, function(dat){
+  match_types(dat, data)
+})
+imp.mids <- imputationList(multi_impset)
+cox.mod <- with(data = imp.mids, 
+                exp = coxph(Surv(T_I, EVENT) ~
+                              I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+                              I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                              rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
+                              SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+pooled <- MIcombine(cox.mod)
+cat("Bias: \n")
+cat(exp(pooled$coefficients) - exp(coef(cox.fit)), "\n")
+
+
+
