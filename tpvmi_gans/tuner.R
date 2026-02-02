@@ -12,7 +12,7 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
   is_cox    <- inherits(target_model, c("svycoxph", "coxph"))
   
   base_design <- if(is_survey) {
-    if(inherits(target_model, "svycoxph")) target_model$design else target_model$survey.design
+    if(inherits(target_model, "svycoxph")) target_model$survey.design else target_model$survey.design
   } else NULL
   
   model_family <- if(inherits(target_model, c("glm", "svyglm"))) family(target_model) else NULL
