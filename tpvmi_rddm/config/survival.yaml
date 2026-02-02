@@ -18,7 +18,7 @@ diffusion:
 # Model Feature Embeddings
 # ==========================================
 model:
-  net: "Dense"
+  net: "DenseNet"
   featureemb: 64
   channels: 512
   nheads: 8

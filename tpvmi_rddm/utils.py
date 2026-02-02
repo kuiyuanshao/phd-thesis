@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+import statsmodels.genmod.generalized_linear_model as sm_glm
+import statsmodels.formula.api as smf
+from lifelines import CoxPHFitter
+import copy
 
 def process_data(filepath, data_info):
     df = pd.read_csv(filepath)
@@ -178,3 +182,63 @@ def inverse_transform_data(generated_data, normalization_stats, data_info):
                 reconstructed_df[p2_name] = indices
 
     return reconstructed_df
+
+
+class BiasCalc:
+    def __init__(self, template_model):
+        self.template = template_model
+        self.type = self._identify_type(template_model)
+        self.reference_coeffs = self._extract_coeffs(self.template)
+
+    def _identify_type(self, model):
+        if hasattr(model, 'model') and isinstance(model.model, sm_glm.GLM):
+            return "statsmodels_glm"
+        elif isinstance(model, CoxPHFitter):
+            return "lifelines_cox"
+        else:
+            raise ValueError(f"Unsupported model type: {type(model)}")
+
+    def refit_on_new_data(self, new_df):
+        if self.type == "statsmodels_glm":
+            original_model = self.template.model
+            new_mod = smf.glm(
+                formula=original_model.data.formula,
+                data=new_df,
+                family=original_model.family
+            )
+            return new_mod.fit().params
+
+        elif self.type == "lifelines_cox":
+            new_cph = copy.deepcopy(self.template)
+            new_cph.fit(
+                new_df,
+                duration_col=new_cph.duration_col,
+                event_col=new_cph.event_col,
+                formula=new_cph.formula
+            )
+            return new_cph.params_
+
+    def _extract_coeffs(self, model):
+        if self.type == "statsmodels_glm":
+            return model.params
+        elif self.type == "lifelines_cox":
+            return model.params_
+        return None
+
+    def evaluate_imputations(self, imputed_dfs_list):
+        estimates = []
+        for df in imputed_dfs_list:
+            params = self.refit_on_new_data(df)
+            if params is not None:
+                estimates.append(params)
+
+        avg_estimates = pd.DataFrame(estimates).mean(axis=0)
+
+        ref_aligned, est_aligned = self.reference_coeffs.align(avg_estimates, join='inner')
+        abs_diff = (ref_aligned - est_aligned).abs() / ref_aligned.abs()
+        denominator = ref_aligned.abs().clip(lower=1e-5)
+
+        relative_bias = abs_diff / denominator
+
+        return relative_bias.mean()
+

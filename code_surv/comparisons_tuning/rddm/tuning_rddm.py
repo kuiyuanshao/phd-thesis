@@ -1,5 +1,7 @@
 from tpvmi_rddm.tuner import RDDMTuner
-
+from lifelines import CoxPHFitter
+import numpy as np
+import pandas as pd
 data_info_srs = {
     "weight_var": "W",
     "cat_vars": [
@@ -80,7 +82,7 @@ base_config = {
         "train": {
             "epochs": 5000,
             "batch_size": 128,
-            "weight_decay": 1e-5,
+            "weight_decay": 1e-6,
             "eval_batch_size": 1024,
             "lr": 0.0002,
         },
@@ -90,52 +92,103 @@ base_config = {
             "sum_scale": 0.5,
         },
         "model": {
-            "net": "Dense",
+            "net": "DenseNet",
             "channels": 512,
-            "nheads": 8,
             "layers": 3,
             "dropout": 0.25,
+            "gamma": 1,
+            "zeta": 1
         },
         "else": {
             "samp": "SRS",
             "task": "Res-N",
-            "m": 1,
-            "mi_approx": "dropout"
+            "m": 3,
+            "mi_approx": "bootstrap"
         }
     }
 
 tuning_grid = {
-        "nheads": [4, 8],
-        "layers": [3, 4, 5]
+        "channels": [128, 256, 512],
+        "layers": [3, 5],
+        "sum_scale": [0.01, 0.1],
+        "dropout": [0.25, 0.5],
+        "weight_decay": [1e-3, 1e-4]
     }
 
 file_path_srs = "../../data/Sample/SRS/0001.csv"
 file_path_bal = "../../data/Sample/Balance/0001.csv"
 file_path_ney = "../../data/Sample/Neyman/0001.csv"
 
+df_srs = pd.read_csv(file_path_srs)
+df_bal = pd.read_csv(file_path_bal)
+df_ney = pd.read_csv(file_path_ney)
+
+categorical_cols = ["rs4506565", "SEX", "INSURANCE", "RACE", "SMOKE"]
+for col in categorical_cols:
+    df_srs[col] = df_srs[col].astype('category')
+    df_bal[col] = df_bal[col].astype('category')
+    df_ney[col] = df_ney[col].astype('category')
+
+cox_formula = """
+    I((HbA1c - 50) / 5) + 
+    I(((HbA1c - 50) / 5) ** 2) + 
+    I((HbA1c - 50) / 5) : I((AGE - 50) / 5) + 
+    rs4506565 + 
+    I((AGE - 50) / 5) + 
+    I((eGFR - 90) / 10) + 
+    SEX + INSURANCE + RACE + 
+    I(BMI / 5) + 
+    SMOKE
+"""
+
+mod_srs = CoxPHFitter()
+mod_bal = CoxPHFitter()
+mod_ney = CoxPHFitter()
+
+mod_srs.formula = cox_formula
+mod_srs.duration_col = "T_I"
+mod_srs.event_col = "EVENT"
+mod_srs.fit(df_srs.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+
+mod_bal.formula = cox_formula
+mod_bal.duration_col = "T_I"
+mod_bal.event_col = "EVENT"
+mod_bal.fit(df_bal.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+
+mod_ney.formula = cox_formula
+mod_ney.duration_col = "T_I"
+mod_ney.event_col = "EVENT"
+mod_ney.fit(df_ney.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+
 tuner_srs = RDDMTuner(
+    model=mod_srs,
     base_config=base_config,
     data_info=data_info_srs,
     param_grid=tuning_grid,
     file_path=file_path_srs,
-    n_trials=30
+    n_trials=30,
+    n_folds=4
 )
 best_conf_srs = tuner_srs.tune(config_path="../../data/best_config_srs.yaml")
 
 tuner_bal = RDDMTuner(
+    model=mod_bal,
     base_config=base_config,
     data_info=data_info_balance,
     param_grid=tuning_grid,
     file_path=file_path_bal,
-    n_trials=30
+    n_trials=30,
+    n_folds=4
 )
 best_conf_bal = tuner_bal.tune(config_path="../../data/best_config_bal.yaml")
 
 tuner_ney = RDDMTuner(
+    model=mod_ney,
     base_config=base_config,
     data_info=data_info_neyman,
     param_grid=tuning_grid,
     file_path=file_path_ney,
-    n_trials=30
+    n_trials=30,
+    n_folds=4
 )
 best_conf_ney = tuner_ney.tune(config_path="../../data/best_config_ney.yaml")
