@@ -15,6 +15,10 @@ samp_bal <- match_types(samp_bal, data)
 samp_ney <- read.csv(paste0("../../data/Sample/Neyman/0001.csv"))
 samp_ney <- match_types(samp_ney, data)
 
+samp_srs <- samp_srs[samp_srs$R == 1,]
+samp_bal <- samp_bal[samp_bal$R == 1,]
+samp_ney <- samp_ney[samp_ney$R == 1,]
+
 mod_srs <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
@@ -51,17 +55,13 @@ samp_ney <- samp_ney %>%
          across(all_of(data_info_neyman$num_vars), as.numeric, .names = "{.col}"))
 
 search_space = ps(
-  lr_d       = p_dbl(lower = 1e-4, upper = 1e-3),
-  g_d_ratio  = p_dbl(lower = 0.1, upper = 1.0),
+  lr_d       = p_dbl(lower = 1e-5, upper = 5e-4),
+  g_d_ratio  = p_dbl(lower = 0.2, upper = 1),
   pac        = p_int(lower = 1, upper = 100),
-  common_width   = p_int(lower = 128, upper = 512),
-  common_depth   = p_int(lower = 2, upper = 5),
+  common_width = p_int(lower = 128, upper = 512),
+  common_depth = p_int(lower = 2, upper = 4),
   weight_decay = p_dbl(lower = 1e-6, upper = 1e-3)
 )
-
-samp_srs <- samp_srs[samp_srs$R == 1,]
-samp_bal <- samp_bal[samp_bal$R == 1,]
-samp_ney <- samp_ney[samp_ney$R == 1,]
 
 tune_srs <- tune_gan(samp_srs, data, data_info_srs, mod_srs, search_space,
                      best_config_path = "best_gan_config_srs.rds",

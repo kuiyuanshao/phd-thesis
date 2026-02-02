@@ -180,6 +180,10 @@ mod_ney <- svycoxph(Surv(T_I, EVENT) ~
                       SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                     ney_design)
 
+samp_srs <- samp_srs[samp_srs$R == 1,]
+samp_bal <- samp_bal[samp_bal$R == 1,]
+samp_ney <- samp_ney[samp_ney$R == 1,]
+
 samp_srs <- samp_srs %>% 
   mutate(across(all_of(data_info_srs$cat_vars), as.factor, .names = "{.col}"),
          across(all_of(data_info_srs$num_vars), as.numeric, .names = "{.col}"))
@@ -197,11 +201,6 @@ search_space = ps(
   donors = p_int(lower = 5, upper = 15),
   maxit = p_int(lower = 5, upper = 50)
 )
-
-
-samp_srs <- samp_srs[samp_srs$R == 1,]
-samp_bal <- samp_bal[samp_bal$R == 1,]
-samp_ney <- samp_ney[samp_ney$R == 1,]
 
 tune_srs <- tune_mice(samp_srs, data, data_info_srs, mod_srs, search_space,
                        best_config_path = "best_mice_config_srs.rds",
