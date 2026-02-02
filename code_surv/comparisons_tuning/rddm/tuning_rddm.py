@@ -1,7 +1,8 @@
-from tpvmi_rddm.tuner import RDDMTuner
-from lifelines import CoxPHFitter
-import numpy as np
+import argparse
 import pandas as pd
+from lifelines import CoxPHFitter
+from tpvmi_rddm.tuner import RDDMTuner
+
 data_info_srs = {
     "weight_var": "W",
     "cat_vars": [
@@ -60,7 +61,6 @@ data_info_srs = {
     ]
 }
 
-# 2. Balanced Sampling Dictionary (Includes STRATA)
 data_info_balance = {
     "weight_var": "W",
     "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
@@ -69,7 +69,6 @@ data_info_balance = {
     "phase1_vars": data_info_srs["phase1_vars"]
 }
 
-# 3. Neyman Allocation Dictionary (Identical structure to Balance)
 data_info_neyman = {
     "weight_var": "W",
     "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
@@ -79,57 +78,43 @@ data_info_neyman = {
 }
 
 base_config = {
-        "train": {
-            "epochs": 1,
-            "batch_size": 128,
-            "weight_decay": 1e-6,
-            "eval_batch_size": 1024,
-            "lr": 0.0002,
-        },
-        "diffusion": {
-            "diffusion_embedding_dim": 128,
-            "num_steps": 25,
-            "sum_scale": 0.5,
-        },
-        "model": {
-            "net": "DenseNet",
-            "channels": 512,
-            "layers": 3,
-            "n_heads": 4,
-            "dropout": 0.25,
-            "gamma": 1,
-            "zeta": 1
-        },
-        "else": {
-            "samp": "SRS",
-            "task": "Res-N",
-            "m": 3,
-            "mi_approx": "bootstrap"
-        }
+    "train": {
+        "epochs": 5000,
+        "batch_size": 128,
+        "weight_decay": 1e-6,
+        "eval_batch_size": 1024,
+        "lr": 0.0002,
+    },
+    "diffusion": {
+        "diffusion_embedding_dim": 128,
+        "num_steps": 25,
+        "sum_scale": 0.5,
+    },
+    "model": {
+        "net": "DenseNet",
+        "channels": 512,
+        "layers": 3,
+        "nheads": 4,
+        "dropout": 0.25,
+        "gamma": 1,
+        "zeta": 1
+    },
+    "else": {
+        "samp": "SRS",
+        "task": "Res-N",
+        "m": 3,
+        "mi_approx": "bootstrap"
     }
+}
 
 tuning_grid = {
-        "channels": [64, 128, 256, 512],
-        "layers": [3, 5],
-        "sum_scale": [0.01, 0.1],
-        "dropout": [0.25, 0.5],
-        "weight_decay": [1e-3, 1e-4],
-        "net": ["DenseNet", "ResNet", "AttnNet"]
-    }
-
-file_path_srs = "../../data/Sample/SRS/0001.csv"
-file_path_bal = "../../data/Sample/Balance/0001.csv"
-file_path_ney = "../../data/Sample/Neyman/0001.csv"
-
-df_srs = pd.read_csv(file_path_srs)
-df_bal = pd.read_csv(file_path_bal)
-df_ney = pd.read_csv(file_path_ney)
-
-categorical_cols = ["rs4506565", "SEX", "INSURANCE", "RACE", "SMOKE"]
-for col in categorical_cols:
-    df_srs[col] = df_srs[col].astype('category')
-    df_bal[col] = df_bal[col].astype('category')
-    df_ney[col] = df_ney[col].astype('category')
+    "channels": [64, 128, 256, 512],
+    "layers": [3, 5],
+    "sum_scale": [0.01, 0.1],
+    "dropout": [0.25, 0.5],
+    "weight_decay": [1e-3, 1e-4, 1e-5],
+    "net": ["DenseNet", "ResNet", "AttnNet"]
+}
 
 cox_formula = """
     I((HbA1c - 50) / 5) + 
@@ -143,57 +128,92 @@ cox_formula = """
     SMOKE
 """
 
-mod_srs = CoxPHFitter()
-mod_bal = CoxPHFitter()
-mod_ney = CoxPHFitter()
 
-mod_srs.formula = cox_formula
-mod_srs.duration_col = "T_I"
-mod_srs.event_col = "EVENT"
-mod_srs.fit(df_srs.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+def main():
+    # --- ARGUMENT PARSING ---
+    parser = argparse.ArgumentParser(description="Run RDDM Tuning for a specific sampling task.")
+    parser.add_argument("--task", type=str, required=True, choices=["srs", "bal", "ney"],
+                        help="Which sampling strategy to tune: 'srs', 'bal', or 'ney'.")
+    args = parser.parse_args()
 
-mod_bal.formula = cox_formula
-mod_bal.duration_col = "T_I"
-mod_bal.event_col = "EVENT"
-mod_bal.fit(df_bal.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+    categorical_cols = ["rs4506565", "SEX", "INSURANCE", "RACE", "SMOKE"]
 
-mod_ney.formula = cox_formula
-mod_ney.duration_col = "T_I"
-mod_ney.event_col = "EVENT"
-mod_ney.fit(df_ney.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+    # --- TASK EXECUTION BLOCK ---
 
-tuner_srs = RDDMTuner(
-    model=mod_srs,
-    base_config=base_config,
-    data_info=data_info_srs,
-    param_grid=tuning_grid,
-    file_path=file_path_srs,
-    n_trials=1,
-    n_folds=2
-)
-best_conf_srs = tuner_srs.tune(config_path="../../data/best_config_srs.yaml",
-                               results_path="tuning_results_ney.csv")
+    if args.task == "srs":
+        print("[Task] Starting Tuning for SRS...")
+        file_path = "../../data/Sample/SRS/0001.csv"
+        df = pd.read_csv(file_path)
 
-# tuner_bal = RDDMTuner(
-#     model=mod_bal,
-#     base_config=base_config,
-#     data_info=data_info_balance,
-#     param_grid=tuning_grid,
-#     file_path=file_path_bal,
-#     n_trials=30,
-#     n_folds=4
-# )
-# best_conf_bal = tuner_bal.tune(config_path="../../data/best_config_bal.yaml",
-#                                results_path="tuning_results_ney.csv")
-#
-# tuner_ney = RDDMTuner(
-#     model=mod_ney,
-#     base_config=base_config,
-#     data_info=data_info_neyman,
-#     param_grid=tuning_grid,
-#     file_path=file_path_ney,
-#     n_trials=30,
-#     n_folds=4
-# )
-# best_conf_ney = tuner_ney.tune(config_path="../../data/best_config_ney.yaml",
-#                                results_path="tuning_results_ney.csv")
+        # Preprocessing
+        for col in categorical_cols:
+            df[col] = df[col].astype('category')
+
+        # Fit Reference Model
+        mod = CoxPHFitter()
+        mod.fit(df.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT")
+
+        # Tuning
+        tuner = RDDMTuner(
+            model=mod,
+            base_config=base_config,
+            data_info=data_info_srs,
+            param_grid=tuning_grid,
+            file_path=file_path,
+            n_trials=30,
+            n_folds=4
+        )
+        tuner.tune(config_path="../../data/best_config_srs.yaml",
+                   results_path="tuning_results_srs.csv")
+
+    elif args.task == "bal":
+        print("[Task] Starting Tuning for Balance...")
+        file_path = "../../data/Sample/Balance/0001.csv"
+        df = pd.read_csv(file_path)
+
+        for col in categorical_cols:
+            df[col] = df[col].astype('category')
+
+        mod = CoxPHFitter()
+        mod.fit(df.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT",
+                weights_col="W", strata=['STRATA'])
+
+        tuner = RDDMTuner(
+            model=mod,
+            base_config=base_config,
+            data_info=data_info_balance,
+            param_grid=tuning_grid,
+            file_path=file_path,
+            n_trials=30,
+            n_folds=4
+        )
+        tuner.tune(config_path="../../data/best_config_bal.yaml",
+                   results_path="tuning_results_bal.csv")
+
+    elif args.task == "ney":
+        print("[Task] Starting Tuning for Neyman...")
+        file_path = "../../data/Sample/Neyman/0001.csv"
+        df = pd.read_csv(file_path)
+
+        for col in categorical_cols:
+            df[col] = df[col].astype('category')
+
+        mod = CoxPHFitter()
+        mod.fit(df.dropna(), formula=cox_formula, duration_col="T_I", event_col="EVENT",
+                weights_col="W", strata=['STRATA'])
+
+        tuner = RDDMTuner(
+            model=mod,
+            base_config=base_config,
+            data_info=data_info_neyman,
+            param_grid=tuning_grid,
+            file_path=file_path,
+            n_trials=30,
+            n_folds=4
+        )
+        tuner.tune(config_path="../../data/best_config_ney.yaml",
+                   results_path="tuning_results_ney.csv")
+
+
+if __name__ == "__main__":
+    main()

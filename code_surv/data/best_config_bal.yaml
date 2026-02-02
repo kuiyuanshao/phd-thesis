@@ -1,21 +1,23 @@
 diffusion:
   diffusion_embedding_dim: 128
   num_steps: 25
-  sum_scale: 0.5
+  sum_scale: 0.1
 else:
-  m: 5
-  mi_approx: dropout
+  m: 3
+  mi_approx: bootstrap
   samp: SRS
   task: Res-N
 model:
-  channels: 512
+  channels: 64
   dropout: 0.25
+  gamma: 1
   layers: 3
-  net: Dense
-  nheads: 8
+  net: ResNet
+  nheads: 4
+  zeta: 1
 train:
-  batch_size: 32
-  epochs: 5000
+  batch_size: 128
+  epochs: 1
   eval_batch_size: 1024
   lr: 0.0002
-  weight_decay: 0.001
+  weight_decay: 0.0001

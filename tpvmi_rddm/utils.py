@@ -190,7 +190,11 @@ class BiasCalc:
         self.type = self._identify_type(template_model)
         self.reference_coeffs = self._extract_coeffs(self.template)
 
+        # [NEW] Extract configuration (Link, Weights, Strata, Robustness)
+        self.config = self._extract_config(self.template, self.type)
+
     def _identify_type(self, model):
+        # Statsmodels usually returns a 'ResultsWrapper', the actual model is inside .model
         if hasattr(model, 'model') and isinstance(model.model, sm_glm.GLM):
             return "statsmodels_glm"
         elif isinstance(model, CoxPHFitter):
@@ -198,25 +202,96 @@ class BiasCalc:
         else:
             raise ValueError(f"Unsupported model type: {type(model)}")
 
+    def _extract_config(self, model, model_type):
+        """
+        Auto-detects the settings used to train the original model.
+        """
+        config = {}
+
+        if model_type == "lifelines_cox":
+            # Lifelines stores these directly as attributes on the object
+            config['weights_col'] = getattr(model, 'weights_col', None)
+            config['cluster_col'] = getattr(model, 'cluster_col', None)
+            config['strata'] = getattr(model, 'strata', None)
+            config['robust'] = getattr(model, 'robust', False)
+            config['formula'] = getattr(model, 'formula', None)
+            config['duration_col'] = model.duration_col
+            config['event_col'] = model.event_col
+
+        elif model_type == "statsmodels_glm":
+            # Statsmodels splits config between the 'Model' (structure) and 'Result' (inference)
+
+            # 1. Structure (Family & Link)
+            config['family'] = model.model.family  # Contains the link function
+
+            # 2. Weights (Stored as arrays in the model object)
+            # We preserve the arrays assuming the imputed data has the SAME ROW ORDER as training data
+            config['freq_weights'] = getattr(model.model, 'freq_weights', None)
+            config['var_weights'] = getattr(model.model, 'var_weights', None)
+
+            # 3. Robustness (HC0, HC1, Cluster, etc. - stored in the Result)
+            config['cov_type'] = getattr(model, 'cov_type', 'nonrobust')
+            config['cov_kwds'] = getattr(model, 'cov_kwds', {})
+
+            # 4. Formula
+            if hasattr(model.model.data, 'formula'):
+                config['formula'] = model.model.data.formula
+            else:
+                config['formula'] = None
+
+        return config
+
     def refit_on_new_data(self, new_df):
         if self.type == "statsmodels_glm":
-            original_model = self.template.model
-            new_mod = smf.glm(
-                formula=original_model.data.formula,
-                data=new_df,
-                family=original_model.family
-            )
-            return new_mod.fit().params
+            if self.config['formula'] is None:
+                print("[BiasCalc] Error: Statsmodels GLM must be created via formula API (smf.glm) to be refit.")
+                return None
+
+            try:
+                # 1. Re-construct the Model Structure (with original Link & Weights)
+                # Note: We pass the WEIGHT ARRAYS from the original model.
+                # This works because Imputation preserves row order.
+                new_mod = smf.glm(
+                    formula=self.config['formula'],
+                    data=new_df,
+                    family=self.config['family'],
+                    freq_weights=self.config['freq_weights'],
+                    var_weights=self.config['var_weights']
+                )
+
+                # 2. Fit with the original Robustness settings (HC0, Cluster, etc)
+                result = new_mod.fit(
+                    cov_type=self.config['cov_type'],
+                    cov_kwds=self.config['cov_kwds']
+                )
+                return result.params
+
+            except Exception as e:
+                # print(f"[BiasCalc] GLM Refit Failed: {e}")
+                return None
 
         elif self.type == "lifelines_cox":
+            # Create a fresh instance to avoid modifying the template
             new_cph = copy.deepcopy(self.template)
-            new_cph.fit(
-                new_df,
-                duration_col=new_cph.duration_col,
-                event_col=new_cph.event_col,
-                formula=new_cph.formula
-            )
-            return new_cph.params_
+
+            try:
+                # Lifelines makes this easy: we just pass the captured args back in.
+                # Note: 'new_df' must contain the columns named in weights_col/strata/cluster_col
+                new_cph.fit(
+                    new_df,
+                    duration_col=self.config['duration_col'],
+                    event_col=self.config['event_col'],
+                    formula=self.config['formula'],
+                    weights_col=self.config['weights_col'],
+                    cluster_col=self.config['cluster_col'],
+                    strata=self.config['strata'],
+                    robust=self.config['robust']
+                )
+                return new_cph.params_
+
+            except Exception as e:
+                # print(f"[BiasCalc] Cox Refit Failed: {e}")
+                return None
 
     def _extract_coeffs(self, model):
         if self.type == "statsmodels_glm":
@@ -228,17 +303,18 @@ class BiasCalc:
     def evaluate_imputations(self, imputed_dfs_list):
         estimates = []
         for df in imputed_dfs_list:
+            if df is None or df.empty: continue
+
             params = self.refit_on_new_data(df)
             if params is not None:
                 estimates.append(params)
 
-        avg_estimates = pd.DataFrame(estimates).mean(axis=0)
 
+        avg_estimates = pd.DataFrame(estimates).mean(axis=0)
         ref_aligned, est_aligned = self.reference_coeffs.align(avg_estimates, join='inner')
-        abs_diff = (ref_aligned - est_aligned).abs() / ref_aligned.abs()
+        abs_diff = (ref_aligned - est_aligned).abs()
         denominator = ref_aligned.abs().clip(lower=1e-5)
 
         relative_bias = abs_diff / denominator
 
         return relative_bias.mean()
-
