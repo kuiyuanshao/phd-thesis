@@ -4,7 +4,7 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
                      best_config_path = "best_gan_config.rds",
                      log_path = "gan_tuning_log.csv",
                      n_evals = 20, 
-                     m = 3, epochs = 2000, device = "cuda", folds = 4) {
+                     m = 3, epochs = 2000, device = "cuda", folds = 4, weights) {
   true_coeffs <- coef(target_model)
   model_formula <- formula(target_model)
   
@@ -107,7 +107,8 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
     avg_beta <- mean(abs(true_coeffs))
     # Formula: |diff| / (|truth| + avg_beta)
     rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + avg_beta, "/")
-    return(list(bias = mean(rel_err_mat, na.rm = TRUE)))
+    weighted_err <- sweep(rel_err_mat, 2, weights, "*")
+    return(list(bias = mean(weighted_err, na.rm = TRUE)))
   }
   
   obj = ObjectiveRFun$new(

@@ -67,14 +67,14 @@ tune_srs <- tune_gan(samp_srs, data, data_info_srs, mod_srs, search_space,
                      best_config_path = "best_gan_config_srs.rds",
                      log_path = "gan_tuning_log_srs.csv",
                      n_evals = 60, 
-                     m = 3, epochs = 2000, device = "cuda", folds = 4)
+                     m = 3, epochs = 2000, device = "cuda", folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))
 tune_bal <- tune_gan(samp_bal, data, data_info_balance, mod_bal, search_space,
                      best_config_path = "best_gan_config_bal.rds",
                      log_path = "gan_tuning_log_bal.csv",
                      n_evals = 60, 
-                     m = 3, epochs = 2000, device = "cuda", folds = 4)
+                     m = 3, epochs = 2000, device = "cuda", folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))
 tune_ney <- tune_gan(samp_ney, data, data_info_neyman, mod_ney, search_space,
                      best_config_path = "best_gan_config_ney.rds",
                      log_path = "gan_tuning_log_ney.csv",
                      n_evals = 60, 
-                     m = 3, epochs = 2000, device = "cuda", folds = 4)
+                     m = 3, epochs = 2000, device = "cuda", folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))

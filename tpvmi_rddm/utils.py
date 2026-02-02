@@ -185,12 +185,11 @@ def inverse_transform_data(generated_data, normalization_stats, data_info):
 
 
 class BiasCalc:
-    def __init__(self, template_model):
+    def __init__(self, template_model, weights):
         self.template = template_model
         self.type = self._identify_type(template_model)
         self.reference_coeffs = self._extract_coeffs(self.template)
-
-        # [NEW] Extract configuration (Link, Weights, Strata, Robustness)
+        self.weights = weights
         self.config = self._extract_config(self.template, self.type)
 
     def _identify_type(self, model):
@@ -318,7 +317,7 @@ class BiasCalc:
         # Formula: |est - ref| / (|ref| + avg_beta)
         diff_matrix = est_aligned.sub(ref_aligned, axis=1)
         soft_rel_error_matrix = diff_matrix.abs().div(ref_aligned.abs() + avg_beta_magnitude, axis=1)
-
-        final_score = soft_rel_error_matrix.mean().mean()
+        weighted_error_matrix = soft_rel_error.mul(weights, axis=1)
+        final_score = weighted_error_matrix.mean().mean()
 
         return final_score

@@ -4,7 +4,7 @@ source("../../00_utils_functions.R")
 tune_mice <- function(data, data_ori, data_info, target_model, search_space,
                        best_config_path = "best_mice_config.rds",
                        log_path = "mice_tuning_log.csv",
-                       n_evals = 20, m = 5, folds = 4) {
+                       n_evals = 20, m = 5, folds = 4, weights) {
   set.seed(42)
   N <- nrow(data)
   shuffled_ids <- sample(1:N)
@@ -102,7 +102,8 @@ tune_mice <- function(data, data_ori, data_info, target_model, search_space,
     avg_beta <- mean(abs(true_coeffs))
     # Formula: |diff| / (|truth| + avg_beta)
     rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + avg_beta, "/")
-    return(list(bias = mean(rel_err_mat, na.rm = TRUE)))
+    weighted_err <- sweep(rel_err_mat, 2, weights, "*")
+    return(list(bias = mean(weighted_err, na.rm = TRUE)))
   }
   
   obj = ObjectiveRFun$new(
@@ -197,12 +198,12 @@ search_space = ps(
 tune_srs <- tune_mice(samp_srs, data, data_info_srs, mod_srs, search_space,
                        best_config_path = "best_mice_config_srs.rds",
                        log_path = "mice_tuning_log_srs.csv",
-                       n_evals = 40, m = 3, folds = 4)
+                       n_evals = 40, m = 3, folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))
 tune_bal <- tune_mice(samp_bal, data, data_info_balance, mod_bal, search_space,
                        best_config_path = "best_mice_config_bal.rds",
                        log_path = "mice_tuning_log_bal.csv",
-                       n_evals = 40, m = 3, folds = 4)
+                       n_evals = 40, m = 3, folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))
 tune_ney <- tune_mice(samp_ney, data, data_info_neyman, mod_ney, search_space,
                        best_config_path = "best_mice_config_ney.rds",
                        log_path = "mice_tuning_log_ney.csv",
-                       n_evals = 40, m = 3, folds = 4)
+                       n_evals = 40, m = 3, folds = 4, weights = c(10, rep(1, 7), rep(2, 4), 1, rep(3, 3)))

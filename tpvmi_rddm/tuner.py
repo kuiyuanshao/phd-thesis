@@ -10,7 +10,7 @@ from tpvmi_rddm.utils import process_data, BiasCalc
 
 
 class RDDMTuner:
-    def __init__(self, model, base_config, data_info, param_grid, file_path, n_trials=50, n_folds=5):
+    def __init__(self, model, base_config, data_info, param_grid, file_path, n_trials=50, n_folds=5, weights=1):
         self.base_config = copy.deepcopy(base_config)
         self.data_info = data_info
         self.param_grid = param_grid
@@ -19,7 +19,7 @@ class RDDMTuner:
         self.n_folds = n_folds
         self.study = None
 
-        self.biascalc = BiasCalc(model)
+        self.biascalc = BiasCalc(model, weights)
         print("[RDDMTuner] Initializing: Loading and Processing Dataset...")
         (proc_data, proc_mask, p1_idx, p2_idx, _, schema, stats, _) = process_data(file_path, data_info)
 
