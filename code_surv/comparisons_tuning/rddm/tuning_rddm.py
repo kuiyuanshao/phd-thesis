@@ -80,7 +80,7 @@ data_info_neyman = {
 
 base_config = {
         "train": {
-            "epochs": 5000,
+            "epochs": 1,
             "batch_size": 128,
             "weight_decay": 1e-6,
             "eval_batch_size": 1024,
@@ -95,6 +95,7 @@ base_config = {
             "net": "DenseNet",
             "channels": 512,
             "layers": 3,
+            "n_heads": 4,
             "dropout": 0.25,
             "gamma": 1,
             "zeta": 1
@@ -108,11 +109,12 @@ base_config = {
     }
 
 tuning_grid = {
-        "channels": [128, 256, 512],
+        "channels": [64, 128, 256, 512],
         "layers": [3, 5],
         "sum_scale": [0.01, 0.1],
         "dropout": [0.25, 0.5],
-        "weight_decay": [1e-3, 1e-4]
+        "weight_decay": [1e-3, 1e-4],
+        "net": ["DenseNet", "ResNet", "AttnNet"]
     }
 
 file_path_srs = "../../data/Sample/SRS/0001.csv"
@@ -166,29 +168,32 @@ tuner_srs = RDDMTuner(
     data_info=data_info_srs,
     param_grid=tuning_grid,
     file_path=file_path_srs,
-    n_trials=30,
-    n_folds=4
+    n_trials=1,
+    n_folds=2
 )
-best_conf_srs = tuner_srs.tune(config_path="../../data/best_config_srs.yaml")
+best_conf_srs = tuner_srs.tune(config_path="../../data/best_config_srs.yaml",
+                               results_path="tuning_results_ney.csv")
 
-tuner_bal = RDDMTuner(
-    model=mod_bal,
-    base_config=base_config,
-    data_info=data_info_balance,
-    param_grid=tuning_grid,
-    file_path=file_path_bal,
-    n_trials=30,
-    n_folds=4
-)
-best_conf_bal = tuner_bal.tune(config_path="../../data/best_config_bal.yaml")
-
-tuner_ney = RDDMTuner(
-    model=mod_ney,
-    base_config=base_config,
-    data_info=data_info_neyman,
-    param_grid=tuning_grid,
-    file_path=file_path_ney,
-    n_trials=30,
-    n_folds=4
-)
-best_conf_ney = tuner_ney.tune(config_path="../../data/best_config_ney.yaml")
+# tuner_bal = RDDMTuner(
+#     model=mod_bal,
+#     base_config=base_config,
+#     data_info=data_info_balance,
+#     param_grid=tuning_grid,
+#     file_path=file_path_bal,
+#     n_trials=30,
+#     n_folds=4
+# )
+# best_conf_bal = tuner_bal.tune(config_path="../../data/best_config_bal.yaml",
+#                                results_path="tuning_results_ney.csv")
+#
+# tuner_ney = RDDMTuner(
+#     model=mod_ney,
+#     base_config=base_config,
+#     data_info=data_info_neyman,
+#     param_grid=tuning_grid,
+#     file_path=file_path_ney,
+#     n_trials=30,
+#     n_folds=4
+# )
+# best_conf_ney = tuner_ney.tune(config_path="../../data/best_config_ney.yaml",
+#                                results_path="tuning_results_ney.csv")

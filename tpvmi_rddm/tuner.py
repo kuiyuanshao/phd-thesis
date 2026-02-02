@@ -115,14 +115,48 @@ class RDDMTuner:
 
         return current_bias
 
-    def tune(self, save_best_config=True, config_path="best_config.yaml"):
+    def tune(self, save_best_config=True, config_path="best_config.yaml",
+             save_results_log=True, results_path="tuning_results.csv"):
+        """
+        Executes the tuning process.
+
+        Args:
+            save_best_config (bool): Whether to save the YAML of the best run.
+            config_path (str): Filename for the best YAML.
+            save_results_log (bool): Whether to save a CSV of all trials and their bias.
+            results_path (str): Filename for the CSV log.
+        """
         self.study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
         print(
-            f"\n[RDDMTuner] Starting Optimization (Metric: Absolute Bias): {self.n_trials} trials, {self.n_folds}-Fold CV")
+            f"\n[RDDMTuner] Starting Optimization (Metric: Mean Bias Ratio): {self.n_trials} trials, {self.n_folds}-Fold CV")
 
         self.study.optimize(self.objective, n_trials=self.n_trials)
 
         print("\n[RDDMTuner] Optimization Finished.")
+
+        # --- NEW LOGIC: EXPORT ALL RESULTS ---
+        if save_results_log:
+            try:
+                # trials_dataframe() returns columns: number, value, datetime_start, params_*, etc.
+                df_results = self.study.trials_dataframe()
+
+                # Sort by performance (ascending bias)
+                if 'value' in df_results.columns:
+                    df_results = df_results.sort_values(by='value', ascending=True)
+
+                df_results.to_csv(results_path, index=False)
+                print(f"[RDDMTuner] Full tuning log saved to: {results_path}")
+            except Exception as e:
+                print(f"[RDDMTuner] Warning: Failed to save results log. Error: {e}")
+        # -------------------------------------
+
+        # Check for valid trials before accessing best_value
+        complete_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+
+        if len(complete_trials) == 0:
+            print("[RDDMTuner] All trials failed. No best config available.")
+            return self.base_config
+
         print(f"Best Value (Mean Bias Ratio): {self.study.best_value:.6f}")
 
         best_config = copy.deepcopy(self.base_config)

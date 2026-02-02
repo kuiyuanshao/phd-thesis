@@ -8,9 +8,9 @@ import math
 # PART 1: ATTENTION-BASED COMPONENTS (from networks_attn.py)
 # ==========================================
 
-def get_torch_trans(heads=8, layers=1, channels=64):
+def get_torch_trans(heads=8, layers=1, channels=64, dropout_rate=0):
     encoder_layer = nn.TransformerEncoderLayer(
-        d_model=channels, nhead=heads, dim_feedforward=64, activation="gelu"
+        d_model=channels, nhead=heads, dim_feedforward=64, activation="gelu", dropout=dropout_rate
     )
     return nn.TransformerEncoder(encoder_layer, num_layers=layers)
 
@@ -83,7 +83,7 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.diffusion_projection = nn.Linear(diffusion_embedding_dim, channels)
         # 1. Self-Attention (Target-Target)
-        self.self_attn = get_torch_trans(heads=nheads, layers=1, channels=channels)
+        self.self_attn = get_torch_trans(heads=nheads, layers=1, channels=channels, dropout_rate = dropout_rate)
         # 2. Cross-Attention (Target-Aux)
         self.cross_attn = nn.MultiheadAttention(embed_dim=channels, num_heads=nheads, dropout=dropout_rate)
         self.norm_cross = nn.LayerNorm(channels)
