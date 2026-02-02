@@ -186,15 +186,15 @@ search_space = ps(
 tune_srs <- tune_mixgb(samp_srs, data, data_info_srs, mod_srs, search_space,
                      best_config_path = "best_mixgb_config_srs.rds",
                      log_path = "mixgb_tuning_log_srs.csv",
-                     n_evals = 100, m = 3, folds = 4)
+                     n_evals = 60, m = 3, folds = 4)
 tune_bal <- tune_mixgb(samp_bal, data, data_info_balance, mod_bal, search_space,
                      best_config_path = "best_mixgb_config_bal.rds",
                      log_path = "mixgb_tuning_log_bal.csv",
-                     n_evals = 100, m = 3, folds = 4)
+                     n_evals = 60, m = 3, folds = 4)
 tune_ney <- tune_mixgb(samp_ney, data, data_info_neyman, mod_ney, search_space,
                      best_config_path = "best_mixgb_config_ney.rds",
                      log_path = "mixgb_tuning_log_ney.csv",
-                     n_evals = 100, m = 3, folds = 4)
+                     n_evals = 60, m = 3, folds = 4)
 
 
 # X_srs <- samp_srs %>%

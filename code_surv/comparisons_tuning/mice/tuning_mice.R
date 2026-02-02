@@ -114,23 +114,15 @@ tune_mice <- function(data, data_ori, data_info, target_model, search_space,
     objective = obj,
     terminator = trm("evals", n_evals = n_evals)
   )
-  test_design = data.table(
-    mincor = 0.1,
-    minpuc = 0.0,
-    ridge  = 1e-05,
-    donors = 5,
-    maxit  = 5
-  )
-  optimizer = opt("design_points", design = test_design)
   
-  # learner_km = lrn("regr.km", covtype = "matern5_2", control = list(trace = FALSE))
-  # surrogate_object = SurrogateLearner$new(learner_km)
-  # 
-  # optimizer = opt("mbo", 
-  #                 loop_function = bayesopt_ego,
-  #                 acq_function = acqf("ei"),
-  #                 surrogate = surrogate_object 
-  # )
+  learner_km = lrn("regr.km", covtype = "matern5_2", control = list(trace = FALSE))
+  surrogate_object = SurrogateLearner$new(learner_km)
+
+  optimizer = opt("mbo",
+                  loop_function = bayesopt_ego,
+                  acq_function = acqf("ei"),
+                  surrogate = surrogate_object
+  )
   
   optimizer$optimize(opt_instance)
   
