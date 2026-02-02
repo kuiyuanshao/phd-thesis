@@ -309,12 +309,14 @@ class BiasCalc:
             if params is not None:
                 estimates.append(params)
 
+        estimates_df = pd.DataFrame(estimates)
+        common_features = estimates_df.columns.intersection(self.reference_coeffs.index)
+        est_aligned = estimates_df[common_features]
+        ref_aligned = self.reference_coeffs[common_features]
 
-        avg_estimates = pd.DataFrame(estimates).mean(axis=0)
-        ref_aligned, est_aligned = self.reference_coeffs.align(avg_estimates, join='inner')
-        abs_diff = (ref_aligned - est_aligned).abs()
-        denominator = ref_aligned.abs().clip(lower=1e-5)
+        diff_matrix = est_aligned.sub(ref_aligned, axis=1)
+        epsilon = 1e-6
+        abs_rel_error_matrix = diff_matrix.abs().div(ref_aligned.abs() + epsilon, axis=1)
+        final_score = abs_rel_error_matrix.mean().mean()
 
-        relative_bias = abs_diff / denominator
-
-        return relative_bias.mean()
+        return final_score
