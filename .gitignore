@@ -22,6 +22,7 @@
 /__pycache__/
 /.Rproj.user/
 /simulations/
+/my_venv/
 
 # Ignore temporary files
 *.tmp
