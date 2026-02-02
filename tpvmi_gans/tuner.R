@@ -1,4 +1,4 @@
-pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, survival, survey, torch, dplyr, data.table)
+pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, survival, survey, torch, dplyr, data.table, DiceKriging)
 
 tune_gan <- function(data, data_ori, data_info, target_model, search_space,
                      best_config_path = "best_gan_config.rds",

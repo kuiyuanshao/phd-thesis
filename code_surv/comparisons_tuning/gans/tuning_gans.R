@@ -59,6 +59,9 @@ search_space = ps(
   weight_decay = p_dbl(lower = 1e-6, upper = 1e-3)
 )
 
+samp_srs <- samp_srs[samp_srs$R == 1,]
+samp_bal <- samp_bal[samp_bal$R == 1,]
+samp_ney <- samp_ney[samp_ney$R == 1,]
 
 tune_srs <- tune_gan(samp_srs, data, data_info_srs, mod_srs, search_space,
                      best_config_path = "best_gan_config_srs.rds",
