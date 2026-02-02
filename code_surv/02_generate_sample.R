@@ -92,7 +92,7 @@ if (file.exists("./data/data_sampling_seed.RData")){
   seed <- sample(1:100000, 500)
   save(seed, file = "./data/data_sampling_seed.RData")
 }
-for (i in 1:10){
+for (i in 1:replicate){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/True/", digit, ".RData"))

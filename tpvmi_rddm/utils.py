@@ -310,13 +310,15 @@ class BiasCalc:
                 estimates.append(params)
 
         estimates_df = pd.DataFrame(estimates)
+
         common_features = estimates_df.columns.intersection(self.reference_coeffs.index)
         est_aligned = estimates_df[common_features]
         ref_aligned = self.reference_coeffs[common_features]
-
+        avg_beta_magnitude = ref_aligned.abs().mean()
+        # Formula: |est - ref| / (|ref| + avg_beta)
         diff_matrix = est_aligned.sub(ref_aligned, axis=1)
-        epsilon = 1e-6
-        abs_rel_error_matrix = diff_matrix.abs().div(ref_aligned.abs() + epsilon, axis=1)
-        final_score = abs_rel_error_matrix.mean().mean()
+        soft_rel_error_matrix = diff_matrix.abs().div(ref_aligned.abs() + avg_beta_magnitude, axis=1)
+
+        final_score = soft_rel_error_matrix.mean().mean()
 
         return final_score

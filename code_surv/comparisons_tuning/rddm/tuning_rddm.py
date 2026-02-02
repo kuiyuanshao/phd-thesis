@@ -160,7 +160,7 @@ def main():
             data_info=data_info_srs,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=100,
+            n_trials=70,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_srs.yaml",
@@ -184,7 +184,7 @@ def main():
             data_info=data_info_balance,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=100,
+            n_trials=70,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_bal.yaml",
@@ -208,7 +208,7 @@ def main():
             data_info=data_info_neyman,
             param_grid=tuning_grid,
             file_path=file_path,
-            n_trials=100,
+            n_trials=70,
             n_folds=4
         )
         tuner.tune(config_path="../../data/best_config_ney.yaml",

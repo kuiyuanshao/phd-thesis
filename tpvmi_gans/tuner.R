@@ -104,8 +104,10 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
     }
     
     diff_mat <- sweep(coef_mat, 2, true_coeffs, "-")
-    rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + 1e-6, "/")
-    mean(rel_err_mat, na.rm = TRUE)
+    avg_beta <- mean(abs(true_coeffs))
+    # Formula: |diff| / (|truth| + avg_beta)
+    rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + avg_beta, "/")
+    return(list(bias = mean(rel_err_mat, na.rm = TRUE)))
   }
   
   obj = ObjectiveRFun$new(

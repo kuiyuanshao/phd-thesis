@@ -188,6 +188,9 @@ exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 library(mice)
 library(mitools)
+i <- 1
+digit <- stringr::str_pad(i, 4, pad = 0)
+best_config <- readRDS("./comparisons_tuning/mice/best_mice_config_srs.rds")
 load(paste0("./data/True/", digit, ".RData"))
 cox.fit <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
@@ -197,9 +200,12 @@ cox.fit <- coxph(Surv(T_I, EVENT) ~
                  data = data)
 samp <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
 samp <- match_types(samp, data)
-mice_imp <- mice(samp, m = 5, print = T, maxit = 25,
-                 maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
-                 predictorMatrix = quickpred(samp, mincor = 0.35))
+
+pred_matrix <- quickpred(samp, mincor = best_config$mincor, method = "pearson")
+
+mice_imp <- mice(samp, m = 5, print = T, maxit = best_config$maxit,
+                 maxcor = 1.0001, ls.meth = "ridge", ridge = best_config$ridge, donors = best_config$donors,
+                 predictorMatrix = pred_matrix)
 multi_impset <- mice::complete(mice_imp, "all")
 multi_impset <- lapply(multi_impset, function(dat){
   match_types(dat, data)
@@ -212,9 +218,8 @@ cox.mod <- with(data = imp.mids,
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
+mean((coef(cox.fit) - pooled$coefficients)^2 / sd((coef(cox.fit) - pooled$coefficients)^2))
 exp(coef(cox.fit)) - exp(pooled$coefficients)
-
-
 
 library(ggplot2)
 
