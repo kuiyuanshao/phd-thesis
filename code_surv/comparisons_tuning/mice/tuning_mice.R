@@ -103,7 +103,7 @@ tune_mice <- function(data, data_ori, data_info, target_model, search_space,
     # Formula: |diff| / (|truth| + avg_beta)
     rel_err_mat <- sweep(abs(diff_mat), 2, abs(true_coeffs) + avg_beta, "/")
     weighted_err <- sweep(rel_err_mat, 2, weights, "*")
-    return(list(bias = mean(weighted_err, na.rm = TRUE)))
+    return (list(bias = mean(weighted_err, na.rm = TRUE)))
   }
   
   obj = ObjectiveRFun$new(
@@ -148,6 +148,10 @@ samp_bal <- match_types(samp_bal, data)
 samp_ney <- read.csv(paste0("../../data/Sample/Neyman/0001.csv"))
 samp_ney <- match_types(samp_ney, data)
 
+samp_srs <- samp_srs[samp_srs$R == 1,]
+samp_bal <- samp_bal[samp_bal$R == 1,]
+samp_ney <- samp_ney[samp_ney$R == 1,]
+
 mod_srs <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
@@ -172,10 +176,6 @@ mod_ney <- svycoxph(Surv(T_I, EVENT) ~
                       rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                       SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                     ney_design)
-
-samp_srs <- samp_srs[samp_srs$R == 1,]
-samp_bal <- samp_bal[samp_bal$R == 1,]
-samp_ney <- samp_ney[samp_ney$R == 1,]
 
 samp_srs <- samp_srs %>% 
   mutate(across(all_of(data_info_srs$cat_vars), as.factor, .names = "{.col}"),

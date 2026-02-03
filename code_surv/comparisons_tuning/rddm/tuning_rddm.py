@@ -83,7 +83,7 @@ data_info_neyman = {
 
 base_config = {
     "train": {
-        "epochs": 2000,
+        "epochs": 1500,
         "batch_size": 128,
         "weight_decay": 1e-6,
         "eval_batch_size": 1024,

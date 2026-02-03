@@ -3,7 +3,7 @@ diffusion:
   num_steps: 25
   sum_scale: 0.5
 else:
-  m: 1
+  m: 3
   mi_approx: bootstrap
   samp: SRS
   task: Res-N
@@ -17,7 +17,7 @@ model:
   zeta: 1
 train:
   batch_size: 128
-  epochs: 1000
+  epochs: 1500
   eval_batch_size: 1024
-  lr: 0.00023575960574458404
+  lr: 2.9821744502042597e-05
   weight_decay: 1.0e-06

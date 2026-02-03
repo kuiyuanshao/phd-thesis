@@ -63,11 +63,13 @@ class RDDMTuner:
                     return True
         return False
 
-
     def _get_trial_config(self, trial):
         config = copy.deepcopy(self.base_config)
+
+        # Iterate through ALL parameters
         for param_name, params in self.param_grid.items():
             param_type = params[0]
+
             if param_type == "cat":
                 choices = params[1]
                 chosen_value = trial.suggest_categorical(param_name, choices)
@@ -82,11 +84,12 @@ class RDDMTuner:
                 chosen_value = trial.suggest_float(param_name, low, high, log=True)
             else:
                 raise ValueError(f"Unknown parameter type: {param_type} for {param_name}")
+
             found = self._update(config, param_name, chosen_value)
             if not found:
                 print(f"[Warning] Parameter '{param_name}' not found in base_config. It was skipped.")
 
-            return config
+        return config  # <--- FIX: This must be OUTSIDE the for loop
 
     def objective(self, trial):
         trial_config = self._get_trial_config(trial)
