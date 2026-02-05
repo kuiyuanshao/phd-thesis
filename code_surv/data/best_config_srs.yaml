@@ -5,7 +5,6 @@ diffusion:
 else:
   m: 2
   mi_approx: dropout
-  samp: SRS
   task: Res-N
 model:
   channels: 2048

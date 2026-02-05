@@ -117,7 +117,6 @@ class TPVMI_RDDM:
         self.model_list = []
         self.swag_model = None
 
-        # Internal data storage
         self._global_p1 = None
         self._global_p2 = None
         self._global_aux = None
@@ -189,21 +188,13 @@ class TPVMI_RDDM:
 
         self._map_schema_indices()
 
-        # --- NOISE DISTRIBUTION (Q) ---
         self.Q_dict = {}
         if len(self.cat_idxs) > 0:
-            # Calculate Q matrix from valid P1-P2 pairs
-            # For provided_data, p1/p2 are already aligned and valid
-            # For file_path, we must index with valid_rows
-
             if provided_data is not None:
-                # p1, p2 are already subsetted
                 p1_src = self._global_p1.cpu().numpy()
                 p2_src = self._global_p2.cpu().numpy()
                 relevant_rows = np.arange(p1_src.shape[0])
             else:
-                # We need to look up original indices in proc_data
-                rel_cat_idxs = self.cat_idxs.cpu().numpy()
                 p1_src = proc_data_cpu[:, p1_idx]
                 p2_src = proc_data_cpu[:, p2_idx]
                 relevant_rows = valid_rows
@@ -211,12 +202,6 @@ class TPVMI_RDDM:
             for i, var in enumerate(self.cat_vars):
                 name = var['name']
                 K = var['num_classes']
-                # Get the column relative to the tensor (p1/p2 only contain target columns)
-                # In provided_data, p1 has all target columns in order.
-                # rel_cat_idxs in _map_schema_indices maps to columns IN THE TENSOR.
-                # So we can just use the tensor content directly.
-
-                # Careful: self.cat_idxs points to columns in _global_p1
                 col_idx = self.cat_idxs[i].item()
 
                 v_p1 = p1_src[relevant_rows, col_idx].astype(int)
@@ -240,14 +225,6 @@ class TPVMI_RDDM:
             else:
                 train_rows = valid_rows.copy()
 
-            # --- SAMPLER (BLS) ---
-            cat_sampling_probs = None
-            cat_class_indices = {}
-            if self.config["else"]["samp"] == "BLS":
-                # BLS needs access to raw classes to balance.
-                # If provided_data is passed, we expect it might be pre-calculated or we calc on fly
-                pass  # (Skipping detailed BLS re-implementation for brevity in Tuning mode)
-
             self.model = RDDM_NET(self.config, self.device, self.variable_schema).to(self.device)
             self.model.train()
 
@@ -261,18 +238,11 @@ class TPVMI_RDDM:
 
             pbar = tqdm(range(epochs), desc=f"Training M{k + 1}", file=sys.stdout, leave=False)
             for step in pbar:
-                # Simple random sampling from the training set
-                # Since train_rows are indices into _global_p1
                 idx_sample = np.random.randint(0, len(train_rows), batch_size)
 
-                # If using provided_data, train_rows are just 0..N
-                # If using file_path, train_rows are indices in valid_rows
-
                 if provided_data is not None:
-                    # train_rows are 0..N of the provided tensor
                     b_idx = train_rows[idx_sample]
                 else:
-                    # train_rows are valid_rows subset
                     b_idx = train_rows[idx_sample]
 
                 b_p1 = self._global_p1[b_idx]
@@ -309,7 +279,6 @@ class TPVMI_RDDM:
 
         x_t_dict, p1_dict, aux_dict = {}, {}, {}
 
-        # --- NUMERIC ---
         if len(self.num_idxs) > 0:
             batch_p2_num = p2[:, self.num_idxs]
             batch_p1_num = p1[:, self.num_idxs]
@@ -321,7 +290,6 @@ class TPVMI_RDDM:
                 x_t_dict[name] = x_t_num[:, i:i + 1]
                 p1_dict[name] = batch_p1_num[:, i:i + 1]
 
-        # --- CATEGORICAL ---
         target_cat_list = []
         if len(self.cat_idxs) > 0:
             batch_p1_cat = p1[:, self.cat_idxs].long()
@@ -386,7 +354,6 @@ class TPVMI_RDDM:
 
                 x_t_dict, p1_dict, aux_dict = {}, {}, {}
 
-                # --- INITIALIZE NOISE (x_T) ---
                 if len(self.num_idxs) > 0:
                     curr_p1_num = b_p1[:, self.num_idxs]
                     init_eps = torch.randn_like(curr_p1_num)
@@ -409,7 +376,6 @@ class TPVMI_RDDM:
                         x_t_dict[name] = F.one_hot(x_T_indices, K).float()
                         p1_dict[name] = oh_p1
 
-                # --- AUX SETUP ---
                 if b_aux.shape[1] > 0:
                     aux_c = 0
                     for var in self.variable_schema:
@@ -421,12 +387,10 @@ class TPVMI_RDDM:
                                 aux_dict[var['name']] = curr
                             aux_c += 1
 
-                # --- DENOISING LOOP (T -> 0) ---
                 for t in reversed(range(self.num_steps)):
                     t_b = torch.full((B,), t, device=self.device).long()
                     out = model_to_use(x_t_dict, t_b, p1_dict, aux_dict)
 
-                    # Numeric Update
                     for name in self.num_vars:
                         x_t = x_t_dict[name]
                         x_input = p1_dict[name]
@@ -453,7 +417,6 @@ class TPVMI_RDDM:
                         pred_x_t = posterior_mean + (0.5 * self.posterior_log_variance[t]).exp() * noise
                         x_t_dict[name] = pred_x_t
 
-                    # Categorical Update
                     for k, var in enumerate(self.cat_vars):
                         name = var['name']
                         K = var['num_classes']
@@ -493,7 +456,6 @@ class TPVMI_RDDM:
         m_s = m if m else self.config["else"]["m"]
         eval_bs = batch_size if batch_size else self.config["train"].get("eval_batch_size", 64)
 
-        # 1. Determine Input Source
         using_external_data = (p1 is not None) and (aux is not None)
         target_p1 = p1 if using_external_data else self._global_p1
         target_aux = aux if using_external_data else self._global_aux
@@ -508,14 +470,10 @@ class TPVMI_RDDM:
         disable_pbar = using_external_data
         pbar = tqdm(total=m_s, desc="Imputation Rounds", file=sys.stdout, disable=disable_pbar)
 
-        # --- PRE-CALCULATE P1/AUX DATAFRAMES (Optimization) ---
-        # If using external data, we must reconstruct P1/Aux from tensors to bind them later.
-        # We do this once outside the loop to save time.
         df_p1_ext = None
         df_aux_ext = None
 
         if using_external_data:
-            # Reconstruct Phase 1
             p1_names = self.data_info.get('phase1_vars', [])
             p1_np = target_p1.cpu().numpy()
             df_p1_ext = pd.DataFrame()
@@ -523,17 +481,13 @@ class TPVMI_RDDM:
                 stats = self.norm_stats[name]
                 col_data = p1_np[:, i]
                 if stats['type'] == 'numeric':
-                    # Reverse Log/Z-score
                     val_log = col_data * stats['sigma'] + stats['mu']
                     df_p1_ext[name] = np.expm1(val_log) - stats['shift']
                 else:
-                    # Reverse Categorical
                     cats = stats['categories']
-                    # Clip indices to be safe
                     indices = np.clip(np.round(col_data), 0, len(cats) - 1).astype(int)
                     df_p1_ext[name] = cats[indices]
 
-            # Reconstruct Aux
             aux_names = [v['name'] for v in self.variable_schema if 'aux' in v['type']]
             aux_np = target_aux.cpu().numpy()
             df_aux_ext = pd.DataFrame()
@@ -548,7 +502,6 @@ class TPVMI_RDDM:
                     indices = np.clip(np.round(col_data), 0, len(cats) - 1).astype(int)
                     df_aux_ext[name] = cats[indices]
 
-        # --- MAIN LOOP ---
         for samp_i in range(1, m_s + 1):
             if self.config["else"]["mi_approx"] == "SWAG" and self.swag_model.n_models.item() > 1:
                 model_to_use = self.swag_model.sample(scale=1, cov=True)
@@ -566,7 +519,6 @@ class TPVMI_RDDM:
                 model_to_use = self.model_list[0]
                 model_to_use.eval()
 
-            # Reverse Diffusion
             x_0_dict = self._reverse_diffusion(target_p1, target_aux, model_to_use, eval_bs)
 
             batch_res = []
@@ -582,7 +534,6 @@ class TPVMI_RDDM:
             combined_tensor = torch.cat(batch_res, dim=1).cpu().numpy()
             df_p2 = inverse_transform_data(combined_tensor, self.norm_stats, self.data_info)
 
-            # --- DATAFRAME RECONSTRUCTION ---
             if using_external_data:
                 df_f = pd.concat([
                     df_p1_ext.reset_index(drop=True),
@@ -590,7 +541,6 @@ class TPVMI_RDDM:
                     df_p2.reset_index(drop=True)
                 ], axis=1)
             else:
-                # Internal fill logic (existing)
                 df_f = self.raw_df.copy()
                 for c in df_p2.columns:
                     if c in df_f.columns:
