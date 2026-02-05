@@ -177,3 +177,178 @@ class RDDMTuner:
             print(f"[RDDMTuner] Best config saved to {config_path}")
 
         return best_config
+
+class BiasCalc:
+    def __init__(self, template_model, weights):
+        self.template = template_model
+        self.type = self._identify_type(template_model)
+        self.reference_coeffs = self._extract_coeffs(self.template)
+
+        # Ensure weights align with reference coefficients
+        if isinstance(weights, list):
+            # Auto-pad or trim if lengths differ (Safety mechanism)
+            if len(weights) != len(self.reference_coeffs):
+                print(
+                    f"[BiasCalc] Warning: Weight count ({len(weights)}) != Coeff count ({len(self.reference_coeffs)}). Padding with 1.0.")
+                diff = len(self.reference_coeffs) - len(weights)
+                weights = weights + [1.0] * diff
+            self.weights = pd.Series(weights, index=self.reference_coeffs.index)
+        else:
+            self.weights = weights
+
+        self.config = self._extract_config(self.template, self.type)
+
+        # NEW: Automatically figure out which columns need to be Bool/Category
+        # based on the parameter names (e.g., "SEX[T.True]" -> SEX must be bool)
+        self.required_dtypes = self._infer_dtypes_from_params(self.reference_coeffs)
+
+    def evaluate_imputations(self, imputed_dfs_list):
+        estimates = []
+        for df in imputed_dfs_list:
+            if df is None or df.empty:
+                continue
+
+            # NEW: Transform the variables to match model format
+            # This converts imputed floats (0.0, 1.0) back to Bools/Categories
+            df_transformed = self._enforce_dtypes(df)
+
+            params = self.refit_on_new_data(df_transformed)
+            if params is not None:
+                estimates.append(params)
+
+        if not estimates:
+            return float('inf')  # Return high penalty if all refits failed
+
+        estimates_df = pd.DataFrame(estimates)
+
+        # 1. Direct Subtraction (Pandas automatically matches column names)
+        diff_matrix = estimates_df.sub(self.reference_coeffs, axis=1)
+
+        # 2. Soft Relative Error Calculation
+        avg_beta_mag = self.reference_coeffs.abs().mean()
+        denominator = self.reference_coeffs.abs() + avg_beta_mag
+        soft_rel_error_matrix = diff_matrix.abs().div(denominator, axis=1)
+
+        # 3. Apply Weights & Score
+        # (Weights are already aligned Series from __init__)
+        weighted_error_matrix = soft_rel_error_matrix.mul(self.weights, axis=1)
+
+        # Double mean: Average over columns (features), then average over rows (imputations)
+        final_score = weighted_error_matrix.mean().mean()
+
+        return final_score
+
+    def _infer_dtypes_from_params(self, coeffs):
+        """
+        Reverse-engineers required column types from coefficient names.
+        """
+        required_casts = {}
+        for p in coeffs.index:
+            # Case 1: Boolean (e.g., "SEX[T.True]")
+            if "[T.True]" in p:
+                col_name = p.split("[")[0]
+                required_casts[col_name] = 'bool'
+            # Case 2: Categorical (e.g., "RACE[T.Black]")
+            elif "[T." in p:
+                col_name = p.split("[")[0]
+                required_casts[col_name] = 'category'
+        return required_casts
+
+    def _enforce_dtypes(self, df):
+        """
+        Applies the inferred types to the dataframe.
+        """
+        df = df.copy()
+        for col, dtype in self.required_dtypes.items():
+            if col in df.columns:
+                try:
+                    if dtype == 'bool':
+                        # Handle 0.0/1.0 floats converting to Bool safe
+                        df[col] = df[col].astype(float).astype(bool)
+                    else:
+                        df[col] = df[col].astype(dtype)
+                except Exception:
+                    # If casting fails (e.g., messy data), leave it alone to avoid crash
+                    pass
+        return df
+
+    def _identify_type(self, model):
+        if hasattr(model, 'model') and isinstance(model.model, sm_glm.GLM):
+            return "statsmodels_glm"
+        elif isinstance(model, CoxPHFitter):
+            return "lifelines_cox"
+        else:
+            # Fallback for wrapped statsmodels
+            try:
+                if isinstance(model.model, sm.genmod.generalized_linear_model.GLM):
+                    return "statsmodels_glm"
+            except:
+                pass
+            raise ValueError(f"Unsupported model type: {type(model)}")
+
+    def _extract_coeffs(self, model):
+        if self.type == "statsmodels_glm":
+            return model.params
+        elif self.type == "lifelines_cox":
+            return model.params_
+        return None
+
+    def _extract_config(self, model, model_type):
+        config = {}
+        if model_type == "lifelines_cox":
+            config['weights_col'] = getattr(model, 'weights_col', None)
+            config['cluster_col'] = getattr(model, 'cluster_col', None)
+            config['strata'] = getattr(model, 'strata', None)
+            config['robust'] = getattr(model, 'robust', False)
+            config['formula'] = getattr(model, 'formula', None)
+            config['duration_col'] = model.duration_col
+            config['event_col'] = model.event_col
+
+        elif model_type == "statsmodels_glm":
+            config['family'] = model.model.family
+            config['freq_weights'] = getattr(model.model, 'freq_weights', None)
+            config['var_weights'] = getattr(model.model, 'var_weights', None)
+            config['cov_type'] = getattr(model, 'cov_type', 'nonrobust')
+            config['cov_kwds'] = getattr(model, 'cov_kwds', {})
+
+            if hasattr(model.model.data, 'formula'):
+                config['formula'] = model.model.data.formula
+            elif hasattr(model.model, 'formula'):
+                config['formula'] = model.model.formula
+            else:
+                config['formula'] = None
+        return config
+
+    def refit_on_new_data(self, new_df):
+        if self.type == "statsmodels_glm":
+            if self.config['formula'] is None:
+                return None
+            try:
+                new_mod = smf.glm(
+                    formula=self.config['formula'],
+                    data=new_df,
+                    family=self.config['family'],
+                    freq_weights=self.config['freq_weights'],
+                    var_weights=self.config['var_weights']
+                )
+                result = new_mod.fit(cov_type=self.config['cov_type'], cov_kwds=self.config['cov_kwds'])
+                return result.params
+            except Exception:
+                return None
+
+        elif self.type == "lifelines_cox":
+            new_cph = copy.deepcopy(self.template)
+            try:
+                new_cph.fit(
+                    new_df,
+                    duration_col=self.config['duration_col'],
+                    event_col=self.config['event_col'],
+                    formula=self.config['formula'],
+                    weights_col=self.config['weights_col'],
+                    cluster_col=self.config['cluster_col'],
+                    strata=self.config['strata'],
+                    robust=self.config['robust']
+                )
+                return new_cph.params_
+            except Exception:
+                return None

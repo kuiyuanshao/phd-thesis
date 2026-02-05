@@ -10,32 +10,36 @@ if(!dir.exists('./simulations/SRS/mice')){dir.create('./simulations/SRS/mice')}
 if(!dir.exists('./simulations/Balance/mice')){dir.create('./simulations/Balance/mice')}
 if(!dir.exists('./simulations/Neyman/mice')){dir.create('./simulations/Neyman/mice')}
 
-args <- commandArgs(trailingOnly = TRUE)
-task_id <- as.integer(ifelse(length(args) >= 1,
-                             args[1],
-                             Sys.getenv("SLURM_ARRAY_TASK_ID", "1")))
-sampling_design <- ifelse(length(args) >= 2, 
-                          args[2], Sys.getenv("SAMP", "All"))
-
-replicate <- 500
-n_chunks <- 20
-chunk_size <- ceiling(replicate / n_chunks)
-first_rep <- (task_id - 1) * chunk_size + 1
-last_rep <- min(task_id * chunk_size, replicate)
+# args <- commandArgs(trailingOnly = TRUE)
+# task_id <- as.integer(ifelse(length(args) >= 1,
+#                              args[1],
+#                              Sys.getenv("SLURM_ARRAY_TASK_ID", "1")))
+# sampling_design <- ifelse(length(args) >= 2, 
+#                           args[2], Sys.getenv("SAMP", "All"))
+# 
+# replicate <- 500
+# n_chunks <- 20
+# chunk_size <- ceiling(replicate / n_chunks)
+# first_rep <- (task_id - 1) * chunk_size + 1
+# last_rep <- min(task_id * chunk_size, replicate)
 
 cat("Task", task_id,
     "handling replicates", first_rep, "to", last_rep,
     "for sampling design:", sampling_design, "\n")
 
-## ---------- helper: run & save one mice call ----------------
-do_mice <- function(dat, nm, digit) {
-  mincor <- 0.35
+best_config_srs <- readRDS("./comparisons_tuning/mice/best_mice_config_srs.rds")
+best_config_bal <- readRDS("./comparisons_tuning/mice/best_mice_config_bal.rds")
+best_config_ney <- readRDS("./comparisons_tuning/mice/best_mice_config_ney.rds")
+do_mice <- function(dat, nm, digit, best_config) {
+  dat$H0_STAR <- nelsonaalen(dat, T_I_STAR, EVENT_STAR)
+  dat$H0_TRUE <- nelsonaalen(dat, T_I, EVENT)
+  mincor <- best_config$mincor
   repeat {
     cat(sprintf("      trying mincor = %.2f\n", mincor))
     tm <- system.time({
       mice_imp <- tryCatch(
         mice(dat, m = 20, print = T, maxit = 25,
-             maxcor = 1.0001, ls.meth = "ridge", ridge = 0.1,
+             maxcor = 1.0001, ls.meth = "ridge", ridge = best_config$ridge,
              predictorMatrix = quickpred(dat, mincor = mincor)),
         error = identity
       )
@@ -56,7 +60,7 @@ do_mice <- function(dat, nm, digit) {
 }
 
 ## ---------- main loop ---------------------------------------
-for (i in first_rep:last_rep) {
+for (i in 1:10) {
   digit <- str_pad(i, 4, pad = "0")
   cat("  replicate", digit, "\n")
   
@@ -69,7 +73,7 @@ for (i in first_rep:last_rep) {
         match_types(data) %>%
         mutate(across(all_of(data_info_srs$cat_vars), as.factor),
                across(all_of(data_info_srs$num_vars), as.numeric))
-      do_mice(samp, "SRS", digit)
+      do_mice(samp, "SRS", digit, best_config_srs)
     }
   }
   
@@ -81,7 +85,7 @@ for (i in first_rep:last_rep) {
         match_types(data) %>%
         mutate(across(all_of(data_info_balance$cat_vars), as.factor),
                across(all_of(data_info_balance$num_vars), as.numeric))
-      do_mice(samp, "Balance", digit)
+      do_mice(samp, "Balance", digit, best_config_bal)
     }
   }
   
@@ -93,7 +97,7 @@ for (i in first_rep:last_rep) {
         match_types(data) %>%
         mutate(across(all_of(data_info_neyman$cat_vars), as.factor),
                across(all_of(data_info_neyman$num_vars), as.numeric))
-      do_mice(samp, "Neyman", digit)
+      do_mice(samp, "Neyman", digit, best_config_ney)
     }
   }
 }
