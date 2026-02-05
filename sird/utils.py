@@ -25,13 +25,10 @@ def process_data(filepath, data_info):
     current_col_idx = 0
     normalization_stats = {}
 
-    weight_idx = None
+    weights = df[data_info.get('weight_var')].values
 
     print(f"\n[Data Processing] Targets: {len(p2_vars)} pairs | Context: {len(aux_vars)} aux variables")
 
-    # ==========================================
-    # BLOCK A: PHASE 1 & PHASE 2 (Target Pairs)
-    # ==========================================
     for p1_name, p2_name in zip(p1_vars, p2_vars):
         if p1_name not in df.columns or p2_name not in df.columns:
             raise ValueError(f"Missing pair: {p1_name} or {p2_name}")
@@ -55,7 +52,6 @@ def process_data(filepath, data_info):
             d1 = np.array([cat_to_int.get(x, 0) for x in p1_raw]).reshape(-1, 1)
             d2 = np.array([cat_to_int.get(x, 0) for x in p2_raw]).reshape(-1, 1)
 
-            # [CHANGE]: Append Phase-1 to Schema
             variable_schema.append({'name': p2_name, 'type': 'categorical', 'num_classes': K})
 
             normalization_stats[p2_name] = {'type': 'categorical', 'categories': np.array(master_categories)}
@@ -65,18 +61,14 @@ def process_data(filepath, data_info):
             v1_float = p1_raw.astype(float)
             v2_float = p2_raw.astype(float)
 
-            # Combined shift logic to ensure strictly positive values for log
             combined_min = np.nanmin(np.concatenate([v1_float, v2_float]))
             shift = 0.0
             if combined_min <= 0:
                 shift = abs(combined_min) + 1.0
 
-            # Step 1: Log-transform
             v1_log = np.log1p(v1_float + shift)
             v2_log = np.log1p(v2_float + shift)
 
-            # Step 2: Combined Normalization Stats (P1 + P2)
-            # We use all available observed points from both columns
             valid_p1_log = v1_log[m1 == 1]
             valid_p2_log = v2_log[m2 == 1]
 
@@ -91,7 +83,6 @@ def process_data(filepath, data_info):
             d1 = np.nan_to_num(d1, nan=0.0).reshape(-1, 1)
             d2 = np.nan_to_num(d2, nan=0.0).reshape(-1, 1)
 
-            # [CHANGE]: Append Phase-1 to Schema
             variable_schema.append({'name': p2_name, 'type': 'numeric'})
 
             normalization_stats[p2_name] = {'type': 'numeric', 'mu': mu, 'sigma': sigma, 'shift': shift}
@@ -103,9 +94,6 @@ def process_data(filepath, data_info):
         p2_indices.append(current_col_idx + 1)
         current_col_idx += 2
 
-    # ==========================================
-    # BLOCK B: AUXILIARY CONTEXT
-    # ==========================================
     for aux_name in aux_vars:
         raw_vals = df[aux_name].values
         mask = (~df[aux_name].isna()).values.astype(float).reshape(-1, 1)
@@ -150,13 +138,10 @@ def process_data(filepath, data_info):
     final_mask = np.hstack(processed_mask_list)
 
     return (final_data, final_mask, np.array(p1_indices), np.array(p2_indices),
-            weight_idx, variable_schema, normalization_stats, df)
+            weights, variable_schema, normalization_stats, df)
 
 
 def inverse_transform_data(generated_data, normalization_stats, data_info):
-    """
-    Reverses normalization AND log-transformation for the GENERATED data.
-    """
     reconstructed_df = pd.DataFrame()
     p2_vars = data_info['phase2_vars']
 

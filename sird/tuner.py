@@ -5,11 +5,11 @@ import yaml
 import torch
 import pandas as pd
 
-from tpvmi_rddm.tpvmi_rddm import TPVMI_RDDM
-from tpvmi_rddm.utils import process_data, BiasCalc
+from tpvmi_SIRD.tpvmi_SIRD import TPVMI_SIRD
+from tpvmi_SIRD.utils import process_data, BiasCalc
 
 
-class RDDMTuner:
+class SIRDTuner:
     def __init__(self, model, base_config, data_info, param_grid, file_path, n_trials=50, n_folds=5, weights=1):
         self.base_config = copy.deepcopy(base_config)
         self.data_info = data_info
@@ -20,14 +20,14 @@ class RDDMTuner:
         self.study = None
 
         self.biascalc = BiasCalc(model, weights)
-        print("[RDDMTuner] Initializing: Loading and Processing Dataset...")
+        print("[SIRDTuner] Initializing: Loading and Processing Dataset...")
         (proc_data, proc_mask, p1_idx, p2_idx, _, schema, stats, _) = process_data(file_path, data_info)
 
         p2_mask = proc_mask[:, p2_idx.astype(int)]
         self.valid_rows_idx = np.where(p2_mask.min(axis=1) == 1.0)[0]
 
         print(
-            f"[RDDMTuner] Tuning on Fully Observed Subsample. Size: {len(self.valid_rows_idx)} / {proc_data.shape[0]}")
+            f"[SIRDTuner] Tuning on Fully Observed Subsample. Size: {len(self.valid_rows_idx)} / {proc_data.shape[0]}")
         p1_sub = proc_data[self.valid_rows_idx][:, p1_idx.astype(int)]
         p2_sub = proc_data[self.valid_rows_idx][:, p2_idx.astype(int)]
 
@@ -115,7 +115,7 @@ class RDDMTuner:
             val_p1 = self.tensor_data['p1'][val_idx].float()
             val_aux = self.tensor_data['aux'][val_idx].float()
 
-            model = TPVMI_RDDM(trial_config, self.data_info)
+            model = TPVMI_SIRD(trial_config, self.data_info)
             model.fit(provided_data=train_data_subset)
             val_p1 = val_p1.to(model.device)
             val_aux = val_aux.to(model.device)
@@ -141,11 +141,11 @@ class RDDMTuner:
              save_results_log=True, results_path="tuning_results.csv"):
         self.study = optuna.create_study(direction="minimize", pruner=optuna.pruners.MedianPruner())
         print(
-            f"\n[RDDMTuner] Starting Optimization (Metric: Mean Bias Ratio): {self.n_trials} trials, {self.n_folds}-Fold CV")
+            f"\n[SIRDTuner] Starting Optimization (Metric: Mean Bias Ratio): {self.n_trials} trials, {self.n_folds}-Fold CV")
 
         self.study.optimize(self.objective, n_trials=self.n_trials)
 
-        print("\n[RDDMTuner] Optimization Finished.")
+        print("\n[SIRDTuner] Optimization Finished.")
 
         if save_results_log:
             try:
@@ -154,15 +154,15 @@ class RDDMTuner:
                     df_results = df_results.sort_values(by='value', ascending=True)
 
                 df_results.to_csv(results_path, index=False)
-                print(f"[RDDMTuner] Full tuning log saved to: {results_path}")
+                print(f"[SIRDTuner] Full tuning log saved to: {results_path}")
             except Exception as e:
-                print(f"[RDDMTuner] Warning: Failed to save results log. Error: {e}")
+                print(f"[SIRDTuner] Warning: Failed to save results log. Error: {e}")
         # -------------------------------------
 
         complete_trials = [t for t in self.study.trials if t.state == optuna.trial.TrialState.COMPLETE]
 
         if len(complete_trials) == 0:
-            print("[RDDMTuner] All trials failed. No best config available.")
+            print("[SIRDTuner] All trials failed. No best config available.")
             return self.base_config
 
         print(f"Best Value (Mean Bias Ratio): {self.study.best_value:.6f}")
@@ -174,7 +174,7 @@ class RDDMTuner:
         if save_best_config:
             with open(config_path, "w") as f:
                 yaml.dump(best_config, f)
-            print(f"[RDDMTuner] Best config saved to {config_path}")
+            print(f"[SIRDTuner] Best config saved to {config_path}")
 
         return best_config
 
@@ -198,8 +198,6 @@ class BiasCalc:
 
         self.config = self._extract_config(self.template, self.type)
 
-        # NEW: Automatically figure out which columns need to be Bool/Category
-        # based on the parameter names (e.g., "SEX[T.True]" -> SEX must be bool)
         self.required_dtypes = self._infer_dtypes_from_params(self.reference_coeffs)
 
     def evaluate_imputations(self, imputed_dfs_list):
@@ -207,9 +205,6 @@ class BiasCalc:
         for df in imputed_dfs_list:
             if df is None or df.empty:
                 continue
-
-            # NEW: Transform the variables to match model format
-            # This converts imputed floats (0.0, 1.0) back to Bools/Categories
             df_transformed = self._enforce_dtypes(df)
 
             params = self.refit_on_new_data(df_transformed)
@@ -217,31 +212,21 @@ class BiasCalc:
                 estimates.append(params)
 
         if not estimates:
-            return float('inf')  # Return high penalty if all refits failed
+            return float('inf')
 
         estimates_df = pd.DataFrame(estimates)
 
-        # 1. Direct Subtraction (Pandas automatically matches column names)
         diff_matrix = estimates_df.sub(self.reference_coeffs, axis=1)
-
-        # 2. Soft Relative Error Calculation
         avg_beta_mag = self.reference_coeffs.abs().mean()
         denominator = self.reference_coeffs.abs() + avg_beta_mag
         soft_rel_error_matrix = diff_matrix.abs().div(denominator, axis=1)
-
-        # 3. Apply Weights & Score
-        # (Weights are already aligned Series from __init__)
         weighted_error_matrix = soft_rel_error_matrix.mul(self.weights, axis=1)
 
-        # Double mean: Average over columns (features), then average over rows (imputations)
         final_score = weighted_error_matrix.mean().mean()
 
         return final_score
 
     def _infer_dtypes_from_params(self, coeffs):
-        """
-        Reverse-engineers required column types from coefficient names.
-        """
         required_casts = {}
         for p in coeffs.index:
             # Case 1: Boolean (e.g., "SEX[T.True]")
@@ -255,9 +240,6 @@ class BiasCalc:
         return required_casts
 
     def _enforce_dtypes(self, df):
-        """
-        Applies the inferred types to the dataframe.
-        """
         df = df.copy()
         for col, dtype in self.required_dtypes.items():
             if col in df.columns:

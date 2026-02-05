@@ -74,7 +74,7 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
       train_test_data <- data
       train_test_data[val_idx, data_info$phase2_vars] <- NA
       
-      gan_res <- tpvmi_gans(
+      gan_res <- sicg(
         data = train_test_data, m = m, data_info = data_info, 
         params = curr_params, epochs = epochs, device = device,
         num.normalizing = "mode", cat.encoding = "onehot"
@@ -138,31 +138,21 @@ tune_gan <- function(data, data_ori, data_info, target_model, search_space,
     write.csv(log_data, log_path, row.names = FALSE)
   }
   
-  # ... (Optimization finished) ...
-  
   best_params <- opt_instance$result_x_domain
-  
-  # 1. Expand Learning Rate Ratio
+
   best_params$lr_g <- best_params$lr_d * best_params$g_d_ratio
   best_params$g_d_ratio <- NULL
-  
-  # 2. Expand Common Weight Decay (Matched G & D)
+
   best_params$g_weight_decay <- best_params$weight_decay
   best_params$d_weight_decay <- best_params$weight_decay
   best_params$weight_decay <- NULL
-  
-  # 3. Expand Common Architecture to Vector Dimensions
-  # The GAN expects 'g_dim' as a vector like c(256, 256, 256)
+
   best_params$g_dim <- rep(best_params$common_width, best_params$common_depth)
   best_params$d_dim <- rep(best_params$common_width, best_params$common_depth)
-  
-  # 4. Cleanup Proxy Parameters
+
   best_params$common_width <- NULL
   best_params$common_depth <- NULL
-  
-  # 6. Final Config Creation
   full_config <- utils::modifyList(cwgangp_default(), best_params)
-  
   if (!is.null(best_config_path)) {
     saveRDS(full_config, best_config_path)
   }

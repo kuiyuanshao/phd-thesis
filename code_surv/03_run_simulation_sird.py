@@ -1,17 +1,16 @@
 import yaml
-from tpvmi_rddm.tpvmi_rddm import TPVMI_RDDM
+from sird.sird import SIRD
 import os
 
-if not os.path.exists("./simulations/SRS/tpvmi_rddm"):
-    os.makedirs("./simulations/SRS/tpvmi_rddm")
+if not os.path.exists("./simulations/SRS/sird"):
+    os.makedirs("./simulations/SRS/sird")
 
-if not os.path.exists("./simulations/Balance/tpvmi_rddm"):
-    os.makedirs("./simulations/Balance/tpvmi_rddm")
+if not os.path.exists("./simulations/Balance/sird"):
+    os.makedirs("./simulations/Balance/sird")
 
-if not os.path.exists("./simulations/Neyman/tpvmi_rddm"):
-    os.makedirs("./simulations/Neyman/tpvmi_rddm")
+if not os.path.exists("./simulations/Neyman/sird"):
+    os.makedirs("./simulations/Neyman/sird")
 
-# 1. SRS (Simple Random Sampling) Dictionary
 data_info_srs = {
     "weight_var": "W",
     "cat_vars": [
@@ -101,38 +100,38 @@ for i in range(1, 101):
     file_path_bal = "F:/phd-thesis/code_surv/data/Sample/Balance/" + digit + ".csv"
     file_path_ney = "F:/phd-thesis/code_surv/data/Sample/Neyman/" + digit + ".csv"
 
-    save_path_srs = "F:/phd-thesis/code_surv/simulations/SRS/tpvmi_rddm/" + digit + ".parquet"
-    save_path_bal = "F:/phd-thesis/code_surv/simulations/Balance/tpvmi_rddm/" + digit + ".parquet"
-    save_path_ney = "F:/phd-thesis/code_surv/simulations/Neyman/tpvmi_rddm/" + digit + ".parquet"
+    save_path_srs = "F:/phd-thesis/code_surv/simulations/SRS/sird/" + digit + ".parquet"
+    save_path_bal = "F:/phd-thesis/code_surv/simulations/Balance/sird/" + digit + ".parquet"
+    save_path_ney = "F:/phd-thesis/code_surv/simulations/Neyman/sird/" + digit + ".parquet"
 
-    rddm_mod_srs = TPVMI_RDDM(config_srs, data_info_srs)
-    rddm_mod_srs.fit(file_path_srs)
-    rddm_mod_srs.impute(save_path=save_path_srs)
+    sird_mod_srs = SIRD(config_srs, data_info_srs)
+    sird_mod_srs.fit(file_path_srs)
+    sird_mod_srs.impute(save_path=save_path_srs)
 
     # # --- 1. Simple Random Sampling ---
     # if not os.path.exists(save_path_srs):
     #     print(f"[SRS] Result not found at {save_path_srs}. Starting training and imputation...")
-    #     rddm_mod_srs = TPVMI_RDDM(config, data_info_srs)
-    #     rddm_mod_srs.fit(file_path_srs)
-    #     rddm_mod_srs.impute(save_path=save_path_srs)
+    #     sird_mod_srs = SIRD(config, data_info_srs)
+    #     sird_mod_srs.fit(file_path_srs)
+    #     sird_mod_srs.impute(save_path=save_path_srs)
     # else:
     #     print(f"[SRS] Result exists at {save_path_srs}. Skipping.")
     #
     # # --- 2. Balanced Sampling ---
     # if not os.path.exists(save_path_bal):
     #     print(f"[Balance] Result not found at {save_path_bal}. Starting training and imputation...")
-    #     rddm_mod_bal = TPVMI_RDDM(config, data_info_balance)
-    #     rddm_mod_bal.fit(file_path_bal)
-    #     rddm_mod_bal.impute(save_path=save_path_bal)
+    #     sird_mod_bal = SIRD(config, data_info_balance)
+    #     sird_mod_bal.fit(file_path_bal)
+    #     sird_mod_bal.impute(save_path=save_path_bal)
     # else:
     #     print(f"[Balance] Result exists at {save_path_bal}. Skipping.")
     #
     # # --- 3. Neyman Allocation ---
     # if not os.path.exists(save_path_ney):
     #     print(f"[Neyman] Result not found at {save_path_ney}. Starting training and imputation...")
-    #     rddm_mod_ney = TPVMI_RDDM(config, data_info_neyman)
-    #     rddm_mod_ney.fit(file_path_ney)
-    #     rddm_mod_ney.impute(save_path=save_path_ney)
+    #     sird_mod_ney = SIRD(config, data_info_neyman)
+    #     sird_mod_ney.fit(file_path_ney)
+    #     sird_mod_ney.impute(save_path=save_path_ney)
     # else:
     #     print(f"[Neyman] Result exists at {save_path_ney}. Skipping.")
 

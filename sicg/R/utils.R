@@ -3,27 +3,19 @@ pacman::p_load(torch)
 reconLoss <- function(fake, true, fake_proj, true_proj, I, params, 
                       num_inds, cat_inds, 
                       ce_groups_p2, ce_groups_mode, total_cat_count){
-  
   use_mm <- (length(num_inds) > 0L) && (params$alpha != 0)
   use_ce <- (length(cat_inds) > 0L) && (params$beta != 0)
-  
   if (!use_mm && !use_ce)
     return (torch_tensor(0, device = fake$device))
-  
-  # Calculate count on GPU to avoid CPU sync
   n_I <- I$sum()
-  
   mm <- if (use_mm) {
-    # Division by (n + eps) handles the 0-row case purely on GPU.
     mse_sum <- nnf_mse_loss(fake[I, num_inds], true[I, num_inds], reduction = "sum")
     params$alpha * (mse_sum / (n_I + 1e-8))
   } else NULL
-  
   ce <- if (use_ce) {
     params$beta *
       ceLoss(fake, true, fake_proj, true_proj, I, n_I, params, ce_groups_p2, ce_groups_mode, total_cat_count)
   } else NULL
-  
   if (is.null(mm)) return(ce)
   if (is.null(ce)) return(mm)
   
@@ -39,24 +31,18 @@ infoLoss <- function(fake, true){
             torch_norm(torch_std(f_flat, dim = 1) - torch_std(t_flat, dim = 1), 2))
 }
 
-# Batched Cross Entropy Loss
 ceLoss <- function(fake, true, fake_proj, A, I, n_I, params, ce_groups_p2, ce_groups_mode, total_cat_count){
   loss_sum <- torch_tensor(0, device = fake$device)
   
   notI <- I$logical_not()
   n_notI <- notI$sum()
-  
-  # Helper: Compute loss for a group (Batch, K, L)
-  # Slicing with empty mask returns empty tensor. CrossEntropy(sum) on empty returns 0.
+
   calc_batch_ce <- function(input, target_onehot, group, col_indices, mask_idx){
     inp_sub <- input[mask_idx, col_indices]
     tgt_sub <- target_onehot[mask_idx, col_indices]
     
     n_curr <- inp_sub$size(1)
-    # Reshape: (N, K, L) -> (N, L, K) for CrossEntropy
     inp_view <- inp_sub$view(c(n_curr, group$k, group$L))$permute(c(1, 3, 2))
-    
-    # Calculate target indices (Argmax) on the fly
     tgt_idx <- torch_argmax(tgt_sub$view(c(n_curr, group$k, group$L)), dim = 3)
     
     return(nnf_cross_entropy(inp_view, tgt_idx, reduction = "sum"))
@@ -68,8 +54,6 @@ ceLoss <- function(fake, true, fake_proj, A, I, n_I, params, ce_groups_p2, ce_gr
       
       l1 <- calc_batch_ce(fake_proj, A, group, idx_A, notI)
       l2 <- calc_batch_ce(fake, true, group, group$p2_idx, I)
-      
-      # Tensor division
       term <- (params$proj_weight * l1 + l2) / (n_notI + n_I + 1e-8)
       loss_sum$add_(term)
     } else {
@@ -86,7 +70,6 @@ ceLoss <- function(fake, true, fake_proj, A, I, n_I, params, ce_groups_p2, ce_gr
   return (loss_sum / total_cat_count)
 }
 
-# Batched Gumbel Softmax
 activationFun <- function(fake, cat_groups, all_nums, params, gen = F){
   hard_flag <- if (gen) TRUE else isTRUE(params$hard)
   
@@ -99,7 +82,6 @@ activationFun <- function(fake, cat_groups, all_nums, params, gen = F){
   return (fake)
 }
 
-# Batched Projection
 projCat <- function(fake, proj_groups){
   fake_result <- fake$clone()
   for (group in proj_groups) {
@@ -107,7 +89,6 @@ projCat <- function(fake, proj_groups){
     subset_view <- subset$view(c(fake$size(1), group$k, group$L))
     
     prob <- nnf_softmax(subset_view, dim = 3)
-    # Batched matrix multiplication: (N, K, 1, L) x (K, L, L)
     proj <- torch_matmul(prob$unsqueeze(3), group$matrices)$squeeze(3)
     
     logits_obs <- torch_log(proj$clamp(1e-8, 1 - 1e-8))
@@ -128,7 +109,7 @@ gradientPenalty <- function(D, real_samples, fake_samples, params, device, ones_
   } else {
     torch_ones(d_interpolates$size(), device = device)
   }
-  fake <- fake$detach() # Ensure no graph attachment
+  fake <- fake$detach()
   
   gradients <- torch::autograd_grad(
     outputs = d_interpolates,
@@ -153,21 +134,16 @@ create_data_loaders <- function(data_original, data_encode, data_info, params,
   p2loader <- NULL
   Dloader  <- NULL
   phase1_bins <- character(0)
-  
-  # Logic for Balanced Sampling strategy
   if (params$balancebatch) {
-    # Identify categorical variables present in phase 1 but not in phase 2 for balancing
     p1_exclusive_vars <- data_info$cat_vars[!(data_info$cat_vars %in% data_info$phase2_vars)]
     
     if (length(p1_exclusive_vars) > 0) {
-      # Filter for variables that have more than one level in both subsets to avoid sampler collapse
       phase1_bins <- p1_exclusive_vars[sapply(p1_exclusive_vars, function(col) {
         length(unique(data_original[phase1_rows, col])) > 1 && 
           length(unique(data_original[phase2_rows, col])) > 1
       })]
     }
-    
-    # Initialize Balanced Samplers
+
     if (p1b_t > 0) {
       p1sampler <- BalancedSampler(data_original[phase1_rows, ], phase1_bins, p1b_t, epochs)
       p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = TRUE,
@@ -177,14 +153,11 @@ create_data_loaders <- function(data_original, data_encode, data_info, params,
     p2sampler <- BalancedSampler(data_original[phase2_rows, ], phase1_bins, p2b_t, epochs)
     p2loader <- dataloader(p2set, sampler = p2sampler, pin_memory = TRUE,
                            collate_fn = function(bl) bl[[1]])
-    
-    # Discriminator loader typically uses the full batch size on the most informative set (phase 2)
     D_sampler <- BalancedSampler(data_original[phase2_rows, ], phase1_bins, params$batch_size, epochs)
     Dloader <- dataloader(p2set, sampler = D_sampler, pin_memory = TRUE,
                           collate_fn = function(bl) bl[[1]])
     
   } else {
-    # Fallback to Simple Random Sampling (SRS)
     if (p1b_t > 0) {
       p1sampler <- SRSSampler(length(phase1_rows), p1b_t, epochs)
       p1loader <- dataloader(p1set, sampler = p1sampler, pin_memory = TRUE,

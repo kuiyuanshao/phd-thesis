@@ -1,87 +1,22 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import os
 import sys
-import math
 import numpy as np
 import pandas as pd
 import copy
 from torch.optim import SGD, Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from tqdm import tqdm
 from sklearn.metrics import confusion_matrix
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from networks import RDDM_NET
+from networks import SIRD_NET
 from utils import inverse_transform_data, process_data
+from swag import SWAG
 
-
-class FullSWAG(nn.Module):
-    def __init__(self, base_model, max_num_models=20, var_clamp=1e-30):
-        super(FullSWAG, self).__init__()
-        self.base = copy.deepcopy(base_model)
-        self.base.train()
-        self.max_num_models = max_num_models
-        self.var_clamp = var_clamp
-        self.n_models = torch.zeros([1], dtype=torch.long)
-        self.params = list()
-
-        for name, param in self.base.named_parameters():
-            safe_name = name.replace(".", "_")
-            self.register_buffer(f"{safe_name}_mean", torch.zeros_like(param.data))
-            self.register_buffer(f"{safe_name}_sq_mean", torch.zeros_like(param.data))
-            self.register_buffer(f"{safe_name}_cov_mat_sqrt", torch.empty(0, param.numel()))
-            self.params.append((name, safe_name, param))
-
-    def collect_model(self, base_model):
-        curr_params = dict(base_model.named_parameters())
-        n = self.n_models.item()
-        for name, safe_name, _ in self.params:
-            if name not in curr_params: continue
-            param = curr_params[name]
-            mean = getattr(self, f"{safe_name}_mean")
-            sq_mean = getattr(self, f"{safe_name}_sq_mean")
-            cov_mat_sqrt = getattr(self, f"{safe_name}_cov_mat_sqrt")
-
-            mean = mean * n / (n + 1.0) + param.data.to(mean.device) / (n + 1.0)
-            sq_mean = sq_mean * n / (n + 1.0) + (param.data.to(sq_mean.device) ** 2) / (n + 1.0)
-            dev = (param.data.to(mean.device) - mean).view(-1, 1)
-            cov_mat_sqrt = torch.cat((cov_mat_sqrt, dev.t()), dim=0)
-
-            if (cov_mat_sqrt.size(0)) > self.max_num_models:
-                cov_mat_sqrt = cov_mat_sqrt[1:, :]
-
-            setattr(self, f"{safe_name}_mean", mean)
-            setattr(self, f"{safe_name}_sq_mean", sq_mean)
-            setattr(self, f"{safe_name}_cov_mat_sqrt", cov_mat_sqrt)
-        self.n_models.add_(1)
-
-    def sample(self, scale=1, cov=True):
-        scale_sqrt = scale ** 0.5
-        for name, safe_name, base_param in self.params:
-            mean = getattr(self, f"{safe_name}_mean")
-            sq_mean = getattr(self, f"{safe_name}_sq_mean")
-            cov_mat_sqrt = getattr(self, f"{safe_name}_cov_mat_sqrt")
-
-            var = torch.clamp(sq_mean - mean ** 2, min=self.var_clamp)
-            var_sample = var.sqrt() * torch.randn_like(var)
-
-            if cov and cov_mat_sqrt.size(0) > 0:
-                K = cov_mat_sqrt.size(0)
-                z2 = torch.randn(K, 1, device=mean.device)
-                cov_sample = cov_mat_sqrt.t().matmul(z2).view_as(mean)
-                cov_sample /= (self.max_num_models - 1) ** 0.5
-                rand_sample = var_sample + cov_sample
-            else:
-                rand_sample = var_sample
-
-            sample = mean + scale_sqrt * rand_sample
-            base_param.data.copy_(sample)
-        return self.base
-
-
-class TPVMI_RDDM:
+class SIRD:
     def __init__(self, config, data_info, device=None):
         self.config = config
         self.data_info = data_info
@@ -126,6 +61,20 @@ class TPVMI_RDDM:
         self.num_vars = []
         self.cat_vars = []
 
+    def get_teacher(self):
+        if self.model is None:
+            raise ValueError("Initialize the student model first using fit() or manually.")
+
+        teacher = copy.deepcopy(self.model)
+        for param in teacher.parameters():
+            param.requires_grad = False
+        return teacher
+
+    def _update_teacher(self, student, teacher, alpha=0.999):
+        with torch.no_grad():
+            for t_param, s_param in zip(teacher.parameters(), student.parameters()):
+                t_param.data.mul_(alpha).add_(s_param.data, alpha=1 - alpha)
+
     def _map_schema_indices(self):
         self.num_vars = [v['name'] for v in self.variable_schema if v['type'] == 'numeric']
         self.cat_vars = [v for v in self.variable_schema if v['type'] == 'categorical']
@@ -150,19 +99,26 @@ class TPVMI_RDDM:
         self.gamma = self.config["model"]["gamma"]
         self.zeta = self.config["model"]["zeta"]
 
+        # --- Data Loading and Processing ---
         if provided_data is not None:
             self._global_p1 = provided_data['p1'].float().to(self.device)
             self._global_p2 = provided_data['p2'].float().to(self.device)
             self._global_aux = provided_data['aux'].float().to(self.device)
             self.variable_schema = provided_data['schema']
             self.norm_stats = provided_data['stats']
+
+            # Handle weights if provided in the subset dict
+            if 'weights' in provided_data:
+                self._global_weights = provided_data['weights'].double()
+            else:
+                self._global_weights = torch.ones(self._global_p1.shape[0], dtype=torch.double)
+
             valid_rows = np.arange(self._global_p1.shape[0])
             self.raw_df = None
             proc_data_cpu = None
             p2_idx = None
-
         elif file_path is not None:
-            (proc_data, proc_mask, p1_idx, p2_idx, weight_idx, self.variable_schema, self.norm_stats,
+            (proc_data, proc_mask, p1_idx, p2_idx, weights_raw, self.variable_schema, self.norm_stats,
              self.raw_df) = process_data(file_path, self.data_info)
 
             p1_idx, p2_idx = p1_idx.astype(int), p2_idx.astype(int)
@@ -174,6 +130,8 @@ class TPVMI_RDDM:
             self._global_p1 = torch.from_numpy(proc_data[:, p1_idx]).float().to(self.device)
             self._global_p2 = torch.from_numpy(proc_data[:, p2_idx]).float().to(self.device)
 
+            self._global_weights = torch.from_numpy(weights_raw).double()
+
             all_idx = set(range(proc_data.shape[1]))
             reserved = set(p1_idx) | set(p2_idx)
             aux_idx = np.array(sorted(list(all_idx - reserved)), dtype=int)
@@ -183,11 +141,8 @@ class TPVMI_RDDM:
                 self._global_aux = torch.empty((proc_data.shape[0], 0)).float().to(self.device)
 
             proc_data_cpu = proc_data
-        else:
-            raise ValueError("Either file_path or provided_data must be supplied.")
 
         self._map_schema_indices()
-
         self.Q_dict = {}
         if len(self.cat_idxs) > 0:
             if provided_data is not None:
@@ -216,7 +171,7 @@ class TPVMI_RDDM:
 
         for k in range(num_train_mods):
             if provided_data is None:
-                print(f"\n[TPVMI-RDDM] Training Model {k + 1}/{num_train_mods}...")
+                print(f"\n[SIRD] Training Model {k + 1}/{num_train_mods}...")
 
             rng = np.random.default_rng()
             if mi_approx == "bootstrap":
@@ -225,32 +180,56 @@ class TPVMI_RDDM:
             else:
                 train_rows = valid_rows.copy()
 
-            self.model = RDDM_NET(self.config, self.device, self.variable_schema).to(self.device)
+            # --- Normalize train_rows to Tensor here ---
+            # This ensures consistent indexing behavior regardless of data source
+            train_rows = torch.from_numpy(train_rows).long().to(self.device)
+
+            # --- Weighted Sampler Setup ---
+            # Weights are indexed using the tensor now
+            local_weights = self._global_weights[train_rows]
+
+            train_indices = torch.arange(len(train_rows))
+            sampler = WeightedRandomSampler(
+                weights=local_weights,
+                num_samples=len(train_rows) * 4,
+                replacement=True
+            )
+
+            loader = DataLoader(
+                TensorDataset(train_indices),
+                batch_size=batch_size,
+                sampler=sampler,
+                drop_last=False
+            )
+            loader_iter = iter(loader)
+
+            self.model = SIRD_NET(self.config, self.device, self.variable_schema).to(self.device)
             self.model.train()
 
             if mi_approx == "SWAG":
                 swa_start_iter = int(epochs * 0.80)
                 optimizer = SGD(self.model.parameters(), lr=lr, momentum=0.9)
                 scheduler = CosineAnnealingLR(optimizer, T_max=swa_start_iter, eta_min=lr * 0.5)
-                self.swag_model = FullSWAG(self.model, max_num_models=int(self.config["else"]["m"] * 5)).to(self.device)
+                self.swag_model = SWAG(self.model, max_num_models=int(self.config["else"]["m"] * 5)).to(self.device)
             else:
                 optimizer = Adam(self.model.parameters(), lr=lr, weight_decay=self.config["train"]["weight_decay"])
 
             pbar = tqdm(range(epochs), desc=f"Training M{k + 1}", file=sys.stdout, leave=False)
-            for step in pbar:
-                idx_sample = np.random.randint(0, len(train_rows), batch_size)
 
-                if provided_data is not None:
-                    b_idx = train_rows[idx_sample]
-                else:
-                    b_idx = train_rows[idx_sample]
+            for step in pbar:
+                try:
+                    batch_local_indices = next(loader_iter)[0]
+                except StopIteration:
+                    loader_iter = iter(loader)
+                    batch_local_indices = next(loader_iter)[0]
+                b_idx = train_rows[batch_local_indices.to(self.device)]
 
                 b_p1 = self._global_p1[b_idx]
                 b_p2 = self._global_p2[b_idx]
                 b_aux = self._global_aux[b_idx]
 
                 optimizer.zero_grad()
-                loss = self.calc_unified_loss(b_p1, b_p2, b_aux)
+                loss = self.calc_loss(b_p1, b_p2, b_aux)
                 loss.backward()
 
                 if mi_approx == "SWAG":
@@ -268,10 +247,9 @@ class TPVMI_RDDM:
                         if (step - swa_start_iter) % 50 == 0:
                             self.swag_model.collect_model(self.model)
             self.model_list.append(self.model)
-            self.best_epoch_ = epochs
         return self
 
-    def calc_unified_loss(self, p1, p2, aux):
+    def calc_loss(self, p1, p2, aux):
         B = p1.shape[0]
         t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
         a_bar = self.alpha_bars[t].view(B, 1)

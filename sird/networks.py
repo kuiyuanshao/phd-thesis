@@ -290,16 +290,16 @@ class MlpBackbone(nn.Module):
         return output_dict
 
 
-class RDDM_NET(nn.Module):
+class SIRD_NET(nn.Module):
     def __init__(self, config, device, variable_schema):
         super().__init__()
         self.net_type = config["model"]["net"]
 
         if self.net_type == "AttnNet":
-            print("[RDDM_NET] Initializing Attention-based Backbone")
+            print("[SIRD_NET] Initializing Attention-based Backbone")
             self.model = AttnBackbone(config, device, variable_schema)
         elif self.net_type == "ResNet":
-            print("[RDDM_NET] Initializing ResNet Backbone")
+            print("[SIRD_NET] Initializing ResNet Backbone")
             self.model = MlpBackbone(config, device, variable_schema)
         else:
             raise ValueError(f"Unknown architecture: {self.net_type}. Options: 'AttnNet', 'ResNet'")

@@ -1,6 +1,5 @@
 pacman::p_load(progress, torch, mclust)
 
-# --- Helper Function to Create Loaders (Extracted from original logic) ---
 create_data_loaders <- function(data_original, data_encode, data_info, params, 
                                 phase1_rows, phase2_rows, p1set, p2set, 
                                 p1b_t, p2b_t, epochs){
@@ -41,7 +40,7 @@ create_data_loaders <- function(data_original, data_encode, data_info, params,
   list(p1loader = p1loader, p2loader = p2loader, Dloader = Dloader, phase1_bins = phase1_bins)
 }
 
-cwgangp_default <- function(batch_size = 500, lambda = 10, 
+sicg_default <- function(batch_size = 500, lambda = 10, 
                             alpha = 0, beta = 1, proj_weight = 1,
                             at_least_p = 1, g_dropout = 0.5,
                             lr_g = 2e-4, lr_d = 2e-4, g_betas = c(0.5, 0.9), d_betas = c(0.5, 0.9), 
@@ -67,13 +66,13 @@ cwgangp_default <- function(batch_size = 500, lambda = 10,
        num = num, cat = cat, balancebatch = balancebatch, mi_approx = mi_approx)
 }
 
-tpvmi_gans <- function(data, m = 5, 
+sicg <- function(data, m = 5, 
                        num.normalizing = "mode", cat.encoding = "onehot", 
                        device = "cpu", epochs = 2000, 
                        params = list(), data_info = list(), 
                        save.step = NULL){
   
-  params <- do.call("cwgangp_default", params)
+  params <- do.call("sicg_default", params)
   device <- torch_device(device)
   
   if (params$at_least_p == 1){

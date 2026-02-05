@@ -41,9 +41,9 @@
 !mixgb_balanceParams.RData
 !mixgb_neymanParams.RData
 !mixgb_srsParams.RData
-/tpvmi_rddm/__pycache__
+/sird/__pycache__
 *.pyc
-tpvmi_rddm/__pycache__/tpvmi_rddm.cpython-313.pyc
+sird/__pycache__/tpvmi_rddm.cpython-313.pyc
 /VCCC/.ipynb_checkpoints
-/tpvmi_rddm/__pycache__
-tpvmi_rddm/__pycache__/tpvmi_rddm.cpython-313.pyc
+/sird/__pycache__
+sird/__pycache__/tpvmi_rddm.cpython-313.pyc
