@@ -16,31 +16,39 @@ from networks import SIRD_NET
 from utils import inverse_transform_data, process_data
 from swag import SWAG
 
+
 class SIRD:
     def __init__(self, config, data_info, device=None):
+        """
+        Initialize the SIRD model and pre-calculate diffusion schedules.
+        """
         self.config = config
         self.data_info = data_info
         self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
         self.num_steps = config["diffusion"]["num_steps"]
         self.sum_scale = torch.tensor(config["diffusion"]["sum_scale"])
         self.task = config["else"]["task"]
-        # Schedules
+
+        # Define diffusion schedules using cubic interpolation
         b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
         a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
         alphas = a / a.sum()
         betas = b / b.sum() * self.sum_scale
         betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
 
+        # Calculate alpha bars (cumulative product of alphas approx) and beta bars
         self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
         alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0), value=self.alpha_bars[1])
 
         betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
         self.beta_bars = torch.sqrt(betas_cumsum)
 
+        # Pre-calculate posterior variance for the reverse step
         posterior_variance = betas * betas_cumsum_prev / betas_cumsum
         posterior_variance[0] = 0
         self.posterior_log_variance = torch.log(posterior_variance.clamp(min=1e-20))
 
+        # Coefficients for posterior mean calculation (used in reverse diffusion)
         self.posterior_mean_coef1 = betas_cumsum_prev / betas_cumsum
         self.posterior_mean_coef2 = (betas * alphas_cumsum_prev - betas_cumsum_prev * alphas) / betas_cumsum
         self.posterior_mean_coef3 = betas / betas_cumsum
@@ -52,43 +60,29 @@ class SIRD:
         self.model_list = []
         self.swag_model = None
 
-        self._global_p1 = None
-        self._global_p2 = None
-        self._global_aux = None
+        self._global_data = None
+        self.variable_schema = []
 
-        self.num_idxs = None
-        self.cat_idxs = None
         self.num_vars = []
         self.cat_vars = []
-
-    def get_teacher(self):
-        if self.model is None:
-            raise ValueError("Initialize the student model first using fit() or manually.")
-
-        teacher = copy.deepcopy(self.model)
-        for param in teacher.parameters():
-            param.requires_grad = False
-        return teacher
-
-    def _update_teacher(self, student, teacher, alpha=0.999):
-        with torch.no_grad():
-            for t_param, s_param in zip(teacher.parameters(), student.parameters()):
-                t_param.data.mul_(alpha).add_(s_param.data, alpha=1 - alpha)
+        self.p1_slices = {}
+        self.p2_slices = {}
+        self.aux_slices = {}
+        self.Q_dict = {}
 
     def _map_schema_indices(self):
-        self.num_vars = [v['name'] for v in self.variable_schema if v['type'] == 'numeric']
-        self.cat_vars = [v for v in self.variable_schema if v['type'] == 'categorical']
-        num_indices_list, cat_indices_list = [], []
-        curr_ptr = 0
-        for var in self.variable_schema:
-            if 'aux' in var['type']: continue
-            if var['type'] == 'numeric':
-                num_indices_list.append(curr_ptr)
-            elif var['type'] == 'categorical':
-                cat_indices_list.append(curr_ptr)
-            curr_ptr += 1
-        self.num_idxs = torch.tensor(num_indices_list, device=self.device).long()
-        self.cat_idxs = torch.tensor(cat_indices_list, device=self.device).long()
+        """
+        Map variable names to their corresponding column indices in the data matrix.
+        Separates variables into Numeric, Categorical, Phase 1, Phase 2, and Auxiliary groups.
+        """
+        self.num_vars = [v for v in self.variable_schema if 'numeric' in v['type']]
+        self.cat_vars = [v for v in self.variable_schema if 'categorical' in v['type']]
+        self.p1_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
+                          'p1' in v['type']}
+        self.p2_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
+                          'p2' in v['type']}
+        self.aux_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
+                           'aux' in v['type']}
 
     def fit(self, file_path=None, provided_data=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
@@ -99,76 +93,51 @@ class SIRD:
         self.gamma = self.config["model"]["gamma"]
         self.zeta = self.config["model"]["zeta"]
 
-        # --- Data Loading and Processing ---
+        # Load data from file or use provided data dictionary
         if provided_data is not None:
-            self._global_p1 = provided_data['p1'].float().to(self.device)
-            self._global_p2 = provided_data['p2'].float().to(self.device)
-            self._global_aux = provided_data['aux'].float().to(self.device)
+            self._global_data = provided_data['data'].float().to(self.device)
+            self._global_weights = torch.from_numpy(provided_data['weights']).double()
             self.variable_schema = provided_data['schema']
             self.norm_stats = provided_data['stats']
-
-            # Handle weights if provided in the subset dict
-            if 'weights' in provided_data:
-                self._global_weights = provided_data['weights'].double()
-            else:
-                self._global_weights = torch.ones(self._global_p1.shape[0], dtype=torch.double)
-
-            valid_rows = np.arange(self._global_p1.shape[0])
-            self.raw_df = None
-            proc_data_cpu = None
-            p2_idx = None
+            valid_rows = np.arange(self._global_data.shape[0])
         elif file_path is not None:
-            (proc_data, proc_mask, p1_idx, p2_idx, weights_raw, self.variable_schema, self.norm_stats,
+            (proc_data, proc_mask, weights_raw, self.variable_schema, self.norm_stats,
              self.raw_df) = process_data(file_path, self.data_info)
 
-            p1_idx, p2_idx = p1_idx.astype(int), p2_idx.astype(int)
-            p2_mask = proc_mask[:, p2_idx]
-
-            valid_rows = np.where(p2_mask.mean(axis=1) > 0.5)[0]
+            # Filter rows where Phase 2 outcomes are actually observed
+            p2_check_idx = next((i for i, v in enumerate(self.variable_schema) if 'numeric_p2' in v['type']), None)
+            valid_rows = np.where(proc_mask[:, p2_check_idx] == 1)[0]
             print(f"[Fit] Global Valid Rows (Observed Phase 2): {len(valid_rows)}")
 
-            self._global_p1 = torch.from_numpy(proc_data[:, p1_idx]).float().to(self.device)
-            self._global_p2 = torch.from_numpy(proc_data[:, p2_idx]).float().to(self.device)
-
-            self._global_weights = torch.from_numpy(weights_raw).double()
-
-            all_idx = set(range(proc_data.shape[1]))
-            reserved = set(p1_idx) | set(p2_idx)
-            aux_idx = np.array(sorted(list(all_idx - reserved)), dtype=int)
-            if len(aux_idx) > 0:
-                self._global_aux = torch.from_numpy(proc_data[:, aux_idx]).float().to(self.device)
-            else:
-                self._global_aux = torch.empty((proc_data.shape[0], 0)).float().to(self.device)
-
-            proc_data_cpu = proc_data
+            self._global_data = torch.from_numpy(proc_data).float().to(self.device)
+            self._global_weights = torch.from_numpy(weights_raw).double().to(self.device)
 
         self._map_schema_indices()
         self.Q_dict = {}
-        if len(self.cat_idxs) > 0:
-            if provided_data is not None:
-                p1_src = self._global_p1.cpu().numpy()
-                p2_src = self._global_p2.cpu().numpy()
-                relevant_rows = np.arange(p1_src.shape[0])
-            else:
-                p1_src = proc_data_cpu[:, p1_idx]
-                p2_src = proc_data_cpu[:, p2_idx]
-                relevant_rows = valid_rows
 
-            for i, var in enumerate(self.cat_vars):
-                name = var['name']
-                K = var['num_classes']
-                col_idx = self.cat_idxs[i].item()
+        # Construct transition matrices Q for categorical variables
+        # Q approximates the noise distribution between Phase 1 (proxy) and Phase 2 (true)
+        if len(self.cat_vars) > 0:
+            for v in self.cat_vars:
+                if 'p2' not in v['type']: continue
+                name = v['name']
+                partner = v['pair_partner']
 
-                v_p1 = p1_src[relevant_rows, col_idx].astype(int)
-                v_p2 = p2_src[relevant_rows, col_idx].astype(int)
+                sl_p1 = self.p1_slices[partner]
+                sl_p2 = self.p2_slices[name]
 
-                cm = confusion_matrix(v_p2, v_p1, labels=range(K))
+                d_p1 = self._global_data[valid_rows, sl_p1].argmax(dim=1).cpu().numpy()
+                d_p2 = self._global_data[valid_rows, sl_p2].argmax(dim=1).cpu().numpy()
+
+                K = v['num_classes']
+                cm = confusion_matrix(d_p2, d_p1, labels=range(K))
                 cm_smooth = cm + 1
                 Q = cm_smooth / cm_smooth.sum(axis=1, keepdims=True)
                 self.Q_dict[name] = torch.tensor(Q, device=self.device).float()
 
         num_train_mods = self.config["else"]["m"] if mi_approx == "bootstrap" else 1
 
+        # Main training loop (supports multiple models for bootstrap approximation)
         for k in range(num_train_mods):
             if provided_data is None:
                 print(f"\n[SIRD] Training Model {k + 1}/{num_train_mods}...")
@@ -180,21 +149,16 @@ class SIRD:
             else:
                 train_rows = valid_rows.copy()
 
-            # --- Normalize train_rows to Tensor here ---
-            # This ensures consistent indexing behavior regardless of data source
             train_rows = torch.from_numpy(train_rows).long().to(self.device)
-
-            # --- Weighted Sampler Setup ---
-            # Weights are indexed using the tensor now
             local_weights = self._global_weights[train_rows]
 
+            # Setup Weighted Sampler to handle survey weights
             train_indices = torch.arange(len(train_rows))
             sampler = WeightedRandomSampler(
                 weights=local_weights,
                 num_samples=len(train_rows) * 4,
                 replacement=True
             )
-
             loader = DataLoader(
                 TensorDataset(train_indices),
                 batch_size=batch_size,
@@ -206,6 +170,7 @@ class SIRD:
             self.model = SIRD_NET(self.config, self.device, self.variable_schema).to(self.device)
             self.model.train()
 
+            # Initialize optimizer or SWAG if selected
             if mi_approx == "SWAG":
                 swa_start_iter = int(epochs * 0.80)
                 optimizer = SGD(self.model.parameters(), lr=lr, momentum=0.9)
@@ -224,12 +189,10 @@ class SIRD:
                     batch_local_indices = next(loader_iter)[0]
                 b_idx = train_rows[batch_local_indices.to(self.device)]
 
-                b_p1 = self._global_p1[b_idx]
-                b_p2 = self._global_p2[b_idx]
-                b_aux = self._global_aux[b_idx]
+                b_data = self._global_data[b_idx]
 
                 optimizer.zero_grad()
-                loss = self.calc_loss(b_p1, b_p2, b_aux)
+                loss = self.calc_loss(b_data)
                 loss.backward()
 
                 if mi_approx == "SWAG":
@@ -239,6 +202,7 @@ class SIRD:
                 if step % 50 == 0:
                     pbar.set_postfix(loss=f"{loss.item():.4f}")
 
+                # Collect SWAG models after threshold
                 if mi_approx == "SWAG":
                     if step < swa_start_iter:
                         scheduler.step()
@@ -249,60 +213,70 @@ class SIRD:
             self.model_list.append(self.model)
         return self
 
-    def calc_loss(self, p1, p2, aux):
-        B = p1.shape[0]
+    def calc_loss(self, batch_data):
+        """
+        Calculate diffusion loss for a batch.
+        Samples time step t, adds noise, and computes prediction error.
+        """
+        B = batch_data.shape[0]
         t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
         a_bar = self.alpha_bars[t].view(B, 1)
         b_bar = self.beta_bars[t].view(B, 1)
 
         x_t_dict, p1_dict, aux_dict = {}, {}, {}
 
-        if len(self.num_idxs) > 0:
-            batch_p2_num = p2[:, self.num_idxs]
-            batch_p1_num = p1[:, self.num_idxs]
+        # Handle Numeric Variables (Phase 2)
+        numeric_p2 = [v for v in self.num_vars if 'p2' in v['type']]
+        if len(numeric_p2) > 0:
+            p1_num_cols = [self.p1_slices[v['pair_partner']].start for v in numeric_p2]
+            p2_num_cols = [self.p2_slices[v['name']].start for v in numeric_p2]
+
+            batch_p1_num = batch_data[:, p1_num_cols]
+            batch_p2_num = batch_data[:, p2_num_cols]
+
             true_residual = batch_p1_num - batch_p2_num
             eps = torch.randn_like(batch_p2_num)
 
+            # Forward diffusion process for numeric data
             x_t_num = batch_p2_num + a_bar * true_residual + b_bar * eps
-            for i, name in enumerate(self.num_vars):
+            for i, v in enumerate(numeric_p2):
+                name = v['name']
                 x_t_dict[name] = x_t_num[:, i:i + 1]
                 p1_dict[name] = batch_p1_num[:, i:i + 1]
 
+        # Handle Categorical Variables (Phase 2)
         target_cat_list = []
-        if len(self.cat_idxs) > 0:
-            batch_p1_cat = p1[:, self.cat_idxs].long()
-            batch_p2_cat = p2[:, self.cat_idxs].long()
+        cat_p2_vars = [v for v in self.cat_vars if 'p2' in v['type']]
+        if len(cat_p2_vars) > 0:
+            for v in cat_p2_vars:
+                name = v['name']
+                partner = v['pair_partner']
 
-            for i, var in enumerate(self.cat_vars):
-                name = var['name']
-                K = var['num_classes']
-                oh_p1 = F.one_hot(batch_p1_cat[:, i], K).float()
-                oh_p2 = F.one_hot(batch_p2_cat[:, i], K).float()
-                p1_indices = batch_p1_cat[:, i]  # B
-                noise_dist = self.Q_dict[name][p1_indices]
+                oh_p1 = batch_data[:, self.p1_slices[partner]]
+                oh_p2 = batch_data[:, self.p2_slices[name]]
+
+                # Mix true labels with proxy-derived noise
+                noise_dist = oh_p1 @ self.Q_dict[name]
                 proxy_mix = (1 - b_bar) * oh_p1 + b_bar * noise_dist
                 pi_t = oh_p2 + a_bar * (proxy_mix - oh_p2)
+
                 x_t_indices = torch.multinomial(pi_t, 1).squeeze(-1)
-                x_t_dict[name] = F.one_hot(x_t_indices, K).float()
+                x_t_dict[name] = F.one_hot(x_t_indices, v['num_classes']).float()
                 p1_dict[name] = oh_p1
-                target_cat_list.append(batch_p2_cat[:, i])
+                target_cat_list.append(torch.argmax(oh_p2, dim=1))
 
-        if aux.shape[1] > 0:
-            aux_c = 0
-            for var in self.variable_schema:
-                if 'aux' in var['type']:
-                    curr = aux[:, aux_c:aux_c + 1]
-                    if var['type'] == 'categorical_aux':
-                        aux_dict[var['name']] = F.one_hot(curr.long().squeeze(), var['num_classes']).float()
-                    else:
-                        aux_dict[var['name']] = curr
-                    aux_c += 1
+        # Collect Auxiliary Variables
+        for v in self.variable_schema:
+            if 'aux' in v['type']:
+                aux_dict[v['name']] = batch_data[:, self.aux_slices[v['name']]]
 
+        # Model Prediction
         model_out = self.model(x_t_dict, t, p1_dict, aux_dict)
         loss_total = 0.0
 
-        if len(self.num_vars) > 0:
-            pred_stack = torch.stack([model_out[name] for name in self.num_vars], dim=1)
+        # Compute Numeric Loss based on task configuration (Residual, Noise, or Both)
+        if len(numeric_p2) > 0:
+            pred_stack = torch.stack([model_out[v['name']] for v in numeric_p2], dim=1)
             if self.task == "Res-N":
                 loss_total += (self.gamma * F.mse_loss(pred_stack[:, :, 0], true_residual) +
                                F.mse_loss(pred_stack[:, :, 1], eps))
@@ -311,67 +285,72 @@ class SIRD:
             elif self.task == "N":
                 loss_total += F.mse_loss(pred_stack[:, :, 0], eps)
 
-        if len(self.cat_vars) > 0:
-            for i, var in enumerate(self.cat_vars):
-                ce_loss = F.cross_entropy(model_out[var['name']], target_cat_list[i], reduction='mean',
+        # Compute Categorical Cross Entropy Loss
+        if len(cat_p2_vars) > 0:
+            for i, v in enumerate(cat_p2_vars):
+                ce_loss = F.cross_entropy(model_out[v['name']], target_cat_list[i], reduction='mean',
                                           label_smoothing=0)
                 loss_total += self.zeta * ce_loss
 
         return loss_total
 
-    def _reverse_diffusion(self, p1, aux, model_to_use, batch_size=2048):
-        N = p1.shape[0]
-        collected_outputs = {var['name']: [] for var in self.variable_schema if 'aux' not in var['type']}
+    def _reverse_diffusion(self, full_data, model_to_use, batch_size=2048):
+        """
+        Execute the reverse diffusion process (sampling) from T to 0.
+        Generates Phase 2 variables conditioned on Phase 1 and Auxiliary variables.
+        """
+        N = full_data.shape[0]
+        # FIX: Only initialize lists for P2 variables. P1 variables are inputs, not generated outputs.
+        collected_outputs = {var['name']: [] for var in self.variable_schema if 'p2' in var['type']}
 
         with torch.no_grad():
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 B = end - start
-                b_p1 = p1[start:end]
-                b_aux = aux[start:end]
+                b_data = full_data[start:end]
 
                 x_t_dict, p1_dict, aux_dict = {}, {}, {}
 
-                if len(self.num_idxs) > 0:
-                    curr_p1_num = b_p1[:, self.num_idxs]
+                # Initialize Numeric variables with noise (Time T)
+                numeric_p2 = [v for v in self.num_vars if 'p2' in v['type']]
+                if len(numeric_p2) > 0:
+                    p1_num_cols = [self.p1_slices[v['pair_partner']].start for v in numeric_p2]
+                    curr_p1_num = b_data[:, p1_num_cols]
                     init_eps = torch.randn_like(curr_p1_num)
                     x_T_num = curr_p1_num + torch.sqrt(self.sum_scale) * init_eps
-                    for k, name in enumerate(self.num_vars):
-                        x_t_dict[name] = x_T_num[:, k:k + 1]
-                        p1_dict[name] = curr_p1_num[:, k:k + 1]
+                    for k, v in enumerate(numeric_p2):
+                        x_t_dict[v['name']] = x_T_num[:, k:k + 1]
+                        p1_dict[v['name']] = curr_p1_num[:, k:k + 1]
 
-                if len(self.cat_idxs) > 0:
-                    curr_p1_cat = b_p1[:, self.cat_idxs].long()
-                    for k, var in enumerate(self.cat_vars):
-                        name = var['name']
-                        K = var['num_classes']
-                        oh_p1 = F.one_hot(curr_p1_cat[:, k], K).float()
-                        p1_indices = curr_p1_cat[:, k]
-                        noise_dist = self.Q_dict[name][p1_indices]
+                # Initialize Categorical variables (Time T)
+                cat_p2_vars = [v for v in self.cat_vars if 'p2' in v['type']]
+                if len(cat_p2_vars) > 0:
+                    for v in cat_p2_vars:
+                        name = v['name']
+                        partner = v['pair_partner']
+                        oh_p1 = b_data[:, self.p1_slices[partner]]
+                        noise_dist = oh_p1 @ self.Q_dict[name]
 
                         pi_T = (1 - torch.sqrt(self.sum_scale)) * oh_p1 + torch.sqrt(self.sum_scale) * noise_dist
                         x_T_indices = torch.multinomial(pi_T, 1).squeeze(-1)
-                        x_t_dict[name] = F.one_hot(x_T_indices, K).float()
+                        x_t_dict[name] = F.one_hot(x_T_indices, v['num_classes']).float()
                         p1_dict[name] = oh_p1
 
-                if b_aux.shape[1] > 0:
-                    aux_c = 0
-                    for var in self.variable_schema:
-                        if 'aux' in var['type']:
-                            curr = b_aux[:, aux_c:aux_c + 1]
-                            if var['type'] == 'categorical_aux':
-                                aux_dict[var['name']] = F.one_hot(curr.long().squeeze(), var['num_classes']).float()
-                            else:
-                                aux_dict[var['name']] = curr
-                            aux_c += 1
+                for v in self.variable_schema:
+                    if 'aux' in v['type']:
+                        aux_dict[v['name']] = b_data[:, self.aux_slices[v['name']]]
 
+                # Iterative Denoising Loop
                 for t in reversed(range(self.num_steps)):
                     t_b = torch.full((B,), t, device=self.device).long()
                     out = model_to_use(x_t_dict, t_b, p1_dict, aux_dict)
 
-                    for name in self.num_vars:
+                    # Update Numeric Variables
+                    for v in numeric_p2:
+                        name = v['name']
                         x_t = x_t_dict[name]
                         x_input = p1_dict[name]
+                        # Calculate predicted x_start based on task type
                         if self.task == "Res-N":
                             pred_res = out[name][:, 0:1]
                             pred_eps = out[name][:, 1:2]
@@ -389,15 +368,16 @@ class SIRD:
                             x_start_pred = x_start_pred.clamp(-5.0, 5.0)
                             pred_res = x_input - x_start_pred
 
+                        # Apply posterior mean formula
                         posterior_mean = self.posterior_mean_coef1[t] * x_t + self.posterior_mean_coef2[
                             t] * pred_res + self.posterior_mean_coef3[t] * x_start_pred
                         noise = torch.randn_like(x_t) if t > 0 else 0
                         pred_x_t = posterior_mean + (0.5 * self.posterior_log_variance[t]).exp() * noise
                         x_t_dict[name] = pred_x_t
 
-                    for k, var in enumerate(self.cat_vars):
-                        name = var['name']
-                        K = var['num_classes']
+                    # Update Categorical Variables
+                    for v in cat_p2_vars:
+                        name = v['name']
                         logits = out[name]
                         curr_oh_p1 = p1_dict[name]
                         pred_x0_probs = F.softmax(logits, dim=-1)
@@ -409,7 +389,9 @@ class SIRD:
 
                         alpha_t = (1 - a_t) / (1 - a_prev + 1e-6)
                         alpha_t = torch.clamp(alpha_t, 0.0, 1.0)
-                        noise_dist_weighted = torch.einsum('bk,kn->bn', pred_x0_probs, self.Q_dict[name])
+
+                        # Compute posterior probability for categorical transition
+                        noise_dist_weighted = pred_x0_probs @ self.Q_dict[name]
                         proxy_mix_prev = (1 - b_prev) * curr_oh_p1 + b_prev * noise_dist_weighted
                         q_xprev_given_x0 = a_prev * pred_x0_probs + (1 - a_prev) * proxy_mix_prev
                         x_t_idx = torch.argmax(curr_x_t, dim=-1)
@@ -419,7 +401,7 @@ class SIRD:
                         posterior_probs = numerator / (numerator.sum(dim=-1, keepdim=True) + 1e-10)
 
                         x_next_indices = torch.multinomial(posterior_probs, 1).squeeze(-1)
-                        x_t_dict[name] = F.one_hot(x_next_indices, K).float()
+                        x_t_dict[name] = F.one_hot(x_next_indices, v['num_classes']).float()
 
                 for name, tensor in x_t_dict.items():
                     collected_outputs[name].append(tensor.cpu())
@@ -427,16 +409,14 @@ class SIRD:
         final_dict = {k: torch.cat(v, dim=0).to(self.device) for k, v in collected_outputs.items()}
         return final_dict
 
-    def impute(self, m=None, save_path=None, batch_size=None, fill=True, p1=None, aux=None):
+    def impute(self, m=None, save_path=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         pd.set_option('future.no_silent_downcasting', True)
 
         m_s = m if m else self.config["else"]["m"]
-        eval_bs = batch_size if batch_size else self.config["train"].get("eval_batch_size", 64)
+        eval_bs = self.config["train"].get("eval_batch_size", 64)
 
-        using_external_data = (p1 is not None) and (aux is not None)
-        target_p1 = p1 if using_external_data else self._global_p1
-        target_aux = aux if using_external_data else self._global_aux
+        target_data = self._global_data
 
         if self.config["else"]["mi_approx"] == "SWAG":
             if self.swag_model is None or self.swag_model.n_models.item() == 0:
@@ -445,42 +425,11 @@ class SIRD:
                 print(f"Using SWAG sampling ({self.swag_model.n_models.item()} models)")
 
         all_imputed_dfs = []
-        disable_pbar = using_external_data
-        pbar = tqdm(total=m_s, desc="Imputation Rounds", file=sys.stdout, disable=disable_pbar)
+        pbar = tqdm(total=m_s, desc="Imputation Rounds", file=sys.stdout)
 
-        df_p1_ext = None
-        df_aux_ext = None
-
-        if using_external_data:
-            p1_names = self.data_info.get('phase1_vars', [])
-            p1_np = target_p1.cpu().numpy()
-            df_p1_ext = pd.DataFrame()
-            for i, name in enumerate(p1_names):
-                stats = self.norm_stats[name]
-                col_data = p1_np[:, i]
-                if stats['type'] == 'numeric':
-                    val_log = col_data * stats['sigma'] + stats['mu']
-                    df_p1_ext[name] = np.expm1(val_log) - stats['shift']
-                else:
-                    cats = stats['categories']
-                    indices = np.clip(np.round(col_data), 0, len(cats) - 1).astype(int)
-                    df_p1_ext[name] = cats[indices]
-
-            aux_names = [v['name'] for v in self.variable_schema if 'aux' in v['type']]
-            aux_np = target_aux.cpu().numpy()
-            df_aux_ext = pd.DataFrame()
-            for i, name in enumerate(aux_names):
-                stats = self.norm_stats[name]
-                col_data = aux_np[:, i]
-                if stats['type'] == 'numeric':
-                    val_log = col_data * stats['sigma'] + stats['mu']
-                    df_aux_ext[name] = np.expm1(val_log) - stats['shift']
-                else:
-                    cats = stats['categories']
-                    indices = np.clip(np.round(col_data), 0, len(cats) - 1).astype(int)
-                    df_aux_ext[name] = cats[indices]
-
+        # Perform multiple imputations (m times)
         for samp_i in range(1, m_s + 1):
+            # Select model based on approximation strategy (SWAG, Dropout, Bootstrap, or Standard)
             if self.config["else"]["mi_approx"] == "SWAG" and self.swag_model.n_models.item() > 1:
                 model_to_use = self.swag_model.sample(scale=1, cov=True)
                 model_to_use.eval()
@@ -497,35 +446,24 @@ class SIRD:
                 model_to_use = self.model_list[0]
                 model_to_use.eval()
 
-            x_0_dict = self._reverse_diffusion(target_p1, target_aux, model_to_use, eval_bs)
+            x_0_dict = self._reverse_diffusion(target_data, model_to_use, eval_bs)
 
             batch_res = []
-            for var in self.variable_schema:
-                if 'aux' in var['type']: continue
-                tensor = x_0_dict[var['name']]
-                if var['type'] == 'categorical':
-                    indices = torch.argmax(tensor, dim=-1, keepdim=True).float()
-                    batch_res.append(indices)
-                else:
-                    batch_res.append(tensor)
+            p2_vars = [v['name'] for v in self.variable_schema if 'p2' in v['type']]
 
+            for name in p2_vars:
+                tensor = x_0_dict[name]
+                batch_res.append(tensor)
+
+            # Reconstruct original scale from normalized tensor
             combined_tensor = torch.cat(batch_res, dim=1).cpu().numpy()
-            df_p2 = inverse_transform_data(combined_tensor, self.norm_stats, self.data_info)
+            df_p2 = inverse_transform_data(combined_tensor, self.norm_stats, self.variable_schema, self.data_info)
 
-            if using_external_data:
-                df_f = pd.concat([
-                    df_p1_ext.reset_index(drop=True),
-                    df_aux_ext.reset_index(drop=True),
-                    df_p2.reset_index(drop=True)
-                ], axis=1)
-            else:
-                df_f = self.raw_df.copy()
-                for c in df_p2.columns:
-                    if c in df_f.columns:
-                        if fill:
-                            df_f[c] = df_f[c].fillna(df_p2[c])
-                        else:
-                            df_f[c] = df_p2[c]
+            # Merge imputed values into original dataframe
+            df_f = self.raw_df.copy()
+            for c in df_p2.columns:
+                if c in df_f.columns:
+                    df_f[c] = df_f[c].fillna(df_p2[c])
 
             df_f.insert(0, "imp_id", samp_i)
             all_imputed_dfs.append(df_f)
@@ -538,5 +476,6 @@ class SIRD:
             final_df['imp_id'] = final_df['imp_id'].astype(int)
             final_df.to_parquet(save_path, index=False)
             print(f"Saved stacked imputations to: {save_path} (Shape: {final_df.shape})")
+            return all_imputed_dfs
         else:
             return all_imputed_dfs

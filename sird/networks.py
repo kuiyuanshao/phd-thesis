@@ -3,26 +3,37 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+
 def get_torch_trans(heads=8, layers=1, channels=64, dropout_rate=0):
+    """
+    Creates a Transformer Encoder stack.
+    """
     encoder_layer = nn.TransformerEncoderLayer(
         d_model=channels, nhead=heads, dim_feedforward=64, activation="gelu", dropout=dropout_rate
     )
     return nn.TransformerEncoder(encoder_layer, num_layers=layers)
 
+
 def Conv1d_with_init(in_channels, out_channels, kernel_size):
+    """
+    1D Convolution with Kaiming initialization.
+    """
     layer = nn.Conv1d(in_channels, out_channels, kernel_size)
     nn.init.kaiming_normal_(layer.weight)
     return layer
 
+
 class AttnDiffusionEmbedding(nn.Module):
     def __init__(self, num_steps, embedding_dim=128, dropout_rate=0):
         super().__init__()
+        # Precompute sinusoidal positional embeddings for time steps
         self.register_buffer("embedding", self._build_embedding(num_steps, embedding_dim // 2), persistent=False)
         self.projection1 = nn.Linear(embedding_dim, embedding_dim)
         self.projection2 = nn.Linear(embedding_dim, embedding_dim)
         self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, diffusion_step):
+        # Retrieve and project time embeddings
         x = self.embedding[diffusion_step]
         return F.silu(self.projection2(self.dropout(F.silu(self.projection1(self.dropout(x))))))
 
@@ -42,6 +53,7 @@ class FeatureEmbedder(nn.Module):
         self.var_names = [v['name'] for v in schema]
         self.projectors = nn.ModuleDict()
 
+        # Create projectors for each variable based on its dimension/classes
         for var in schema:
             name = var['name']
             dim = var['num_classes'] if 'categorical' in var['type'] else 1
@@ -53,6 +65,7 @@ class FeatureEmbedder(nn.Module):
                 nn.Linear(channels, channels)
             )
 
+        # Learnable embeddings added to projected features (acts as variable ID)
         self.feature_embeddings = nn.Parameter(torch.randn(len(schema), channels))
         self.dropout = nn.Dropout(dropout_rate)
 
@@ -63,6 +76,7 @@ class FeatureEmbedder(nn.Module):
             token = self.projectors[name](self.dropout(val))
             token = token + self.feature_embeddings[i].unsqueeze(0)
             embeddings.append(token)
+        # Stack into sequence (Batch, Sequence, Channels) then permute for Conv1d (B, C, S)
         sequence = torch.stack(embeddings, dim=1)
         return sequence.permute(0, 2, 1)
 
@@ -80,22 +94,29 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x, aux, diffusion_emb):
         x_in = x
+        # Inject time embedding
         time_emb = self.diffusion_projection(self.dropout(diffusion_emb)).unsqueeze(-1)
         y = x + time_emb
 
-        y_seq = y.permute(2, 0, 1)
+        # Self-Attention
+        y_seq = y.permute(2, 0, 1)  # (S, B, C) for Transformer
         y_seq = self.self_attn(self.dropout(y_seq))
 
+        # Cross-Attention with auxiliary variables if present
         if aux is not None:
             context = aux.permute(2, 0, 1)
             attn_out, _ = self.cross_attn(query=y_seq, key=context, value=context)
             y_seq = self.norm_cross(y_seq + self.dropout(attn_out))
 
         y = y_seq.permute(1, 2, 0)
+
+        # Gated Convolution
         y = self.mid_projection(self.dropout(y))
         gate, filter = torch.chunk(y, 2, dim=1)
         y = torch.sigmoid(gate) * torch.tanh(filter)
         y = self.output_projection(self.dropout(y))
+
+        # Residual connection
         residual, skip = torch.chunk(y, 2, dim=1)
         return (x_in + residual) / math.sqrt(2.0), skip
 
@@ -111,10 +132,11 @@ class AttnBackbone(nn.Module):
         self.dropout_rate = config["model"]["dropout"]
         self.task = config["else"]["task"]
 
-        self.target_schema = [v for v in variable_schema if 'aux' not in v['type']]
+        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
         self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
 
         self.target_embedder = FeatureEmbedder(self.target_schema, self.channels, self.dropout_rate)
+
         self.combined_context_schema = self.aux_schema + self.target_schema
         self.aux_embedder = FeatureEmbedder(self.combined_context_schema, self.channels, self.dropout_rate)
 
@@ -125,10 +147,11 @@ class AttnBackbone(nn.Module):
             ResidualBlock(self.channels, self.channels, self.nheads, self.dropout_rate) for _ in range(self.layers)
         ])
 
+        # Prediction heads for each variable type
         self.output_heads = nn.ModuleDict()
         for var in self.target_schema:
             name = var['name']
-            if var['type'] == 'categorical':
+            if var['type'] == 'categorical':  # Warning: checks against p2 types
                 self.output_heads[name] = nn.Linear(self.channels, var['num_classes'])
             else:
                 if self.task == "Res-N":
@@ -157,10 +180,12 @@ class AttnBackbone(nn.Module):
 
         target_features = (skip_accum / math.sqrt(self.layers)).permute(0, 2, 1)
         output_dict = {}
+
+        # Decode features into variable predictions
         for i, var in enumerate(self.target_schema):
             name = var['name']
             feature = target_features[:, i, :]
-            if var['type'] == 'categorical':
+            if 'categorical' in var['type']:
                 output_dict[name] = self.output_heads[name](self.dropout(feature))
             else:
                 if self.task == "Res-N":
@@ -216,16 +241,20 @@ class MlpBackbone(nn.Module):
         self.dropout_rate = config["model"]["dropout"]
         self.hidden_dim = config["model"]["channels"]
         self.layers = config["model"]["layers"]
-        self.target_schema = [v for v in variable_schema if 'aux' not in v['type']]
+
+        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
         self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
-        self.num_vars = [v['name'] for v in self.target_schema if v['type'] == 'numeric']
+        self.num_vars = [v['name'] for v in self.target_schema if 'numeric' in v['type']]
 
         self.input_dim = 0
         self.out_dim_map = {}
+
+        # Calculate flat input dimension
         for var in self.target_schema:
             dim = var['num_classes'] if 'categorical' in var['type'] else 1
-            self.input_dim += (dim * 2)
+            self.input_dim += (dim * 2)  # P2 variable + P1 variable pair
             self.out_dim_map[var['name']] = dim
+
         for var in self.aux_schema:
             dim = var['num_classes'] if 'categorical' in var['type'] else 1
             self.input_dim += dim
@@ -242,9 +271,10 @@ class MlpBackbone(nn.Module):
         self.final_norm = nn.BatchNorm1d(self.hidden_dim)
         self.final_activation = nn.ReLU()
 
+        # Output heads
         self.cat_heads = nn.ModuleDict()
         for var in self.target_schema:
-            if var['type'] == 'categorical':
+            if 'categorical' in var['type']:
                 name = var['name']
                 self.cat_heads[name] = nn.Linear(self.hidden_dim, self.out_dim_map[name])
 
@@ -258,9 +288,12 @@ class MlpBackbone(nn.Module):
 
     def forward(self, x_t_dict, t, p1_dict, aux_dict):
         flat_list = []
+        # Flatten all inputs into a single vector (MLP style)
+        # Because target_schema is now filtered to P2, these keys exist in x_t_dict (targets) and p1_dict (proxies)
         for var in self.target_schema:
             flat_list.append(x_t_dict[var['name']])
             flat_list.append(p1_dict[var['name']])
+
         for var in self.aux_schema:
             flat_list.append(aux_dict[var['name']])
 

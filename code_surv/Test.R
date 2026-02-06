@@ -1,7 +1,7 @@
 lapply(c("survival", "dplyr", "stringr", "survey", "mice", "arrow", "mitools"), require, character.only = T)
 source("00_utils_functions.R")
 
-i <- 1
+i <- 2
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
@@ -11,7 +11,7 @@ cox.fit <- coxph(Surv(T_I, EVENT) ~
                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                  data = data)
-multi_impset <- read_parquet(paste0("./simulations/SRS/tpvmi_rddm/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){
@@ -28,18 +28,19 @@ pooled <- MIcombine(cox.mod)
 exp(coef(cox.fit)) - exp(pooled$coefficients)
 
 
-log_param <- read.csv("./comparisons_tuning/mice/mice_tuning_log_srs.csv")
-log_param_fd <- read.csv("./comparisons_tuning/mice/mice_tuning_log_fd_srs.csv")
-pairs(log_param_fd[, 2:4])
-log_param$type <- "coef"
-log_param_fd$type <- "fd"
+# log_param <- read.csv("./comparisons_tuning/mice/mice_tuning_log_srs.csv")
+# log_param_fd <- read.csv("./comparisons_tuning/mice/mice_tuning_log_fd_srs.csv")
+# pairs(log_param_fd[, 2:4])
+# log_param$type <- "coef"
+# log_param_fd$type <- "fd"
+# 
+# log_param <- rbind(log_param, log_param_fd)
+# ggplot(log_param_fd) + 
+#   geom_point(aes(x = ridge,
+#                  y = bias, colour = type)) + 
+#   ylim(0, 50)
+# log_param$mincor
 
-log_param <- rbind(log_param, log_param_fd)
-ggplot(log_param_fd) + 
-  geom_point(aes(x = ridge,
-                 y = bias, colour = type)) + 
-  ylim(0, 50)
-log_param$mincor
 # library(mice)
 # library(mitools)
 # i <- 1
