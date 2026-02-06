@@ -24,7 +24,16 @@ class SIRD:
         """
         self.config = config
         self.data_info = data_info
-        self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+        if device:
+            self.device = device
+        elif torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        elif torch.backends.mps.is_available():
+            self.device = torch.device('mps')
+        else:
+            self.device = torch.device('cpu')
+
+        print(f"Active Device: {self.device}")
         self.num_steps = config["diffusion"]["num_steps"]
         self.sum_scale = torch.tensor(config["diffusion"]["sum_scale"])
         self.task = config["else"]["task"]

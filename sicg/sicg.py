@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, WeightedRandomSampler, Subset, RandomSa
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
+warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as true but not supported on MPS.*")
 from .data_transformer import DataTransformer, ImputationDataset
 from .networks import Generator, Discriminator
 from .utils import gumbel_activation, gradient_penalty, recon_loss, project_categorical
@@ -16,7 +17,16 @@ class SICG:
     def __init__(self, config, data_info, device=None):
         self.config = config
         self.data_info = data_info
-        self.device = device if device else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device:
+            self.device = device
+        elif torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        elif torch.backends.mps.is_available():
+            self.device = torch.device('mps')
+        else:
+            self.device = torch.device('cpu')
+
+        print(f"Active Device: {self.device}")
         self.generators = []
         self.swag_model = None
         self.confusion_matrices = {}
@@ -101,8 +111,8 @@ class SICG:
                 mask = df[p1].notna() & df[p2].notna()
                 if mask.sum() == 0: continue
 
-                v1 = df.loc[mask, p1].astype(str).values.reshape(-1, 1)
-                v2 = df.loc[mask, p2].astype(str).values.reshape(-1, 1)
+                v1 = df.loc[mask, p1].astype(str).to_numpy().reshape(-1, 1)
+                v2 = df.loc[mask, p2].astype(str).to_numpy().reshape(-1, 1)
 
                 try:
                     idx1 = enc.transform(v1).argmax(axis=1)

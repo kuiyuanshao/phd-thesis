@@ -23,12 +23,13 @@
 /.Rproj.user/
 /simulations/
 /my_venv/
+/sird/__pycache__/
+/VCCC/.ipynb_checkpoints/
 
 # Ignore temporary files
 *.tmp
 *.bak
 *.parquet
-
 
 !results_*
 !covarInfo.RData
@@ -41,9 +42,4 @@
 !mixgb_balanceParams.RData
 !mixgb_neymanParams.RData
 !mixgb_srsParams.RData
-/sird/__pycache__
-*.pyc
-sird/__pycache__/tpvmi_rddm.cpython-313.pyc
-/VCCC/.ipynb_checkpoints
-/sird/__pycache__
-sird/__pycache__/tpvmi_rddm.cpython-313.pyc
+

@@ -96,13 +96,13 @@ with open("./data/best_config_gans_srs.yaml", "r") as f:
 
 for i in range(1, 101):
     digit = str(i).zfill(4)
-    file_path_srs = "F:/phd-thesis/code_surv/data/Sample/SRS/" + digit + ".csv"
-    file_path_bal = "F:/phd-thesis/code_surv/data/Sample/Balance/" + digit + ".csv"
-    file_path_ney = "F:/phd-thesis/code_surv/data/Sample/Neyman/" + digit + ".csv"
+    file_path_srs = "./data/Sample/SRS/" + digit + ".csv"
+    file_path_bal = "./data/Sample/Balance/" + digit + ".csv"
+    file_path_ney = "./data/Sample/Neyman/" + digit + ".csv"
 
-    save_path_srs = "F:/phd-thesis/code_surv/simulations/SRS/sicg/" + digit + ".parquet"
-    save_path_bal = "F:/phd-thesis/code_surv/simulations/Balance/sicg/" + digit + ".parquet"
-    save_path_ney = "F:/phd-thesis/code_surv/simulations/Neyman/sicg/" + digit + ".parquet"
+    save_path_srs = "./simulations/SRS/sicg/" + digit + ".parquet"
+    save_path_bal = "./simulations/Balance/sicg/" + digit + ".parquet"
+    save_path_ney = "./simulations/Neyman/sicg/" + digit + ".parquet"
 
     sicg_mod_srs = SICG(config_srs, data_info_srs)
     sicg_mod_srs.fit(file_path_srs)

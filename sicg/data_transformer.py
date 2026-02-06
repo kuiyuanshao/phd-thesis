@@ -137,7 +137,8 @@ class DataTransformer:
 
         for col in self.data_info['cat_vars']:
             if col not in processed_cats and col in df.columns:
-                vals = df[col].dropna().unique().astype(str).reshape(-1, 1)
+                vals = df[col].dropna().unique().astype(str)
+                vals = np.asarray(vals).reshape(-1, 1)
                 enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
                 enc.fit(vals)
                 self.cat_encoders[col] = enc
@@ -203,7 +204,7 @@ class DataTransformer:
         for col, enc in self.cat_encoders.items():
             if col not in self.df_transformed.columns: continue
 
-            vals = self.df_transformed[col].astype(str).values.reshape(-1, 1)
+            vals = self.df_transformed[col].astype(str).to_numpy().reshape(-1, 1)
             mask = ~self.df_transformed[col].isna().values
             cat_names = [f"{col}_{c}" for c in enc.categories_[0]]
 
@@ -240,7 +241,7 @@ class DataTransformer:
             except (ValueError, TypeError):
                 out_df[col] = decoded_vals
 
-            out_df.drop(columns=present_cols, inplace=True, errors='ignore')
+            out_df = out_df.drop(columns=present_cols, errors='ignore')
 
         # 2. Numerical
         p1_vars = self.data_info['phase1_vars']
@@ -270,7 +271,7 @@ class DataTransformer:
                             for z_mode in m['zero_modes']:
                                 is_zero = (modes == z_mode)
                                 out_df.loc[is_zero, col] = 0.0
-                        out_df.drop(columns=pres, inplace=True, errors='ignore')
+                        out_df = out_df.drop(columns=pres, errors='ignore')
 
         for p1, p2 in zip(p1_vars, p2_vars):
             if p1 in self.data_info['num_vars']:
@@ -320,11 +321,11 @@ class ImputationDataset(Dataset):
         self.p2_cols = p2_cols
         self.cond_cols = cond_cols
 
-        self.A = torch.FloatTensor(data[p1_cols].values)
-        self.X_raw = data[p2_cols].values
+        self.A = torch.FloatTensor(data[p1_cols].to_numpy().copy())
+        self.X_raw = data[p2_cols].to_numpy().copy()
         self.M = torch.FloatTensor(1 - np.isnan(self.X_raw))
         self.X = torch.FloatTensor(np.nan_to_num(self.X_raw))
-        self.C = torch.FloatTensor(data[cond_cols].values)
+        self.C = torch.FloatTensor(data[cond_cols].to_numpy().copy())
 
     def __len__(self):
         return len(self.data)
