@@ -10,12 +10,12 @@ model:
   semi_supervised: true
   generator:
     noise_dim: 128
-    hidden_dim: 256
+    hidden_dim: 1024
     layers: 2
     dropout: 0.5
 
   discriminator:
-    hidden_dim: 256
+    hidden_dim: 1024
     layers: 2
     pack: 10
 
@@ -39,4 +39,4 @@ train:
     beta: 1           # CE weight (Categorical reconstruction)
     tau: 0.2          # Gumbel Softmax temperature
     hard_gumbel: false
-    discriminator_steps: 2
+    discriminator_steps: 1
