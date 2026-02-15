@@ -4,10 +4,10 @@ source("00_utils_functions.R")
 # loadfonts(device="win") 
 load("./simulations/results_COMBINED.RData")
 methods <- c("true", "me", "complete_case", "raking",
-             "mice", "mixgb", "tpvmi_gans", "tpvmi_rddm")
-vars_vec <- c("HbA1c", "HbA1c^2", "eGFR", "BMI", "rs4506565 1", "rs4506565 2", 
-              "AGE", "SEX TRUE", "INSURANCE TRUE",
-              "RACE AMR", "RACE EAS", "RACE EUR", "RACE SAS", "SMOKE 2", "SMOKE 3",
+             "mice", "mixgb", "sicg", "sird")
+vars_vec <- c("HbA1c", "HbA1c^2", "rs4506565 1", "rs4506565 2", "AGE",
+              "eGFR", "BMI", "SEX TRUE", "INSURANCE TRUE",
+              "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3",
               "AGE:HbA1c")
 combined_resultCoeff_long <- combined_resultCoeff %>% 
   pivot_longer(
@@ -115,17 +115,17 @@ CIcoverage_long <- CIcoverage %>%
 range_coef <- list(
   Covariate == "HbA1c"          ~ scale_y_continuous(limits = c(means.coef$mean[1] - 0.15, means.coef$mean[1] + 0.15)),
   Covariate == "HbA1c^2"        ~ scale_y_continuous(limits = c(means.coef$mean[2] - 0.15, means.coef$mean[2] + 0.15)),
-  Covariate == "eGFR"           ~ scale_y_continuous(limits = c(means.coef$mean[3] - 0.1,  means.coef$mean[3] + 0.1)),
-  Covariate == "BMI"            ~ scale_y_continuous(limits = c(means.coef$mean[4] - 0.25, means.coef$mean[4] + 0.25)),
-  Covariate == "rs4506565 1"    ~ scale_y_continuous(limits = c(means.coef$mean[5] - 0.25, means.coef$mean[5] + 0.25)),
-  Covariate == "rs4506565 2"    ~ scale_y_continuous(limits = c(means.coef$mean[6] - 0.25, means.coef$mean[6] + 0.25)),
-  Covariate == "AGE"            ~ scale_y_continuous(limits = c(means.coef$mean[7] - 0.1,  means.coef$mean[7] + 0.1)),
+  Covariate == "rs4506565 1"    ~ scale_y_continuous(limits = c(means.coef$mean[3] - 0.25, means.coef$mean[3] + 0.25)),
+  Covariate == "rs4506565 2"    ~ scale_y_continuous(limits = c(means.coef$mean[4] - 0.25, means.coef$mean[4] + 0.25)),
+  Covariate == "AGE"            ~ scale_y_continuous(limits = c(means.coef$mean[5] - 0.5,  means.coef$mean[5] + 0.5)),
+  Covariate == "eGFR"           ~ scale_y_continuous(limits = c(means.coef$mean[6] - 0.1,  means.coef$mean[6] + 0.1)),
+  Covariate == "BMI"            ~ scale_y_continuous(limits = c(means.coef$mean[7] - 0.25, means.coef$mean[7] + 0.25)),
   Covariate == "SEX TRUE"       ~ scale_y_continuous(limits = c(means.coef$mean[8] - 0.2,  means.coef$mean[8] + 0.2)),
-  Covariate == "INSURANCE TRUE" ~ scale_y_continuous(limits = c(means.coef$mean[9] - 0.2,  means.coef$mean[9] + 0.2)),
-  Covariate == "RACE AMR"       ~ scale_y_continuous(limits = c(means.coef$mean[10] - 0.25, means.coef$mean[10] + 0.25)),
-  Covariate == "RACE EAS"       ~ scale_y_continuous(limits = c(means.coef$mean[11] - 0.25, means.coef$mean[11] + 0.25)),
-  Covariate == "RACE EUR"       ~ scale_y_continuous(limits = c(means.coef$mean[12] - 0.25, means.coef$mean[12] + 0.25)),
-  Covariate == "RACE SAS"       ~ scale_y_continuous(limits = c(means.coef$mean[13] - 0.25, means.coef$mean[13] + 0.25)),
+  Covariate == "INSURANCE TRUE" ~ scale_y_continuous(limits = c(means.coef$mean[9] - 0.5,  means.coef$mean[9] + 0.5)),
+  Covariate == "RACE AFR"       ~ scale_y_continuous(limits = c(means.coef$mean[10] - 0.5, means.coef$mean[10] + 0.5)),
+  Covariate == "RACE AMR"       ~ scale_y_continuous(limits = c(means.coef$mean[11] - 0.25, means.coef$mean[11] + 0.25)),
+  Covariate == "RACE SAS"       ~ scale_y_continuous(limits = c(means.coef$mean[12] - 0.25, means.coef$mean[12] + 0.25)),
+  Covariate == "RACE EAS"       ~ scale_y_continuous(limits = c(means.coef$mean[13] - 0.5, means.coef$mean[13] + 0.5)),
   Covariate == "SMOKE 2"        ~ scale_y_continuous(limits = c(means.coef$mean[14] - 0.25, means.coef$mean[14] + 0.25)),
   Covariate == "SMOKE 3"        ~ scale_y_continuous(limits = c(means.coef$mean[15] - 0.25, means.coef$mean[15] + 0.25)),
   Covariate == "AGE:HbA1c"      ~ scale_y_continuous(limits = c(means.coef$mean[16] - 0.15, means.coef$mean[16] + 0.15))
@@ -233,4 +233,55 @@ wrap_plots(p_list, ncol = 4) +
   plot_layout(guides = "collect") & 
   theme(legend.position = "bottom",
         text = element_text(family = "Times New Roman"))
-ggsave("./simulations/Density.png", width = 20, height = 20, limitsize = F)
+ggsave("./simulations/RawDensity.png", width = 20, height = 20, limitsize = F)
+
+
+
+generateErrorD <- function(data, imp, info){
+  info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
+  phase2_target <- info$phase2_vars[info$phase2_vars %in% info$num_vars]
+  phase1_target <- info$phase1_vars[info$phase1_vars %in% info$num_vars]
+  
+  npg_cols <- c("#E64B35", "#4DBBD5")
+  plot_list <- list()
+  
+  for (i in seq_along(phase2_target)){
+    v2_name <- phase2_target[i]
+    v1_name <- phase1_target[i]
+    val_range <- range(c(data[[v2_name]] - data[[v1_name]]), na.rm = TRUE)
+    
+    p <- ggplot(data) + 
+      geom_density(aes(x = .data[[v2_name]] - .data[[v1_name]], fill = "Validated"), 
+                   alpha = 0.5, color = NA) +
+      geom_density(data = imp, aes(x = .data[[v2_name]] - .data[[v1_name]], fill = "Imputation"), 
+                   alpha = 0.5, color = NA) +
+      xlim(val_range[1], val_range[2]) +
+      labs(x = "Value", y = "Density", title = v2_name) +
+      
+      scale_fill_manual(name = "Type",
+                        values = c("Validated" = npg_cols[1], 
+                                   "Imputation" = npg_cols[2])) +
+      theme_minimal() + 
+      theme(
+        text = element_text(family = "Times New Roman"),
+        plot.title = element_text(hjust = 0.5)
+      )
+    plot_list[[i]] <- p
+  }
+  
+  return(plot_list)
+}
+
+load("./data/True/0001.RData")
+multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/0001.parquet"))
+multi_impset <- multi_impset %>% group_split(imp_id)
+multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
+multi_impset <- lapply(multi_impset, function(dat){
+  match_types(dat, data)
+})
+p_list <- generateErrorD(data, multi_impset[[1]], data_info_srs)
+wrap_plots(p_list, ncol = 4) + 
+  plot_layout(guides = "collect") & 
+  theme(legend.position = "bottom",
+        text = element_text(family = "Times New Roman"))
+ggsave("./simulations/ErrorDensity.png", width = 20, height = 20, limitsize = F)

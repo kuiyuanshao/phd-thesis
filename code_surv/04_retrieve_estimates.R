@@ -6,7 +6,7 @@ options(survey.lonely.psu = "certainty")
 retrieveEst <- function(method){
   resultCoeff <- resultStdError <- resultCI <- NULL
   sampling_designs <- c("SRS")#, "Balance", "Neyman")
-  for (i in 1:100){
+  for (i in 1:8){
     digit <- stringr::str_pad(i, 4, pad = 0)
     cat("Current:", digit, "\n")
     load(paste0("./data/True/", digit, ".RData"))
@@ -64,7 +64,7 @@ retrieveEst <- function(method){
           resultStdError <- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(j), toupper(method), digit))
           resultCI <- rbind(resultCI, c(exp(confint(cox.mod))[, 1], exp(confint(cox.mod))[, 2], toupper(j), toupper(method), digit))
         }else{
-          if (method != "tpvmi_rddm"){
+          if (!(method %in% c("sicg", "sird"))){
             temp_env <- new.env()
             load(paste0("./simulations/", j, "/", method, "/", digit, ".RData"), envir = temp_env)
             multi_impset <- temp_env[[ls(temp_env)[1]]]
@@ -74,23 +74,13 @@ retrieveEst <- function(method){
             multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
           }
           
-          if (method == "tpvmi_gans"){
-            multi_impset$imputation <- lapply(multi_impset$imputation, function(dat){
-              match_types(dat, data)
-            })
-            imp.mids <- imputationList(multi_impset$imputation)
-          }else if (method == "tpvmi_rddm"){
+          if (method %in% c("sicg", "sird", "mixgb")){
             multi_impset <- lapply(multi_impset, function(dat){
               match_types(dat, data)
             })
             imp.mids <- imputationList(multi_impset)
           }else if (method == "mice"){
             multi_impset <- mice::complete(multi_impset, "all")
-            multi_impset <- lapply(multi_impset, function(dat){
-              match_types(dat, data)
-            })
-            imp.mids <- imputationList(multi_impset)
-          }else if (method == "mixgb"){
             multi_impset <- lapply(multi_impset, function(dat){
               match_types(dat, data)
             })
@@ -103,7 +93,7 @@ retrieveEst <- function(method){
                                         rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                                         SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
           pooled <- MIcombine(cox.mod)
-          sumry <- summary(pooled, conf.int = TRUE)
+          capture.output(sumry <- summary(pooled), file = "NUL")
           resultCoeff <- rbind(resultCoeff, c(exp(sumry$results), toupper(j), toupper(method), digit))
           resultStdError <- rbind(resultStdError, c(sumry$se, toupper(j), toupper(method), digit))
           resultCI <- rbind(resultCI, c(exp(sumry$`(lower`), exp(sumry$`upper)`), toupper(j), toupper(method), digit))
@@ -111,9 +101,9 @@ retrieveEst <- function(method){
       }
     }
   }
-  vars_vec <- c("HbA1c", "HbA1c^2", "eGFR", "BMI", "rs4506565 1", "rs4506565 2", 
-                "AGE", "SEX TRUE", "INSURANCE TRUE",
-                "RACE AMR", "RACE EAS", "RACE EUR", "RACE SAS", "SMOKE 2", "SMOKE 3",
+  vars_vec <- c("HbA1c", "HbA1c^2", "rs4506565 1", "rs4506565 2", "AGE",
+                "eGFR", "BMI", "SEX TRUE", "INSURANCE TRUE",
+                "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3",
                 "AGE:HbA1c")
   resultCoeff <- as.data.frame(resultCoeff)
   names(resultCoeff) <- c(vars_vec, "Design", "Method", "ID")
@@ -128,11 +118,13 @@ retrieveEst <- function(method){
 }
 
 #methods <- c("true", "me", "complete_case", "raking",
-#             "mice", "mixgb", "tpvmi_gans", "tpvmi_rddm")
-methods <- c("true", "me", "complete_case", "tpvmi_rddm")
+#             "mice", "mixgb", "sicg", "sird")
+#methods <- c("true", "me", "complete_case", "sicg")
+methods <- c("sicg")
 for (method in methods){
   retrieveEst(method)
 }
+methods <- c("true", "me", "complete_case", "sicg", "sird")
 combine <- function(){
   filenames <- paste0("./simulations/results_", toupper(methods), ".RData")
   list_coeff <- list()

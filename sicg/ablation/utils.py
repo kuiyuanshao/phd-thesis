@@ -2,110 +2,209 @@ from torch import pca_lowrank
 import pandas as pd
 import torch
 import torch.nn.functional as F
+import torch
 
 import torch
 
 
+# --- 基础数学工具 ---
 def pairwise_distances_squared(x):
-    # (Batch, Dim) -> (Batch, Batch)
+    """(Batch, Dim) -> (Batch, Batch)"""
     x_norm = (x ** 2).sum(1).view(-1, 1)
     dist = x_norm + x_norm.t() - 2.0 * torch.mm(x, x.t())
     return torch.clamp(dist, 0.0, float('inf'))
 
 
-def standardize_batch(x):
-    if x.shape[1] == 0: return x
-    std = x.std(dim=0, keepdim=True)
-    mask = std > 1e-6
-    x_out = x.clone()
-    if mask.any():
-        mean = x.mean(dim=0, keepdim=True)
-        x_out[:, mask.squeeze()] = (x[:, mask.squeeze()] - mean[:, mask.squeeze()]) / (std[:, mask.squeeze()] + 1e-8)
-    return x_out
+def batch_pairwise_distances_squared_1d(x_stack):
+    """
+    针对连续变量的批处理计算
+    Input: (N_features, Batch, 1)
+    Output: (N_features, Batch, Batch)
+    """
+    # x: (N, B, 1)
+    # dist = (x - x.T)^2
+    # 利用广播: (N, B, 1) - (N, 1, B) -> (N, B, B)
+    diff = x_stack - x_stack.transpose(1, 2)
+    return diff ** 2
 
 
-def prepare_and_concat(data, layout):
-    processed_chunks = []
-    for start, end, card in layout:
-        chunk = data[:, start:end]
-        if card == 0:
-            chunk_norm = standardize_batch(chunk)
-            processed_chunks.append(chunk_norm)
-        else:
-            processed_chunks.append(chunk)
-
-    if not processed_chunks:
-        return None
-    return torch.cat(processed_chunks, dim=1)
+def kernel_from_distance(dist, sigma=None):
+    if sigma is None:
+        median_dist = torch.median(dist)
+        sigma = median_dist.detach()
+        if sigma <= 1e-8: sigma = torch.tensor(1.0, device=dist.device)
+    return torch.exp(-dist / sigma)
 
 
-def calc_HSIC_loss(x_fake, x_real, attrs, layout_res, layout_attr, lambda_hsic=1.0):
+def batch_kernel_from_distance(dist_stack, sigma_stack=None):
+    """
+    批处理 Kernel 计算
+    dist_stack: (N, B, B)
+    sigma_stack: (N, 1, 1) or Scalar
+    """
+    if sigma_stack is None:
+        # 针对每个特征单独算 median (N, 1, 1)
+        # flatten last two dims to sort: (N, B*B)
+        flat = dist_stack.view(dist_stack.shape[0], -1)
+        median_vals = torch.median(flat, dim=1, keepdim=True).values  # (N, 1)
+        sigma_stack = median_vals.view(-1, 1, 1).detach()
+        sigma_stack = torch.clamp(sigma_stack, min=1e-8)
+
+    return torch.exp(-dist_stack / sigma_stack)
+
+
+def batch_hsic(K_stack, L_stack):
+    """
+    批处理 HSIC 计算
+    K_stack: (N, B, B)
+    L_stack: (N, B, B)
+    Output: (N,) -> scalar sum
+    """
+    N, m, _ = K_stack.shape
+
+    # H = I - 1/m
+    # 显式构造 H (Batch 较小时更快)
+    H = torch.eye(m, device=K_stack.device, dtype=K_stack.dtype) - 1.0 / m * torch.ones((m, m), device=K_stack.device,
+                                                                                        dtype=K_stack.dtype)
+    # 广播 H: (1, B, B)
+    H = H.unsqueeze(0)
+
+    # Kc = H K H
+    Kc = torch.matmul(H, torch.matmul(K_stack, H))
+    Lc = torch.matmul(H, torch.matmul(L_stack, H))
+
+    # HSIC = Sum(Kc * Lc) / (m-1)^2
+    # 在最后两个维度 (B, B) 上求和
+    hsic_vals = torch.sum(Kc * Lc, dim=(1, 2)) / ((m - 1) ** 2)
+    return hsic_vals.sum()  # 返回所有特征 HSIC 的总和
+
+
+# --- 核心 Loss ---
+
+def calc_HSIC_loss(x_fake, x_real, attrs, layout, lambda_hsic=1000):
     diff = x_fake - x_real
-    diff_combined = prepare_and_concat(diff, layout_res)
-    attrs_combined = prepare_and_concat(attrs, layout_attr)
 
-    dist_res = pairwise_distances_squared(diff_combined)
-    dist_attr = pairwise_distances_squared(attrs_combined)
+    # 1. 预处理：分离连续变量和类别变量
+    cont_cols = []  # 存储连续变量列索引
+    cat_blocks = []  # 存储类别变量 block 范围 (start, end)
 
-    # 3. 计算 Sigma (Global Median)
-    sigma_res = torch.median(dist_res).detach()
-    if sigma_res < 1e-6: sigma_res = torch.tensor(1.0, device=diff.device)
-
-    sigma_attr = torch.median(dist_attr).detach()
-    if sigma_attr < 1e-6: sigma_attr = torch.tensor(1.0, device=diff.device)
-
-    # 4. Kernel & HSIC
-    K_res = torch.exp(-dist_res / sigma_res)
-    L_attr = torch.exp(-dist_attr / sigma_attr)
-
-    # Loss A: Set Independence
-    loss_set = hsic_normalized(K_res, L_attr)
-
-    # Loss B: Pairwise Independence (One-vs-Rest)
-    # 依然可以用减法，因为是在同一个距离矩阵上操作
-    loss_pairwise = 0.0
-
-    # 为了做 Pairwise，我们需要知道每个 block 在 combined 矩阵里的索引范围
-    # 重新扫一遍 layout 算索引
     current_idx = 0
-    n_blocks = 0
+    # 收集索引
+    for start, end, card in layout:
+        # layout 是基于原始 x_fake 维度的，我们需要映射到 diff 的维度
+        # diff 和 x_fake 维度一致，直接用
+        width = end - start
+        if card == 0:  # 连续变量
+            # 连续变量需要 Standardize
+            # 这一步必须做，但我们可以后面批量做
+            cont_cols.extend(range(start, end))
+        else:  # 类别变量
+            cat_blocks.append((start, end))
 
-    # 预先计算 diff_combined 的总距离用于减法
-    # dist_res 已经是总距离了
+    # 2. 准备数据
+    # A. 连续变量处理
+    if cont_cols:
+        diff_cont = diff[:, cont_cols]
+        diff_cont = standardize_batch(diff_cont)  # (Batch, N_cont)
+    else:
+        diff_cont = None
 
-    for s, e, c in layout_res:
-        width = e - s
-        # 提取当前 block 的数据 (注意：是处理过的数据)
-        # 这里的切片是在 combined 矩阵上切
-        target_data = diff_combined[:, current_idx: current_idx + width]
+    # B. 类别变量处理
+    diff_cats = [diff[:, s:e] for s, e in cat_blocks]
 
-        # 1. Target Kernel
-        d_target = pairwise_distances_squared(target_data)
-        K_target = torch.exp(-d_target / sigma_res)  # 共享 Sigma
+    # C. 拼接 Total Diff (用于 Attr Loss 和 Rest 计算)
+    to_concat = diff_cats + ([diff_cont] if diff_cont is not None else [])
+    total_diff = torch.cat(to_concat, dim=1)
 
-        # 2. Rest Kernel (直接减法！)
-        # Rest = Total - Target
-        d_rest = torch.clamp(dist_res - d_target, min=0.0)
-        K_rest = torch.exp(-d_rest / sigma_res)
+    # 3. 计算 Attr Loss (只算一次大矩阵)
+    dist_total = pairwise_distances_squared(total_diff)
 
-        loss_pairwise += hsic_normalized(K_target, K_rest)
+    # --- 优化点：计算全局 Sigma，用于复用 ---
+    # Rest 矩阵通常占据 Total 矩阵的绝大部分，分布极其相似。
+    # 直接复用 Total 的 Sigma 可以省去大量的 torch.median 计算。
+    median_total = torch.median(dist_total).detach()
+    sigma_total = torch.clamp(median_total, min=1e-8)
 
-        current_idx += width
-        n_blocks += 1
+    # 计算 Attr HSIC
+    attrs_scaled = standardize_batch(attrs)
+    dist_attrs = pairwise_distances_squared(attrs_scaled)
+    loss_disentangle_attr = hsic_from_kernels(
+        kernel_from_distance(dist_total, sigma=sigma_total),
+        kernel_from_distance(dist_attrs)
+    )
 
-    if n_blocks > 1:
-        loss_pairwise /= n_blocks
+    # 4. 计算 Pairwise Indep Loss (混合策略)
+    loss_pairwise_indep = 0.0
+    total_blocks_count = 0
 
-    return lambda_hsic * torch.relu((loss_set + loss_pairwise) - 0.0009)
+    # --- 策略 A: 连续变量完全向量化 (极速) ---
+    if diff_cont is not None:
+        # (Batch, N_cont) -> (N_cont, Batch, 1)
+        x_stack = diff_cont.t().unsqueeze(-1)
+
+        # 随机采样优化 (如果连续特征太多，比如 > 50)
+        n_cont = x_stack.shape[0]
+
+        # 1. 批量计算 Target 距离: (N_cont, B, B)
+        dist_target_stack = batch_pairwise_distances_squared_1d(x_stack)
+
+        # 2. 批量计算 Rest 距离: (N_cont, B, B)
+        # 利用广播: (B, B) - (N, B, B) -> (N, B, B)
+        # 注意: clamp 必须加，防止 float 误差
+        dist_rest_stack = torch.clamp(dist_total.unsqueeze(0) - dist_target_stack, min=0.0)
+
+        # 3. 批量 Kernel
+        # Target Sigma: 必须单独算，因为 1D 分布和 N-D 分布差异大
+        K_stack = batch_kernel_from_distance(dist_target_stack, sigma_stack=None)
+
+        # Rest Sigma: 直接复用 sigma_total (广播)
+        # 这省去了 N 次 median 计算！
+        L_stack = torch.exp(-dist_rest_stack / sigma_total)
+
+        # 4. 批量 HSIC 求和
+        sum_hsic_cont = batch_hsic(K_stack, L_stack)
+
+        loss_pairwise_indep += sum_hsic_cont
+        total_blocks_count += n_cont
+
+    # --- 策略 B: 类别变量循环 (数量通常较少，保持 Loop) ---
+    # 如果类别变量也很多，同样可以加随机采样
+    for s, e in cat_blocks:
+        target = diff[:, s:e]
+
+        # 1. Target Dist
+        dist_target = pairwise_distances_squared(target)
+
+        # 2. Rest Dist (减法)
+        dist_rest = torch.clamp(dist_total - dist_target, min=0.0)
+
+        # 3. Kernels
+        K_target = kernel_from_distance(dist_target)  # 自身算 median
+        L_rest = torch.exp(-dist_rest / sigma_total)  # 复用 global sigma
+
+        # 4. HSIC
+        loss_pairwise_indep += hsic_from_kernels(K_target, L_rest)
+        total_blocks_count += 1
+
+    if total_blocks_count > 0:
+        loss_pairwise_indep /= total_blocks_count
+
+    return lambda_hsic * (loss_disentangle_attr + loss_pairwise_indep)
 
 
-# 辅助函数
-def hsic_normalized(K, L):
+# 还需要 helper: standardize_batch, hsic_from_kernels (保持之前版本即可)
+def standardize_batch(x, epsilon=1e-8):
+    if x.std() < 1e-6: return x
+    return (x - x.mean(dim=0, keepdim=True)) / (x.std(dim=0, keepdim=True) + epsilon)
+
+
+def hsic_from_kernels(K, L):
     m = K.shape[0]
-    H = torch.eye(m, device=K.device) - 1.0 / m * torch.ones((m, m), device=K.device)
+    H = torch.eye(m, device=K.device, dtype=K.dtype) - 1.0 / m * torch.ones((m, m), device=K.device, dtype=K.dtype)
     Kc = torch.mm(H, torch.mm(K, H))
     Lc = torch.mm(H, torch.mm(L, H))
-    return torch.trace(torch.mm(Kc, Lc)) / (m * m)
+    return torch.sum(Kc * Lc) / ((m - 1) ** 2)
+
 
 def project_categorical(fake, proj_groups):
     """

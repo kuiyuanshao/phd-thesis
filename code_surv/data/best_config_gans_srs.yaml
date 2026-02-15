@@ -1,42 +1,51 @@
 # Data Processing Hyperparameters
 processing:
+  normalization: 'gmm'
+  log: true
   gmm:
     max_components: 5
     epsilon: 1.0e-06
 
-# Model Architecture
 model:
+  hsic: true
+  mml: false
   residual_modeling: true
-  semi_supervised: true
+  semi_supervised: false
+  bias_hunter: false
+
   generator:
-    noise_dim: 128
-    hidden_dim: 1024
+    noise_dim: 64
+    hidden_dim: 256
     layers: 2
     dropout: 0.5
 
   discriminator:
-    hidden_dim: 1024
+    hidden_dim: 256
     layers: 2
+    dropout: 0.5
     pack: 10
 
-# Training Hyperparameters
-train:
-  epochs: 2500
-  batch_size: 500
-  m: 5
-  mi_approx: "DROPOUT"   # Options: "SWAG", "DROPOUT", "BOOTSTRAP"
+  biashunter:
+    hidden_dim: 256
+    layers: 2
+    dropout: 0.5
 
+train:
+  epochs: 5000
+  batch_size: 500
+  m: 10
+  mi_approx: "DROPOUT"
   optimizer:
-    lr_g: 0.0002
-    lr_d: 0.0002
+    lr_g: 0.0001
+    lr_d: 0.0004
     betas_g: [0.5, 0.9]
     betas_d: [0.5, 0.9]
     weight_decay: 1.0e-06
-
   loss:
     lambda_gp: 10
-    alpha: 0          # MSE weight (Numerical reconstruction)
-    beta: 1           # CE weight (Categorical reconstruction)
-    tau: 0.2          # Gumbel Softmax temperature
+    loss_hsic: 500
+    loss_mse: 0
+    loss_ce: 0
+    tau: 0.2
     hard_gumbel: false
     discriminator_steps: 1

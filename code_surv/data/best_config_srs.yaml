@@ -3,20 +3,20 @@ diffusion:
   num_steps: 25
   sum_scale: 0.01
 else:
-  m: 2
+  m: 10
   mi_approx: dropout
   task: Res-N
 model:
   channels: 2048
   dropout: 0.5
   gamma: 1
-  layers: 5
+  layers: 2
   net: ResNet
   nheads: 16
   zeta: 1
 train:
   batch_size: 128
-  epochs: 2000
-  eval_batch_size: 1024
+  epochs: 2500
+  eval_batch_size: 2048
   lr: 2.0e-4
   weight_decay: 1.0e-05

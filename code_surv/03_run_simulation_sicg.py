@@ -111,7 +111,7 @@ for i in range(1, 101):
     # # --- 1. Simple Random Sampling ---
     # if not os.path.exists(save_path_srs):
     #     print(f"[SRS] Result not found at {save_path_srs}. Starting training and imputation...")
-    #     sicg_mod_srs = sicg(config, data_info_srs)
+    #     sicg_mod_srs = SICG(config, data_info_srs)
     #     sicg_mod_srs.fit(file_path_srs)
     #     sicg_mod_srs.impute(save_path=save_path_srs)
     # else:
@@ -120,7 +120,7 @@ for i in range(1, 101):
     # # --- 2. Balanced Sampling ---
     # if not os.path.exists(save_path_bal):
     #     print(f"[Balance] Result not found at {save_path_bal}. Starting training and imputation...")
-    #     sicg_mod_bal = sicg(config, data_info_balance)
+    #     sicg_mod_bal = SICG(config, data_info_balance)
     #     sicg_mod_bal.fit(file_path_bal)
     #     sicg_mod_bal.impute(save_path=save_path_bal)
     # else:
@@ -129,7 +129,7 @@ for i in range(1, 101):
     # # --- 3. Neyman Allocation ---
     # if not os.path.exists(save_path_ney):
     #     print(f"[Neyman] Result not found at {save_path_ney}. Starting training and imputation...")
-    #     sicg_mod_ney = sicg(config, data_info_neyman)
+    #     sicg_mod_ney = SICG(config, data_info_neyman)
     #     sicg_mod_ney.fit(file_path_ney)
     #     sicg_mod_ney.impute(save_path=save_path_ney)
     # else:

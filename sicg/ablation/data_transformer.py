@@ -432,6 +432,13 @@ class ImputationDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        if isinstance(idx, (list, np.ndarray, torch.Tensor)):
+            return {
+                'A': self.A[idx],
+                'X': self.X[idx],
+                'M': self.M[idx],
+                'C': self.C[idx]
+            }
         return {
             'A': self.A[idx],
             'X': self.X[idx],

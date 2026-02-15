@@ -151,7 +151,7 @@ class AttnBackbone(nn.Module):
         self.output_heads = nn.ModuleDict()
         for var in self.target_schema:
             name = var['name']
-            if var['type'] == 'categorical':  # Warning: checks against p2 types
+            if 'categorical' in var['type']:
                 self.output_heads[name] = nn.Linear(self.channels, var['num_classes'])
             else:
                 if self.task == "Res-N":
