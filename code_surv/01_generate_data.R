@@ -100,11 +100,11 @@ generateData <- function(n, seed){
                                                                        prob = GENO_M[true_val, ])})
   }
   # T_I: Time Interval between Treatment Initiation SGLT2 and T2D Diagnosis (Months)
-  mm_T_I <- model.matrix(~ I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) + 
+  mm_T_I <- model.matrix(~ I((HbA1c - 50) / 5)  + 
                                 rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) + 
                                 SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE + 
                            I((HbA1c - 50) / 5):I((AGE - 50) / 5), data = data)
-  betas_T_I <- log(c(1, 1.25, 1.1, 1.02, 1.04, 1.05, 0.9,
+  betas_T_I <- log(c(1, 1.25, 1.02, 1.04, 1.05, 0.9,
                      1.1, 1.2, 0.90, 0.90, 1, 0.9, 1.1, 0.85, 0.9, 0.85))
   eta_I <- as.vector(mm_T_I %*% betas_T_I)
   k <- 2

@@ -11,7 +11,7 @@ model:
   mml: false
   residual_modeling: true
   semi_supervised: false
-  bias_hunter: false
+  mine: false
 
   generator:
     noise_dim: 64
@@ -25,7 +25,7 @@ model:
     dropout: 0.5
     pack: 10
 
-  biashunter:
+  mine_net:
     hidden_dim: 256
     layers: 2
     dropout: 0.5

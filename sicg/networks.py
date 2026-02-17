@@ -65,34 +65,22 @@ class Discriminator(nn.Module):
         return out
 
 
-class BiasHunter(nn.Module):
-    def __init__(self, config, p1_dim, p2_dim, cond_cols_dim):
-        super(BiasHunter, self).__init__()
-        self.config = config
-        self.backbone_input_dim = p2_dim
+class MINE(nn.Module):
+    def __init__(self, config, input_dim):
+        super(MINE, self).__init__()
+        # 输入维度是 X 和 Y 维度的总和
+        hidden = config['model']['mine']['hidden_dim']
+        self.fc1 = nn.Linear(input_dim, hidden)
+        self.fc2 = nn.Linear(hidden, hidden)
+        self.fc3 = nn.Linear(hidden, 1) # 输出必须是 1 个标量
 
-        hidden_dim = config['model']['biashunter']['hidden_dim']
-        num_layers = config['model']['biashunter']['layers']
-        dropout_p = config['model']['biashunter']['dropout']
+        # 权重初始化（可选，有助于训练稳定）
+        nn.init.normal_(self.fc1.weight, std=0.02)
+        nn.init.normal_(self.fc2.weight, std=0.02)
+        nn.init.normal_(self.fc3.weight, std=0.02)
 
-        self.blocks = nn.ModuleList()
-        current_input_dim = self.backbone_input_dim
-
-        for _ in range(num_layers):
-            self.blocks.append(
-                nn.Sequential(
-                    nn.Linear(current_input_dim, hidden_dim),
-                    nn.BatchNorm1d(hidden_dim),
-                    nn.ReLU(),
-                    nn.Dropout(dropout_p)
-                )
-            )
-            current_input_dim += hidden_dim
-        self.output_layer = nn.Linear(current_input_dim, p1_dim + cond_cols_dim)
-
-    def forward(self, p2):
-        x = p2
-        for block in self.blocks:
-            out = block(x)
-            x = torch.cat([x, out], dim=1)
-        return self.output_layer(x)
+    def forward(self, input_tensor):
+        x = torch.relu(self.fc1(input_tensor))
+        x = torch.relu(self.fc2(x))
+        x = self.fc3(x) # 最后一层没有激活函数
+        return x

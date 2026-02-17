@@ -2,173 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from typing import Union, Callable, List
-
-# --- TabDDPM / RTDL Helpers ---
-
-ModuleType = Union[str, Callable[..., nn.Module]]
-
-
-class ReGLU(nn.Module):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[-1] % 2 == 0
-        a, b = x.chunk(2, dim=-1)
-        return a * F.relu(b)
-
-
-def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:
-    if module_type == 'ReGLU':
-        return ReGLU()
-    if isinstance(module_type, str):
-        return getattr(nn, module_type)(*args)
-    return module_type(*args)
-
-
-def timestep_embedding(timesteps, dim, max_period=10000):
-    half = dim // 2
-    freqs = torch.exp(
-        -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
-    ).to(device=timesteps.device)
-    args = timesteps[:, None].float() * freqs[None]
-    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-    if dim % 2:
-        embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
-    return embedding
-
-
-# --- Core ResNet Components ---
-
-class ResNetBlock(nn.Module):
-    def __init__(self, d_main, d_hidden, dropout_first, dropout_second, d_emb):
-        super().__init__()
-        self.normalization = nn.BatchNorm1d(d_main)
-        self.linear_first = nn.Linear(d_main, d_hidden)
-        self.activation = ReGLU()
-        self.dropout_first = nn.Dropout(dropout_first)
-        self.linear_second = nn.Linear(d_hidden // 2, d_main)  # //2 because ReGLU halves the dim
-        self.dropout_second = nn.Dropout(dropout_second)
-
-        # Time/Label Embedding Projection
-        self.emb_proj = nn.Linear(d_emb, d_main)
-
-    def forward(self, x, emb):
-        x_input = x
-        x = self.normalization(x)
-
-        # Inject embedding at the start of each block (standard TabDDPM style)
-        x = x + self.emb_proj(emb)
-
-        x = self.linear_first(x)
-        x = self.activation(x)
-        x = self.dropout_first(x)
-        x = self.linear_second(x)
-        x = self.dropout_second(x)
-        return x_input + x
-
-
-# --- Adapted Backbone ---
-
-class MlpBackbone(nn.Module):
-    def __init__(self, config, device, variable_schema):
-        super().__init__()
-        self.device = device
-        self.task = config["else"]["task"]
-        self.num_steps = config["diffusion"]["num_steps"]
-
-        # Config parameters
-        self.d_main = config["model"]["channels"]
-        self.d_hidden = self.d_main * 2  # Standard for ReGLU/ResNet blocks
-        self.n_blocks = config["model"]["layers"]
-        self.dropout = config["model"]["dropout"]
-        self.d_emb = config["diffusion"].get("diffusion_embedding_dim", 128)
-
-        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
-        self.p1_schema = [v for v in variable_schema if 'p1' in v['type']]
-        self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
-        self.num_vars = [v['name'] for v in self.target_schema if 'numeric' in v['type']]
-
-        # 1. Calculate input dimension for flattened vector
-        self.input_dim = 0
-        self.out_dim_map = {}
-        for var in self.target_schema:
-            dim = var['num_classes'] if 'categorical' in var['type'] else 1
-            self.input_dim += dim
-            self.out_dim_map[var['name']] = dim
-        for var in self.p1_schema:
-            dim = var['num_classes'] if 'categorical' in var['type'] else 1
-            self.input_dim += dim
-            self.out_dim_map[var['name']] = dim
-        for var in self.aux_schema:
-            self.input_dim += (var['num_classes'] if 'categorical' in var['type'] else 1)
-
-        # 2. Network Layers
-        self.time_embed = nn.Sequential(
-            nn.Linear(self.d_emb, self.d_emb),
-            nn.SiLU(),
-            nn.Linear(self.d_emb, self.d_emb)
-        )
-
-        self.first_layer = nn.Linear(self.input_dim, self.d_main)
-
-        self.blocks = nn.ModuleList([
-            ResNetBlock(self.d_main, self.d_hidden, self.dropout, self.dropout, self.d_emb)
-            for _ in range(self.n_blocks)
-        ])
-
-        self.final_norm = nn.BatchNorm1d(self.d_main)
-
-        # 3. Prediction Heads
-        self.cat_heads = nn.ModuleDict()
-        for var in self.target_schema:
-            if 'categorical' in var['type']:
-                name = var['name']
-                self.cat_heads[name] = nn.Linear(self.d_main, self.out_dim_map[name])
-
-        n_num = len(self.num_vars)
-        if n_num > 0:
-            if self.task == "Res-N":
-                self.numeric_res_head = nn.Linear(self.d_main, n_num)
-                self.numeric_eps_head = nn.Linear(self.d_main, n_num)
-            else:
-                self.numeric_head = nn.Linear(self.d_main, n_num)
-
-    def forward(self, x_t_dict, t, p1_dict, aux_dict):
-        # A. Flatten Inputs
-        flat_list = []
-        for var in self.target_schema:
-            flat_list.append(x_t_dict[var['name']])
-            flat_list.append(p1_dict[var['name']])
-        for var in self.aux_schema:
-            flat_list.append(aux_dict[var['name']])
-
-        x = torch.cat(flat_list, dim=1)
-
-        # B. Embed Time
-        emb = self.time_embed(timestep_embedding(t, self.d_emb))
-
-        # C. ResNet Backbone
-        x = self.first_layer(x)
-        for block in self.blocks:
-            x = block(x, emb)
-
-        x = F.relu(self.final_norm(x))
-
-        # D. Decode Heads
-        output_dict = {}
-        for name in self.cat_heads:
-            output_dict[name] = self.cat_heads[name](x)
-
-        if len(self.num_vars) > 0:
-            if self.task == "Res-N":
-                all_res, all_eps = self.numeric_res_head(x), self.numeric_eps_head(x)
-                for i, name in enumerate(self.num_vars):
-                    output_dict[name] = torch.cat([all_res[:, i:i + 1], all_eps[:, i:i + 1]], dim=1)
-            else:
-                all_pred = self.numeric_head(x)
-                for i, name in enumerate(self.num_vars):
-                    output_dict[name] = all_pred[:, i:i + 1]
-
-        return output_dict
 
 
 def get_torch_trans(heads=8, layers=1, channels=64, dropout_rate=0):
@@ -361,6 +194,132 @@ class AttnBackbone(nn.Module):
                     output_dict[name] = torch.cat([res_pred, eps_pred], dim=1)
                 else:
                     output_dict[name] = self.output_heads[name](self.dropout(feature))
+        return output_dict
+
+
+class MlpDiffusionEmbedding(nn.Module):
+    def __init__(self, num_steps, embedding_dim=128, dropout_rate=0):
+        super().__init__()
+        self.register_buffer("embedding", self._build_embedding(num_steps, embedding_dim // 2), persistent=False)
+        self.projection1 = nn.Linear(embedding_dim, embedding_dim)
+        self.projection2 = nn.Linear(embedding_dim, embedding_dim)
+        self.input_dropout = nn.Dropout(dropout_rate / 2)
+        self.dropout = nn.Dropout(dropout_rate)
+
+    def forward(self, diffusion_step):
+        x = self.embedding[diffusion_step]
+        return F.silu(self.projection2(self.dropout(F.silu(self.projection1(self.input_dropout(x))))))
+
+    def _build_embedding(self, num_steps, dim=64):
+        steps = torch.arange(num_steps).unsqueeze(1)
+        frequencies = 10.0 ** (torch.arange(dim) / (dim - 1) * 4.0).unsqueeze(0)
+        table = steps * frequencies
+        table = torch.cat([torch.sin(table), torch.cos(table)], dim=1)
+        return table
+
+
+class ResBlock(nn.Module):
+    def __init__(self, dim, dropout_rate):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.BatchNorm1d(dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate)
+        )
+
+    def forward(self, x):
+        return x + self.block(x)
+
+
+class MlpBackbone(nn.Module):
+    def __init__(self, config, device, variable_schema):
+        super().__init__()
+        self.device = device
+        self.task = config["else"]["task"]
+        self.num_steps = config["diffusion"]["num_steps"]
+        self.dropout_rate = config["model"]["dropout"]
+        self.hidden_dim = config["model"]["channels"]
+        self.layers = config["model"]["layers"]
+
+        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
+        self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
+        self.num_vars = [v['name'] for v in self.target_schema if 'numeric' in v['type']]
+
+        self.input_dim = 0
+        self.out_dim_map = {}
+
+        # Calculate flat input dimension
+        for var in self.target_schema:
+            dim = var['num_classes'] if 'categorical' in var['type'] else 1
+            self.input_dim += (dim * 2)  # P2 variable + P1 variable pair
+            self.out_dim_map[var['name']] = dim
+
+        for var in self.aux_schema:
+            dim = var['num_classes'] if 'categorical' in var['type'] else 1
+            self.input_dim += dim
+
+        self.time_emb_dim = config["diffusion"]["diffusion_embedding_dim"]
+        self.diffusion_embedding = MlpDiffusionEmbedding(self.num_steps, self.time_emb_dim, self.dropout_rate)
+
+        self.project_in = nn.Linear(self.input_dim + self.time_emb_dim, self.hidden_dim)
+        self.input_dropout = nn.Dropout(self.dropout_rate)
+        self.dropout = nn.Dropout(self.dropout_rate)
+
+        self.blocks = nn.ModuleList([ResBlock(self.hidden_dim, self.dropout_rate) for _ in range(self.layers)])
+
+        self.final_norm = nn.BatchNorm1d(self.hidden_dim)
+        self.final_activation = nn.ReLU()
+
+        # Output heads
+        self.cat_heads = nn.ModuleDict()
+        for var in self.target_schema:
+            if 'categorical' in var['type']:
+                name = var['name']
+                self.cat_heads[name] = nn.Linear(self.hidden_dim, self.out_dim_map[name])
+
+        n_num = len(self.num_vars)
+        if n_num > 0:
+            if self.task == "Res-N":
+                self.numeric_res_head = nn.Linear(self.hidden_dim, n_num)
+                self.numeric_eps_head = nn.Linear(self.hidden_dim, n_num)
+            else:
+                self.numeric_head = nn.Linear(self.hidden_dim, n_num)
+
+    def forward(self, x_t_dict, t, p1_dict, aux_dict):
+        flat_list = []
+        # Flatten all inputs into a single vector (MLP style)
+        # Because target_schema is now filtered to P2, these keys exist in x_t_dict (targets) and p1_dict (proxies)
+        for var in self.target_schema:
+            flat_list.append(x_t_dict[var['name']])
+            flat_list.append(p1_dict[var['name']])
+
+        for var in self.aux_schema:
+            flat_list.append(aux_dict[var['name']])
+
+        t_emb = self.diffusion_embedding(t)
+        x = torch.cat(flat_list + [t_emb], dim=1)
+        x = self.input_dropout(self.project_in(self.input_dropout(x)))
+
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.final_activation(self.final_norm(x))
+        x = self.dropout(x)
+
+        output_dict = {}
+        for name in self.cat_heads:
+            output_dict[name] = self.cat_heads[name](x)
+
+        if len(self.num_vars) > 0:
+            if self.task == "Res-N":
+                all_res, all_eps = self.numeric_res_head(x), self.numeric_eps_head(x)
+                for i, name in enumerate(self.num_vars):
+                    output_dict[name] = torch.cat([all_res[:, i:i + 1], all_eps[:, i:i + 1]], dim=1)
+            else:
+                all_pred = self.numeric_head(x)
+                for i, name in enumerate(self.num_vars):
+                    output_dict[name] = all_pred[:, i:i + 1]
         return output_dict
 
 

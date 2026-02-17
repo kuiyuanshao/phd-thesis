@@ -1,22 +1,29 @@
+processing:
+  normalization: 'gmm'
+  log: true
+  gmm:
+    max_components: 5
+    epsilon: 1.0e-06
+
 diffusion:
   diffusion_embedding_dim: 128
   num_steps: 25
-  sum_scale: 0.01
+  sum_scale: 1
 else:
   m: 10
   mi_approx: dropout
-  task: Res-N
+  task: "Res-N"
 model:
-  channels: 2048
+  channels: 512
   dropout: 0.5
   gamma: 1
-  layers: 2
+  layers: 5
   net: ResNet
   nheads: 16
-  zeta: 1
+  zeta: 100
 train:
   batch_size: 128
   epochs: 2500
-  eval_batch_size: 2048
+  eval_batch_size: 1024
   lr: 2.0e-4
   weight_decay: 1.0e-05

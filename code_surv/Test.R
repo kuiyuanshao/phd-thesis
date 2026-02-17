@@ -1,23 +1,16 @@
-lapply(c("survival", "dplyr", "stringr", "survey", "mice", "arrow", "mitools"), require, character.only = T)
+lapply(c("survival", "dplyr", "stringr", "survey", "mice", "arrow", "mitools", 'ggplot2'), require, character.only = T)
 source("00_utils_functions.R")
 
-i <- 1
+i <- 3
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
 cox.fit <- coxph(Surv(T_I, EVENT) ~
-                   I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-                   I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                   I((HbA1c - 50) / 5) +
                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
                  data = data)
-cox.star <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                   I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
-                   I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
-                   rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
-                   SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
-                 data = data)
-multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SRS/sird/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){
@@ -26,8 +19,7 @@ multi_impset <- lapply(multi_impset, function(dat){
 imp.mids <- imputationList(multi_impset)
 cox.mod <- with(data = imp.mids,
                 exp = coxph(Surv(T_I, EVENT) ~
-                              I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-                              I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
+                              I((HbA1c - 50) / 5) +
                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
 pooled <- MIcombine(cox.mod)
@@ -36,29 +28,11 @@ round(exp(coef(cox.fit)) - exp(pooled$coefficients), 4)
 proportions(table(data$EVENT, multi_impset[[1]]$EVENT))
 
 
-library(ggplot2)
 
-
-library(survival)
-library(survminer)
-
-diag_median <- function(df) {
-  fit <- survfit(Surv(T_I, EVENT) ~ SMOKE, data = df)
-  return(surv_median(fit))
-}
-
-real_median <- diag_median(multi_impset[[1]])
-fake_median <- diag_median(data)
-
-
-
-
-ggplot(data) + 
-  geom_density(aes(x = HbA1c)) +
-  facet_wrap(~SMOKE)
-ggplot(multi_impset[[1]]) + 
-  geom_density(aes(x = HbA1c)) +
-  facet_wrap(~SMOKE)
+glm(data$HbA1c - multi_impset[[1]]$HbA1c ~ data$SEX)
+summary(glm(data$HbA1c - multi_impset[[1]]$HbA1c ~ data$RACE))
+summary(glm(data$eGFR - multi_impset[[1]]$eGFR ~ data$SEX))
+glm(data$eGFR - multi_impset[[1]]$eGFR ~ data$INSURANCE)
 
 ggplot(data %>% filter(EVENT == 1)) +
   geom_density(aes(x = HbA1c), colour = "red") +
@@ -108,7 +82,7 @@ ggplot(data) + geom_point(aes(x = T_I, y = multi_impset[[1]]$T_I)) + geom_abline
 # best_config <- readRDS("./comparisons_tuning/mice/best_mice_config_srs.rds")
 # load(paste0("./data/True/", digit, ".RData"))
 # cox.fit <- coxph(Surv(T_I, EVENT) ~
-#                    I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+#                    I((HbA1c - 50) / 5)  +
 #                    I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
 #                    rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
 #                    SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
@@ -128,7 +102,7 @@ ggplot(data) + geom_point(aes(x = T_I, y = multi_impset[[1]]$T_I)) + geom_abline
 # imp.mids <- imputationList(multi_impset)
 # cox.mod <- with(data = imp.mids, 
 #                 exp = coxph(Surv(T_I, EVENT) ~
-#                               I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
+#                               I((HbA1c - 50) / 5)  +
 #                               I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
 #                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
 #                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))

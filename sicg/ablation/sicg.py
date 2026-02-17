@@ -10,7 +10,7 @@ warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as true but not supported on MPS.*")
 from .data_transformer import DataTransformer, ImputationDataset
-from .networks import Generator, Discriminator
+from .networks import Generator, Discriminator, BiasHunter
 from .utils import gumbel_activation, gradient_penalty, recon_loss, moment_matching_loss, PCA, calc_HSIC_loss
 from .swag import SWAG
 
@@ -63,16 +63,38 @@ class SICG:
 
         p1_raw, p2_raw, cond_raw = self.transformer.get_dims()
 
-        # 5. Optimize Layout
-        self.p1_cols = p1_raw
-        self.cond_cols = cond_raw
-        self.p2_cols, self.layout, self.layout_map = self._optimize_p2_layout(p2_raw)
-        valid_cols = [c for c in (self.p1_cols + self.p2_cols + self.cond_cols) if c in self.df_processed.columns]
-        self.df_processed = self.df_processed[valid_cols]
+        # A. 分别分析三个集合的布局 (确保不丢列，不重列)
+        # _analyze_layout 内部必须有 fallback 机制确保输出列数等于输入列数
+        self.p2_cols, self.layout, self.layout_map = self._analyze_layout(p2_raw, self.data_info)
+        self.p1_cols, layout_p1, _ = self._analyze_layout(p1_raw, self.data_info)
+        self.cond_cols, layout_cond, _ = self._analyze_layout(cond_raw, self.data_info)
 
-        self.p1_cols = [c for c in self.p1_cols if c in valid_cols]
-        self.p2_cols = [c for c in self.p2_cols if c in valid_cols]
-        self.cond_cols = [c for c in self.cond_cols if c in valid_cols]
+        # B. 严格按照 A -> C 的顺序合并 HSIC 属性布局
+        # 这是为了确保训练时 torch.cat([A, C]) 的索引完全匹配
+        p1_width = len(self.p1_cols)
+        layout_cond_shifted = [
+            (start + p1_width, end + p1_width, card)
+            for start, end, card in layout_cond
+        ]
+        self.layout_attrs = layout_p1 + layout_cond_shifted
+
+        # C. 维度铁律：重新裁剪 df_processed
+        # 这一步确保了进入模型的数据维度 = len(p1) + len(p2) + len(cond)
+        all_final_cols = self.p1_cols + self.p2_cols + self.cond_cols
+
+        # 检查是否有列在 transform 后消失了 (理论上不应该)
+        missing = [c for c in all_final_cols if c not in self.df_processed.columns]
+        if missing:
+            print(f"警告: 以下列在预处理中消失了，将尝试补零: {missing[:5]}...")
+            for c in missing: self.df_processed[c] = 0.0
+
+        # 强制排序并对齐 Dataframe
+        self.df_processed = self.df_processed[all_final_cols]
+
+        # D. 记录最终维度 (供模型初始化使用)
+        self.p1_dim = len(self.p1_cols)
+        self.p2_dim = len(self.p2_cols)
+        self.cond_dim = len(self.cond_cols)
 
         self._build_projection_groups()
 
@@ -135,62 +157,6 @@ class SICG:
 
                 self.confusion_matrices[p2] = mat
 
-    def _optimize_p2_layout(self, p2_cols):
-        var_map = {};
-        processed = set()
-
-        for base in self.data_info['cat_vars']:
-            prefix = f"{base}_"
-            cols = [c for c in p2_cols if c.startswith(prefix)]
-            if cols:
-                var_map[base] = sorted(cols)
-                processed.update(cols)
-
-        for base in self.data_info['num_vars']:
-            prefix = f"{base}_mode_"
-            cols = [c for c in p2_cols if c.startswith(prefix)]
-            if cols:
-                cols = sorted(cols, key=lambda x: int(x.split('_')[-1]))
-                var_map[f"{base}_mode"] = cols;
-                processed.update(cols)
-
-        numericals = [c for c in p2_cols if c not in processed]
-        groups = {};
-        if numericals: groups[0] = [numericals]
-
-        for base, cols in var_map.items():
-            card = len(cols)
-            if card not in groups: groups[card] = []
-            groups[card].append((base, cols))
-
-        sorted_cols = [];
-        layout = [];
-        layout_map = []
-        curr = 0
-
-        if 0 in groups:
-            for cols in groups[0]:
-                sorted_cols.extend(cols)
-                w = len(cols)
-                layout.append((curr, curr + w, 0))
-                curr += w
-
-        for card in sorted([k for k in groups.keys() if k != 0]):
-            for item in groups[card]:
-                base, cols = item
-                sorted_cols.extend(cols)
-                w = len(cols)
-                layout.append((curr, curr + w, card))
-                layout_map.append({
-                    'base_name': base,
-                    'p2_range': (curr, curr + w),
-                    'card': card,
-                    'cols': cols
-                })
-                curr += w
-
-        return sorted_cols, layout, layout_map
-
     def _build_projection_groups(self):
         self.proj_groups = []
         p1_vars = self.data_info['phase1_vars']
@@ -198,27 +164,23 @@ class SICG:
 
         p1_col_map = {c: i for i, c in enumerate(self.p1_cols)}
 
+        # 这里遍历的是 fit() 中生成的 self.layout_map (来自于 P2 的分析)
         for info in self.layout_map:
             base_p2 = info['base_name']
-            if base_p2 not in p2_vars: continue
 
+            # ... (中间的匹配逻辑不变) ...
+            if base_p2 not in p2_vars: continue
             try:
                 idx = p2_vars.index(base_p2)
                 base_p1 = p1_vars[idx]
             except ValueError:
                 continue
 
-            if base_p2 not in self.confusion_matrices: continue
-
+            # ... (获取 Encoder 和 indices 逻辑不变) ...
             if base_p1 not in self.transformer.cat_encoders: continue
             enc = self.transformer.cat_encoders[base_p1]
             p1_sub_cols = [f"{base_p1}_{c}" for c in enc.categories_[0]]
-
-            indices = []
-            for c in p1_sub_cols:
-                if c in p1_col_map:
-                    indices.append(p1_col_map[c])
-
+            indices = [p1_col_map[c] for c in p1_sub_cols if c in p1_col_map]
             if not indices: continue
 
             p1_start = min(indices)
@@ -226,12 +188,14 @@ class SICG:
 
             group = {
                 'base_name': base_p2,
-                'p2_range': info['p2_range'],
+                'p2_range': info['range'],  # <--- 修改点：这里取 'range' 赋值给 group 的 'p2_range'
                 'p1_range': (p1_start, p1_end),
                 'card': info['card'],
-                'matrix': self.confusion_matrices[base_p2]
+                'matrix': self.confusion_matrices.get(base_p2)  # Safely get matrix
             }
-            self.proj_groups.append(group)
+            # 只有当 confusion matrix 存在时才添加
+            if group['matrix'] is not None:
+                self.proj_groups.append(group)
 
     def _train_loop(self):
         cfg = self.config['train']
@@ -248,8 +212,12 @@ class SICG:
             dataloader_p2 = self._get_dataloader("p2", is_bootstrap=(mi_approx == 'BOOTSTRAP'))
             data_iter_p2 = iter(dataloader_p2)
 
-            G, D = self._init_model_pair()
-            opt_G, opt_D = self._init_optimizers(G, D)
+            if self.config['model']['bias_hunter']:
+                G, D, B = self._init_model_pair()
+                opt_G, opt_D, opt_B = self._init_optimizers(G, D, B)
+            else:
+                G, D = self._init_model_pair()
+                opt_G, opt_D = self._init_optimizers(G, D)
 
             current_swag = None
             if mi_approx == 'SWAG':
@@ -305,7 +273,14 @@ class SICG:
 
                 z_p2 = torch.randn(A_p2.size(0), noise_dim, device=self.device)
                 fake_p2 = G(z_p2, A_p2, C_p2)
-
+                if self.config['model']['bias_hunter']:
+                    opt_B.zero_grad()
+                    residual = fake_p2 - X_p2
+                    fake_AC = B(residual.detach())
+                    loss_B = recon_loss(fake_AC, torch.cat([A_p2, C_p2], dim = 1),
+                                        mode='p2', layout=self.layout_attrs)
+                    loss_B.backward()
+                    opt_B.step()
                 loss_p2 = recon_loss(fake_p2, X_p2, mode='p2', layout=self.layout,
                                      alpha=loss_cfg['loss_mse'], beta=loss_cfg['loss_ce'])
 
@@ -320,9 +295,18 @@ class SICG:
                     loss_marg = moment_matching_loss(self._pca, torch.cat([X_p2, A_p2, C_p2], dim=1), fake_d)
                     g_loss += loss_marg
                 if self.config['model']['hsic']:
-                    loss_hsic = calc_HSIC_loss(fake_p2, X_p2, torch.cat([A_p2, C_p2], dim = 1), self.layout,
+                    loss_hsic = calc_HSIC_loss(fake_p2, X_p2,
+                                               torch.cat([A_p2, C_p2], dim = 1),
+                                               self.layout,
+                                               self.layout_attrs,
                                                loss_cfg['loss_hsic'])
                     g_loss += loss_hsic
+                if self.config['model']['bias_hunter']:
+                    pred_AC_for_G = B(residual)
+                    loss_B_adv = recon_loss(pred_AC_for_G, torch.cat([A_p2, C_p2], dim = 1),
+                                            mode='p2', layout=self.layout_attrs)
+                    lambda_adv = loss_cfg.get('loss_bh', 1.0)
+                    g_loss += - lambda_adv * loss_B_adv
                 g_loss.backward()
 
                 if mi_approx == 'SWAG':
@@ -352,6 +336,7 @@ class SICG:
                     g_adv1 = -g_adv1.mean()
                     g_loss = g_adv1 + loss_p1
                     g_loss.backward()
+
                     if mi_approx == 'SWAG':
                         torch.nn.utils.clip_grad_norm_(G.parameters(), 1.0)
                     opt_G.step()
@@ -368,6 +353,9 @@ class SICG:
 
                 if self.config['model']['hsic']:
                     logs['HSIC'] = f"{loss_hsic.item():.4f}"
+
+                if self.config['model']['bias_hunter']:
+                    logs['Bias'] = f"{loss_B_adv.item():.4f}"
 
                 pbar.set_postfix(logs)
 
@@ -476,16 +464,104 @@ class SICG:
     def _init_model_pair(self):
         G = Generator(self.config, len(self.p1_cols), len(self.p2_cols), len(self.cond_cols)).to(self.device)
         D = Discriminator(self.config, len(self.p1_cols), len(self.p2_cols), len(self.cond_cols)).to(self.device)
+        if self.config['model']['bias_hunter']:
+            B = BiasHunter(self.config, len(self.p1_cols), len(self.p2_cols), len(self.cond_cols)).to(self.device)
+            return G, D, B
         return G, D
 
-    def _init_optimizers(self, G, D):
+    def _init_optimizers(self, G, D, B=None):
         tc = self.config['train']['optimizer']
         if self.config['train']['mi_approx'] == 'SWAG':
             opt_G = optim.SGD(G.parameters(), lr=tc['lr_g'], momentum=0.9, weight_decay=tc['weight_decay'])
             opt_D = optim.SGD(D.parameters(), lr=tc['lr_d'], momentum=0.9, weight_decay=tc['weight_decay'])
+            if B is not None:
+                opt_B = optim.SGD(B.parameters(), lr=tc['lr_d'], momentum=0.9, weight_decay=tc['weight_decay'])
+                return opt_G, opt_D, opt_B
+            return opt_G, opt_D
         else:
             opt_G = optim.Adam(G.parameters(), lr=tc['lr_g'], betas=tuple(tc['betas_g']),
                                weight_decay=tc['weight_decay'])
             opt_D = optim.Adam(D.parameters(), lr=tc['lr_d'], betas=tuple(tc['betas_d']),
                                weight_decay=tc['weight_decay'])
-        return opt_G, opt_D
+            if B is not None:
+                opt_B = optim.Adam(B.parameters(), lr=tc['lr_d'], betas=tuple(tc['betas_d']),
+                                   weight_decay=tc['weight_decay'])
+                return opt_G, opt_D, opt_B
+            return opt_G, opt_D
+
+    def _analyze_layout(self, cols_to_process, data_info):
+        """
+        严谨的布局分析器：确保每一列有且只有一个归属，列数绝对守恒。
+        """
+        var_groups = {}  # 存储 base_name -> [columns]
+        remaining = []
+
+        # 1. 遍历输入列，进行“单次归属”检查
+        for col in cols_to_process:
+            matched = False
+
+            # A. 检查是否属于 GMM 模式列 (如 income_mode_0)
+            if "_mode_" in col:
+                base_name = col.split("_mode_")[0]
+                if base_name in data_info['num_vars']:
+                    group_key = f"{base_name}_mode"
+                    if group_key not in var_groups: var_groups[group_key] = []
+                    var_groups[group_key].append(col)
+                    matched = True
+
+            # B. 检查是否属于类别变量 (如 sex_Male)
+            if not matched and "_" in col:
+                # 寻找所有可能匹配的 base_name
+                potential_bases = [b for b in data_info['cat_vars'] if col.startswith(f"{b}_")]
+                if potential_bases:
+                    # 【核心修复】：取长度最长的 base_name，确保匹配最精确，防止 sex 抢走 sex_oriented 的列
+                    best_base = max(potential_bases, key=len)
+                    if best_base not in var_groups: var_groups[best_base] = []
+                    var_groups[best_base].append(col)
+                    matched = True
+
+            # C. 兜底：所有不匹配的列归为连续/通用块 (比如原本就是数值型的列)
+            if not matched:
+                remaining.append(col)
+
+        # 2. 组装结果
+        sorted_cols = []
+        hsic_layout = []
+        meta_map = []
+        curr = 0
+
+        # 第一块：连续变量块 (card=0)
+        if remaining:
+            sorted_cols.extend(remaining)
+            w = len(remaining)
+            hsic_layout.append((curr, curr + w, 0))
+            curr += w
+
+        # 后续块：离散变量块
+        for base_key in sorted(var_groups.keys()):
+            cols = var_groups[base_key]
+            # 内部排序
+            if "_mode" in base_key:
+                cols = sorted(cols, key=lambda x: int(x.split('_')[-1]))
+            else:
+                cols = sorted(cols)
+
+            w = len(cols)
+            sorted_cols.extend(cols)
+            hsic_layout.append((curr, curr + w, w))
+
+            # 只有原始类别变量需要 meta_map
+            if base_key in data_info['cat_vars']:
+                meta_map.append({
+                    'base_name': base_key,
+                    'range': (curr, curr + w),
+                    'card': w,
+                    'cols': cols
+                })
+            curr += w
+
+        # 终极校验：输入 141，输出必须是 141
+        if len(sorted_cols) != len(cols_to_process):
+            raise ValueError(f"维度不匹配！输入 {len(cols_to_process)}, 得到 {len(sorted_cols)}")
+
+        return sorted_cols, hsic_layout, meta_map

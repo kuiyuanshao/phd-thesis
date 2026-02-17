@@ -4,14 +4,14 @@ source("00_utils_functions.R")
 # loadfonts(device="win") 
 load("./simulations/results_COMBINED.RData")
 methods <- c("true", "me", "complete_case", "raking",
-             "mice", "mixgb", "sicg", "sird")
-vars_vec <- c("HbA1c", "HbA1c^2", "rs4506565 1", "rs4506565 2", "AGE",
+             "mice", "mixgb", "sicg")
+vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "AGE",
               "eGFR", "BMI", "SEX TRUE", "INSURANCE TRUE",
               "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3",
               "AGE:HbA1c")
 combined_resultCoeff_long <- combined_resultCoeff %>% 
   pivot_longer(
-    cols = 1:16,
+    cols = 1:15,
     names_to = "Covariate", 
     values_to = "Coefficient"
   ) %>%
@@ -21,7 +21,7 @@ combined_resultCoeff_long <- combined_resultCoeff %>%
          Covariate = factor(Covariate, levels = vars_vec))
 combined_resultStdError_long <- combined_resultStdError %>% 
   pivot_longer(
-    cols = 1:16,
+    cols = 1:15,
     names_to = "Covariate", 
     values_to = "StdError"
   ) %>%
@@ -68,7 +68,7 @@ diffCoeff <- combined_resultCoeff %>%
 
 rmse_result_long <- rmse_result %>% 
   pivot_longer(
-    cols = 3:18,
+    cols = 3:17,
     names_to = "Covariate", 
     values_to = "Coefficient"
   ) %>%
@@ -84,26 +84,26 @@ for (design in unique(combined_resultCI$Design)){
     ind <- which(combined_resultCI$Design == design & combined_resultCI$Method == method)
     curr_g <- NULL
     for (i in ind){
-      curr.lower <- combined_resultCI[i, 1:16]
-      curr.upper <- combined_resultCI[i, 17:33]
+      curr.lower <- combined_resultCI[i, 1:15]
+      curr.upper <- combined_resultCI[i, 16:32]
       curr_g <- rbind(curr_g, c(calcCICover(truth, curr.lower, curr.upper), design, method))
     }
     CIcoverage <- rbind(CIcoverage, curr_g)
   }
 }
 CIcoverage <- as.data.frame(CIcoverage)
-names(CIcoverage) <- c(names(combined_resultCoeff)[1:16],
+names(CIcoverage) <- c(names(combined_resultCoeff)[1:15],
                       "Design", "Method")
 
 CIcoverage <- CIcoverage %>%
   select(Method, Design, all_of(cols)) %>%
-  mutate(across(all_of(names(.)[3:18]), as.logical)) %>%
+  mutate(across(all_of(names(.)[3:17]), as.logical)) %>%
   group_by(Design, Method) %>%
   summarise(across(all_of(cols), ~ mean(.x)), .groups = "drop")
 
 CIcoverage_long <- CIcoverage %>%
   pivot_longer(
-    cols = 3:18,
+    cols = 3:17,
     names_to = "Covariate", 
     values_to = "Coverage"
   ) %>%
@@ -113,22 +113,21 @@ CIcoverage_long <- CIcoverage %>%
          Covariate = factor(Covariate, levels = vars_vec))
 
 range_coef <- list(
-  Covariate == "HbA1c"          ~ scale_y_continuous(limits = c(means.coef$mean[1] - 0.15, means.coef$mean[1] + 0.15)),
-  Covariate == "HbA1c^2"        ~ scale_y_continuous(limits = c(means.coef$mean[2] - 0.15, means.coef$mean[2] + 0.15)),
-  Covariate == "rs4506565 1"    ~ scale_y_continuous(limits = c(means.coef$mean[3] - 0.25, means.coef$mean[3] + 0.25)),
-  Covariate == "rs4506565 2"    ~ scale_y_continuous(limits = c(means.coef$mean[4] - 0.25, means.coef$mean[4] + 0.25)),
-  Covariate == "AGE"            ~ scale_y_continuous(limits = c(means.coef$mean[5] - 0.5,  means.coef$mean[5] + 0.5)),
-  Covariate == "eGFR"           ~ scale_y_continuous(limits = c(means.coef$mean[6] - 0.1,  means.coef$mean[6] + 0.1)),
-  Covariate == "BMI"            ~ scale_y_continuous(limits = c(means.coef$mean[7] - 0.25, means.coef$mean[7] + 0.25)),
-  Covariate == "SEX TRUE"       ~ scale_y_continuous(limits = c(means.coef$mean[8] - 0.2,  means.coef$mean[8] + 0.2)),
-  Covariate == "INSURANCE TRUE" ~ scale_y_continuous(limits = c(means.coef$mean[9] - 0.5,  means.coef$mean[9] + 0.5)),
-  Covariate == "RACE AFR"       ~ scale_y_continuous(limits = c(means.coef$mean[10] - 0.5, means.coef$mean[10] + 0.5)),
-  Covariate == "RACE AMR"       ~ scale_y_continuous(limits = c(means.coef$mean[11] - 0.25, means.coef$mean[11] + 0.25)),
-  Covariate == "RACE SAS"       ~ scale_y_continuous(limits = c(means.coef$mean[12] - 0.25, means.coef$mean[12] + 0.25)),
-  Covariate == "RACE EAS"       ~ scale_y_continuous(limits = c(means.coef$mean[13] - 0.5, means.coef$mean[13] + 0.5)),
-  Covariate == "SMOKE 2"        ~ scale_y_continuous(limits = c(means.coef$mean[14] - 0.25, means.coef$mean[14] + 0.25)),
-  Covariate == "SMOKE 3"        ~ scale_y_continuous(limits = c(means.coef$mean[15] - 0.25, means.coef$mean[15] + 0.25)),
-  Covariate == "AGE:HbA1c"      ~ scale_y_continuous(limits = c(means.coef$mean[16] - 0.15, means.coef$mean[16] + 0.15))
+  Covariate == "HbA1c"          ~ scale_y_continuous(limits = c(means.coef$mean[1] - 0.15,  means.coef$mean[1] + 0.15)),
+  Covariate == "rs4506565 1"    ~ scale_y_continuous(limits = c(means.coef$mean[2] - 0.25,  means.coef$mean[2] + 0.25)),
+  Covariate == "rs4506565 2"    ~ scale_y_continuous(limits = c(means.coef$mean[3] - 0.25,  means.coef$mean[3] + 0.25)),
+  Covariate == "AGE"            ~ scale_y_continuous(limits = c(means.coef$mean[4] - 0.5,   means.coef$mean[4] + 0.5)),
+  Covariate == "eGFR"           ~ scale_y_continuous(limits = c(means.coef$mean[5] - 0.1,   means.coef$mean[5] + 0.1)),
+  Covariate == "BMI"            ~ scale_y_continuous(limits = c(means.coef$mean[6] - 0.25,  means.coef$mean[6] + 0.25)),
+  Covariate == "SEX TRUE"       ~ scale_y_continuous(limits = c(means.coef$mean[7] - 0.2,   means.coef$mean[7] + 0.2)),
+  Covariate == "INSURANCE TRUE" ~ scale_y_continuous(limits = c(means.coef$mean[8] - 0.5,   means.coef$mean[8] + 0.5)),
+  Covariate == "RACE AFR"       ~ scale_y_continuous(limits = c(means.coef$mean[9] - 0.5,   means.coef$mean[9] + 0.5)),
+  Covariate == "RACE AMR"       ~ scale_y_continuous(limits = c(means.coef$mean[10] - 0.25, means.coef$mean[10] + 0.25)),
+  Covariate == "RACE SAS"       ~ scale_y_continuous(limits = c(means.coef$mean[11] - 0.25, means.coef$mean[11] + 0.25)),
+  Covariate == "RACE EAS"       ~ scale_y_continuous(limits = c(means.coef$mean[12] - 0.5,  means.coef$mean[12] + 0.5)),
+  Covariate == "SMOKE 2"        ~ scale_y_continuous(limits = c(means.coef$mean[13] - 0.25, means.coef$mean[13] + 0.25)),
+  Covariate == "SMOKE 3"        ~ scale_y_continuous(limits = c(means.coef$mean[14] - 0.25, means.coef$mean[14] + 0.25)),
+  Covariate == "AGE:HbA1c"      ~ scale_y_continuous(limits = c(means.coef$mean[15] - 0.15, means.coef$mean[15] + 0.15))
 )
 dev.off()
 
@@ -192,43 +191,84 @@ ggplot(combined_resultStdError_long) +
 
 ggsave("./simulations/Imputation_StdError_Boxplot.png", width = 30, height = 10, limitsize = F)
 
-generateNumD <- function(data, info){
+generateNumD <- function(data, imp_list, info){
+  # 1. Variable Filtering
   info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
   phase2_target <- info$phase2_vars[info$phase2_vars %in% info$num_vars]
   phase1_target <- info$phase1_vars[info$phase1_vars %in% info$num_vars]
   
-  npg_cols <- c("#E64B35", "#4DBBD5")
+  base_cols <- c("#EFC000", "black", "#00A087", "#3C5488", "#E64B35", "#4DBBD5")
+  
+  imp_names <- names(imp_list)
+  all_labels <- c("Validated", "Unvalidated", imp_names)
+  
+  # Self-adjusting color mapping
+  # This ensures colors are assigned correctly even if the number of datasets changes
+  color_map <- setNames(rep(base_cols, length.out = length(all_labels)), all_labels)
+  
   plot_list <- list()
   
   for (i in seq_along(phase2_target)){
     v2_name <- phase2_target[i]
     v1_name <- phase1_target[i]
-    val_range <- range(c(data[[v2_name]], data[[v1_name]]), na.rm = TRUE)
     
-    p <- ggplot(data) + 
-      geom_density(aes(x = .data[[v2_name]], fill = "Validated"), 
-                   alpha = 0.5, color = NA) +
-      geom_density(aes(x = .data[[v1_name]], fill = "Unvalidated"), 
-                   alpha = 0.5, color = NA) +
+    # 3. Prepare the additional datasets for plotting
+    # We combine them into one 'long' dataframe with a 'Source' identifier
+    extra_data_list <- lapply(imp_names, function(nm) {
+      df <- imp_list[[nm]][, v2_name, drop = FALSE]
+      df$Source <- nm
+      colnames(df)[1] <- "Value"
+      return(df)
+    })
+    combined_extra <- do.call(rbind, extra_data_list)
+    
+    # 4. Calculate global range for x-axis
+    all_vals <- c(data[[v2_name]])
+    val_range <- range(all_vals, na.rm = TRUE)
+    
+    # 5. Build the Plot
+    p <- ggplot() +
+      # Layer 1: Validated
+      geom_density(data = data, aes(x = .data[[v2_name]], colour = "Validated"), 
+                   alpha = 0.4) +
+      # Layer 2: Unvalidated
+      geom_density(data = data, aes(x = .data[[v1_name]], colour = "Unvalidated"), 
+                   alpha = 0.4) +
+      # Layer 3: All elements from the list (handled in one call for legend accuracy)
+      geom_density(data = combined_extra, aes(x = Value, colour = Source), 
+                   alpha = 0.3) +
       
+      # Formatting
       xlim(val_range[1], val_range[2]) +
       labs(x = "Value", y = "Density", title = v2_name) +
-      
-      scale_fill_manual(name = "Type",
-                        values = c("Validated" = npg_cols[1], 
-                                   "Unvalidated" = npg_cols[2])) +
+      scale_colour_manual(name = "Dataset Type", values = color_map) +
       theme_minimal() + 
       theme(
         text = element_text(family = "Times New Roman"),
-        plot.title = element_text(hjust = 0.5)
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom"
       )
+    
     plot_list[[i]] <- p
   }
   
   return(plot_list)
 }
 load("./data/True/0001.RData")
-p_list <- generateNumD(data, data_info_srs)
+sird_set <- read_parquet(paste0("./simulations/SRS/sird/0001.parquet"))
+sird_set <- sird_set %>% group_split(imp_id)
+sird_set <- lapply(sird_set, function(d) d %>% select(-imp_id))
+sird_set <- lapply(sird_set, function(dat){
+  match_types(dat, data)
+})
+sicg_set <- read_parquet(paste0("./simulations/SRS/sicg/0001.parquet"))
+sicg_set <- sicg_set %>% group_split(imp_id)
+sicg_set <- lapply(sicg_set, function(d) d %>% select(-imp_id))
+sicg_set <- lapply(sicg_set, function(dat){
+  match_types(dat, data)
+})
+imp_list <- list(SIRD = sird_set[[1]], SICG = sicg_set[[1]])
+p_list <- generateNumD(data, imp_list, data_info_srs)
 wrap_plots(p_list, ncol = 4) + 
   plot_layout(guides = "collect") & 
   theme(legend.position = "bottom",
@@ -237,7 +277,7 @@ ggsave("./simulations/RawDensity.png", width = 20, height = 20, limitsize = F)
 
 
 
-generateErrorD <- function(data, imp, info){
+generateErrorD <- function(data, imp_list, info){
   info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
   phase2_target <- info$phase2_vars[info$phase2_vars %in% info$num_vars]
   phase1_target <- info$phase1_vars[info$phase1_vars %in% info$num_vars]
@@ -273,7 +313,7 @@ generateErrorD <- function(data, imp, info){
 }
 
 load("./data/True/0001.RData")
-multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/0001.parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SRS/sird/0001.parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){

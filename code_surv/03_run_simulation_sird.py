@@ -27,7 +27,7 @@ data_info_srs = {
         "R"
     ],
     "num_vars": [
-        "X", "ID", "AGE", "EDU", "HEIGHT", "BMI", "MED_Count",
+        "ID", "AGE", "EDU", "HEIGHT", "BMI", "MED_Count",
         "Creatinine", "Urea", "Potassium", "Sodium", "Chloride",
         "Bicarbonate", "Calcium", "Magnesium", "Phosphate", "Triglyceride",
         "HDL", "LDL", "Hb", "HCT", "RBC", "WBC", "Platelet", "MCV", "RDW",

@@ -53,7 +53,7 @@ generateSample <- function(data, proportion, seed){
   ### Getting Influence Function by auxiliary variables
 
   mod.aux <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                     I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
+                     I((HbA1c_STAR - 50) / 5) + 
                      I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
                      rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
                      SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
@@ -92,7 +92,7 @@ if (file.exists("./data/data_sampling_seed.RData")){
   seed <- sample(1:100000, 500)
   save(seed, file = "./data/data_sampling_seed.RData")
 }
-for (i in 1:replicate){
+for (i in 41:replicate){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/True/", digit, ".RData"))
