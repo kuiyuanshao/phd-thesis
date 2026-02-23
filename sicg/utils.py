@@ -2,15 +2,8 @@ from torch import pca_lowrank
 import pandas as pd
 import torch
 import torch.nn.functional as F
-import random
-
-import torch
-import torch.nn.functional as F
-
-
 
 def pairwise_distances_squared(x):
-    # (Batch, Dim) -> (Batch, Batch)
     x_norm = (x ** 2).sum(1).view(-1, 1)
     dist = x_norm + x_norm.t() - 2.0 * torch.mm(x, x.t())
     return torch.clamp(dist, 0.0, float('inf'))
@@ -50,47 +43,27 @@ def calc_HSIC_loss(x_fake, x_real, attrs, layout_res, layout_attr, lambda_hsic=1
     dist_res = pairwise_distances_squared(diff_combined)
     dist_attr = pairwise_distances_squared(attrs_combined)
 
-    # 3. 计算 Sigma (Global Median)
     sigma_res = torch.median(dist_res).detach()
     if sigma_res < 1e-6: sigma_res = torch.tensor(1.0, device=diff.device)
 
     sigma_attr = torch.median(dist_attr).detach()
     if sigma_attr < 1e-6: sigma_attr = torch.tensor(1.0, device=diff.device)
 
-    # 4. Kernel & HSIC
     K_res = torch.exp(-dist_res / sigma_res)
     L_attr = torch.exp(-dist_attr / sigma_attr)
 
-    # Loss A: Set Independence
     loss_set = hsic_normalized(K_res, L_attr)
-
-    # Loss B: Pairwise Independence (One-vs-Rest)
-    # 依然可以用减法，因为是在同一个距离矩阵上操作
     loss_pairwise = 0.0
-
-    # 为了做 Pairwise，我们需要知道每个 block 在 combined 矩阵里的索引范围
-    # 重新扫一遍 layout 算索引
     current_idx = 0
     n_blocks = 0
 
-    # 预先计算 diff_combined 的总距离用于减法
-    # dist_res 已经是总距离了
-
     for s, e, c in layout_res:
         width = e - s
-        # 提取当前 block 的数据 (注意：是处理过的数据)
-        # 这里的切片是在 combined 矩阵上切
         target_data = diff_combined[:, current_idx: current_idx + width]
-
-        # 1. Target Kernel
         d_target = pairwise_distances_squared(target_data)
-        K_target = torch.exp(-d_target / sigma_res)  # 共享 Sigma
-
-        # 2. Rest Kernel (直接减法！)
-        # Rest = Total - Target
+        K_target = torch.exp(-d_target / sigma_res)
         d_rest = torch.clamp(dist_res - d_target, min=0.0)
         K_rest = torch.exp(-d_rest / sigma_res)
-
         loss_pairwise += hsic_normalized(K_target, K_rest)
 
         current_idx += width
@@ -99,10 +72,9 @@ def calc_HSIC_loss(x_fake, x_real, attrs, layout_res, layout_attr, lambda_hsic=1
     if n_blocks > 1:
         loss_pairwise /= n_blocks
 
-    return lambda_hsic * torch.relu((loss_set + loss_pairwise) - 0.0009)
+    return lambda_hsic * torch.relu((loss_set + loss_pairwise))
 
 
-# 辅助函数
 def hsic_normalized(K, L):
     m = K.shape[0]
     H = torch.eye(m, device=K.device) - 1.0 / m * torch.ones((m, m), device=K.device)
@@ -313,38 +285,23 @@ def project_categorical(fake, proj_groups):
     if not proj_groups:
         return projections
 
-    # Group by Matrix Shape (Card_P2, Card_P1)
     grouped_by_shape = {}
     for g in proj_groups:
-        # matrix shape is [Card_P2, Card_P1]
         shape = g['matrix'].shape
         if shape not in grouped_by_shape:
             grouped_by_shape[shape] = []
         grouped_by_shape[shape].append(g)
 
     for shape, groups in grouped_by_shape.items():
-        # Stack matrices: (Batch_Groups, Card_P2, Card_P1)
         matrices = torch.stack([g['matrix'] for g in groups], dim=0)
-
-        # Stack inputs: (Batch_Groups, Batch_Size, Card_P2)
-        # We need to permute/reshape carefully.
-        # fake slice: (Batch_Size, Card_P2) -> stack -> (Batch_Groups, Batch_Size, Card_P2)
         slices = [fake[:, g['p2_range'][0]:g['p2_range'][1]] for g in groups]
         fake_batch = torch.stack(slices, dim=0)
-
-        # Softmax on Phase 2 Logits: (Batch_Groups, Batch_Size, Card_P2)
         probs = F.softmax(fake_batch, dim=2)
 
-        # Matrix Multiply:
-        # (Batch_Groups, Batch_Size, Card_P2) @ (Batch_Groups, Card_P2, Card_P1)
-        # -> (Batch_Groups, Batch_Size, Card_P1)
-        # Using einsum for broadcasting over Batch_Groups (n)
         proj_probs = torch.einsum('nbc, ncd -> nbd', probs, matrices)
 
         # Log & Clamp
         proj_logits = torch.log(torch.clamp(proj_probs, min=1e-8, max=1.0 - 1e-8))
-
-        # Unbind back to individual groups
         results = torch.unbind(proj_logits, dim=0)
 
         for g, res in zip(groups, results):
@@ -353,9 +310,6 @@ def project_categorical(fake, proj_groups):
     return projections
 
 def gumbel_activation(x, layout, tau, hard):
-    """
-    Vectorized Gumbel Softmax.
-    """
     out_parts = []
     for start, end, card in layout:
         chunk = x[:, start:end]
@@ -397,23 +351,9 @@ def gradient_penalty(discriminator, real, fake, lambda_gp):
 
 
 def recon_loss(fake, real, mode='p2', layout=None, proj_groups=None, alpha=1.0, beta=1.0):
-    """
-    Calculates reconstruction loss without masks (assuming full observation).
-
-    Args:
-        fake: Generator output.
-        real: Ground truth target.
-              If mode='p2', this is the Phase 2 real data (X).
-              If mode='p1', this is the Phase 1 real data (A).
-        mode: 'p2' for standard reconstruction, 'p1' for projection consistency.
-        layout: Required for 'p2' mode.
-        proj_groups: Required for 'p1' mode.
-    """
     loss = torch.tensor(0.0, device=fake.device)
-
     if alpha <= 0 and beta <= 0:
         return loss
-    # --- Mode 1: Phase 2 Standard Reconstruction (MSE + CE) ---
     if mode == 'p2':
         assert layout is not None, "Layout required for P2 reconstruction"
 
@@ -427,36 +367,29 @@ def recon_loss(fake, real, mode='p2', layout=None, proj_groups=None, alpha=1.0, 
             real_chunk = real[:, start:end]
 
             if card == 0:
-                # Numerical MM
                 if alpha > 0:
                     mse_sum += ((fake_chunk - real_chunk) ** 2).sum()
                     n_num_elements += fake_chunk.numel()
             else:
-                # Categorical CE
                 if beta > 0:
                     b, w = fake_chunk.shape
-                    # Reshape to (Batch * N_vars, Classes)
                     fake_view = fake_chunk.reshape(-1, card)
                     real_view = real_chunk.reshape(-1, card)
 
-                    # Target indices from One-Hot
                     r_idx = torch.argmax(real_view, dim=1)
 
                     ce = F.cross_entropy(fake_view, r_idx, reduction='sum')
                     ce_loss_sum += ce
                     n_cat_groups += (w // card) * b
 
-        # Combine
         if alpha > 0 and n_num_elements > 0:
             loss += alpha * (mse_sum / n_num_elements)
 
         if beta > 0 and n_cat_groups > 0:
             loss += beta * (ce_loss_sum / n_cat_groups)
 
-    # --- Mode 2: Phase 1 Projection Consistency (CE Only) ---
     elif mode == 'p1':
         if beta > 0:
-            # 1. Project Phase 2 Output (fake) -> Phase 1 Logits
             projections = project_categorical(fake, proj_groups)
 
             proj_loss_sum = torch.tensor(0.0, device=fake.device)
@@ -464,25 +397,15 @@ def recon_loss(fake, real, mode='p2', layout=None, proj_groups=None, alpha=1.0, 
 
             for group in proj_groups:
                 base_name = group['base_name']
-
-                # If this group was successfully projected
                 if base_name in projections:
-                    proj_logits = projections[base_name]  # (Batch, W)
-
-                    # Get Phase 1 Ground Truth
+                    proj_logits = projections[base_name]
                     p1_start, p1_end = group['p1_range']
                     target_p1 = real[:, p1_start:p1_end]
-
                     card = group['card']
-
-                    # Reshape
                     fake_view = proj_logits.reshape(-1, card)  # Log Probs
                     real_view = target_p1.reshape(-1, card)  # One-Hot
 
-                    # Convert One-Hot target to Class Indices
                     r_idx = torch.argmax(real_view, dim=1)
-
-                    # NLL Loss (since we already have Log Softmax from projection)
                     ce = F.nll_loss(fake_view, r_idx, reduction='sum')
 
                     proj_loss_sum += ce
@@ -511,7 +434,6 @@ def moment_matching_loss(pca, real, fake):
 
 
 class PCA():
-
     def __init__(self, n_components=None, device="cpu"):
         self.n_components = n_components
         self._device = device
@@ -520,66 +442,43 @@ class PCA():
         return self.transform(X)
 
     def fit(self, X):
-
         if type(X) != torch.Tensor:
             X = self.to_torch(X)
-
         X = X.to(self._device)
-
         n_samples, n_features = X.shape
-
         if self.n_components is None or self.n_components > n_samples:
             self.n_components = min(n_samples, n_features)
 
         self.U, self.S, self.V = pca_lowrank(X, q=self.n_components, center=False)
-
         explained_variance_ = (self.S ** 2) / (n_samples - 1)
-
         total_var = explained_variance_.sum()
-
         explained_variance_ratio_ = explained_variance_ / total_var
-
         self.explained_variance_ = explained_variance_[: self.n_components]
-
         self.explained_variance_ratio_ = explained_variance_ratio_[: self.n_components]
-
         self.n_samples = n_samples
-
         self.n_features = n_features
-
         return self
 
     def set_device(self, device):
-
         self._device = device
 
     def transform(self, X):
-
         if type(X) == pd.DataFrame:
-
             self.columns = X.columns
-
         else:
-
             self.columns = None
 
         if type(X) != torch.Tensor:
             X = self.to_torch(X)
-
         X = X.to(self._device)
-
         self.dtype = X.dtype
-
         X_bar = torch.matmul(X, self.V[:, : self.n_components])
 
         return X_bar
 
     def inverse_transform(self, X_bar):
-
         X_prime = torch.matmul(X_bar, self.V[:, : self.n_components].T)
-
         X_prime = X_prime.to(self._device)
-
         X_prime = X_prime.to(self.dtype).numpy()
 
         if self.columns is not None:
@@ -588,27 +487,8 @@ class PCA():
         return X_prime
 
     def to_torch(self, X):
-
         if type(X) == pd.DataFrame:
             X = X.values
-
         X = torch.from_numpy(X)
 
         return X
-
-
-def calculate_mine_loss(residual, a, c, mine_net, layout):
-    residual = prepare_and_concat(residual, layout)
-    t_input = torch.cat([residual, a, c], dim=1)
-    t_joint = mine_net(t_input)
-    idx = torch.randperm(a.shape[0])
-    a_shuf = a[idx]
-    c_shuf = c[idx]
-    input = torch.cat([residual, a_shuf, c_shuf], dim=1)
-    t_marginal = mine_net(input)
-    #mi_score = torch.mean(t_joint) - torch.log(torch.mean(torch.exp(t_marginal)) + 1e-6)
-    mi_score = torch.mean(t_joint) - torch.mean(torch.exp(t_marginal - 1))
-    loss_g = mi_score
-    loss_m = -mi_score
-
-    return loss_g, loss_m

@@ -1,0 +1,42 @@
+processing:
+  normalization: 'zscore'
+  log: true
+  anchor: false
+  gmm:
+    max_components: 1
+    epsilon: 1.0e-06
+diffusion:
+  task: "Res-N"
+  discrete: "CE"
+  alpha_schedule: "exp"
+  diffusion_embedding_dim: 128
+  num_steps: 25
+  sum_scale: 0.01 # must > 0, and cannot be too small
+sample:
+  m: 5
+  mi_approx: "None" # "SWAG"
+  pmm: false
+  donors: 5
+  cfg_scale: 0
+model:
+  net: "AttnNet"
+  channels: 64
+  dropout: 0.5
+  layers: 1
+  nheads: 4
+  loss_num: 1
+  loss_cat: 1
+  loss_hsic: 0
+train:
+  cond_drop_prob: 0
+  valid: 0
+  batch_size: 128
+  epochs: 5000
+  eval_batch_size: 1024
+  Adam:
+    lr: 2.0e-4
+    weight_decay: 1.0e-3
+  SGD:
+    lr: 1.0e-2
+    momentum: 0.9
+    weight_decay: 1.0e-4

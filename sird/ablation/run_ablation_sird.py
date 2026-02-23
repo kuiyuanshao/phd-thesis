@@ -1,15 +1,13 @@
 import yaml
-from sicg.sicg import SICG
+from sird.sird import SIRD
 import os
 
-if not os.path.exists("./simulations/SampleOE/SRS/sicg"):
-    os.makedirs("./simulations/SampleOE/SRS/sicg")
-
-if not os.path.exists("./simulations/SampleOE/Balance/sicg"):
-    os.makedirs("./simulations/SampleOE/Balance/sicg")
-
-if not os.path.exists("./simulations/SampleOE/Neyman/sicg"):
-    os.makedirs("./simulations/SampleOE/Neyman/sicg")
+if not os.path.exists("./simulations/BASE"):
+    os.makedirs("./simulations/BASE")
+if not os.path.exists("./simulations/DISCRETE_CE"):
+    os.makedirs("./simulations/DISCRETE_CE")
+if not os.path.exists("./simulations/DISCRETE_CE"):
+    os.makedirs("./simulations/DISCRETE_CE")
 
 data_info_srs = {
     "weight_var": "W",
@@ -68,69 +66,42 @@ data_info_srs = {
     ]
 }
 
-# 2. Balanced Sampling Dictionary (Includes STRATA)
-data_info_balance = {
-    "weight_var": "W",
-    "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
-    "num_vars": data_info_srs["num_vars"],
-    "phase2_vars": data_info_srs["phase2_vars"],
-    "phase1_vars": data_info_srs["phase1_vars"]
-}
-
-# 3. Neyman Allocation Dictionary (Identical structure to Balance)
-data_info_neyman = {
-    "weight_var": "W",
-    "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
-    "num_vars": data_info_srs["num_vars"] + ["inf"],
-    "phase2_vars": data_info_srs["phase2_vars"],
-    "phase1_vars": data_info_srs["phase1_vars"]
-}
-
-with open("./data/Config/best_config_gans_srs.yaml", "r") as f:
+with open("F:/phd-thesis/code_surv//data/best_config_rddm_srs.yaml", "r") as f:
     config_srs = yaml.safe_load(f)
-# with open("./data/Config/best_config_gans_bal.yaml", "r") as f:
-#     config_bal = yaml.safe_load(f)
-# with open("./data/Config/best_config_gans_ney.yaml", "r") as f:
-#     config_ney = yaml.safe_load(f)
 
-for i in range(1, 10):
+for i in range(1, 101):
     digit = str(i).zfill(4)
-    file_path_srs = "./data/SampleOE/SRS/" + digit + ".csv"
-    file_path_bal = "./data/SampleOE/Balance/" + digit + ".csv"
-    file_path_ney = "./data/SampleOE/Neyman/" + digit + ".csv"
+    file_path_srs = "F:/phd-thesis/code_surv/data/Sample/SRS/" + digit + ".csv"
+    save_path_srs = "F:/phd-thesis/code_surv/simulations/SRS/sird/" + digit + ".parquet"
 
-    save_path_srs = "./simulations/SampleOE/SRS/sicg/" + digit + ".parquet"
-    save_path_bal = "./simulations/SampleOE/Balance/sicg/" + digit + ".parquet"
-    save_path_ney = "./simulations/SampleOE/Neyman/sicg/" + digit + ".parquet"
-
-    sicg_mod_srs = SICG(config_srs, data_info_srs)
-    sicg_mod_srs.fit(file_path_srs)
-    sicg_mod_srs.impute(save_path=save_path_srs)
+    sird_mod_srs = SIRD(config_srs, data_info_srs)
+    sird_mod_srs.fit(file_path_srs)
+    sird_mod_srs.impute(save_path=save_path_srs)
 
     # # --- 1. Simple Random Sampling ---
     # if not os.path.exists(save_path_srs):
     #     print(f"[SRS] Result not found at {save_path_srs}. Starting training and imputation...")
-    #     sicg_mod_srs = SICG(config, data_info_srs)
-    #     sicg_mod_srs.fit(file_path_srs)
-    #     sicg_mod_srs.impute(save_path=save_path_srs)
+    #     sird_mod_srs = SIRD(config, data_info_srs)
+    #     sird_mod_srs.fit(file_path_srs)
+    #     sird_mod_srs.impute(save_path=save_path_srs)
     # else:
     #     print(f"[SRS] Result exists at {save_path_srs}. Skipping.")
     #
     # # --- 2. Balanced Sampling ---
     # if not os.path.exists(save_path_bal):
     #     print(f"[Balance] Result not found at {save_path_bal}. Starting training and imputation...")
-    #     sicg_mod_bal = SICG(config, data_info_balance)
-    #     sicg_mod_bal.fit(file_path_bal)
-    #     sicg_mod_bal.impute(save_path=save_path_bal)
+    #     sird_mod_bal = SIRD(config, data_info_balance)
+    #     sird_mod_bal.fit(file_path_bal)
+    #     sird_mod_bal.impute(save_path=save_path_bal)
     # else:
     #     print(f"[Balance] Result exists at {save_path_bal}. Skipping.")
     #
     # # --- 3. Neyman Allocation ---
     # if not os.path.exists(save_path_ney):
     #     print(f"[Neyman] Result not found at {save_path_ney}. Starting training and imputation...")
-    #     sicg_mod_ney = SICG(config, data_info_neyman)
-    #     sicg_mod_ney.fit(file_path_ney)
-    #     sicg_mod_ney.impute(save_path=save_path_ney)
+    #     sird_mod_ney = SIRD(config, data_info_neyman)
+    #     sird_mod_ney.fit(file_path_ney)
+    #     sird_mod_ney.impute(save_path=save_path_ney)
     # else:
     #     print(f"[Neyman] Result exists at {save_path_ney}. Skipping.")
 

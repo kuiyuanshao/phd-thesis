@@ -2,14 +2,14 @@ lapply(c("dplyr", "stringr", "survival"), require, character.only = T)
 lapply(paste0("./comparisons/gain/", list.files("./comparisons/gain/")), source)
 source("00_utils_functions.R")
 
-if(!dir.exists('./simulations')){dir.create('./simulations')}
-if(!dir.exists('./simulations/SRS')){dir.create('./simulations/SRS')}
-if(!dir.exists('./simulations/Balance')){dir.create('./simulations/Balance')}
-if(!dir.exists('./simulations/Neyman')){dir.create('./simulations/Neyman')}
+if(!dir.exists('./simulations/SampleOE')){dir.create('./simulations/SampleOE')}
+if(!dir.exists('./simulations/SampleOE/SRS')){dir.create('./simulations/SampleOE/SRS')}
+if(!dir.exists('./simulations/SampleOE/Balance')){dir.create('./simulations/SampleOE/Balance')}
+if(!dir.exists('./simulations/SampleOE/Neyman')){dir.create('./simulations/SampleOE/Neyman')}
 
-if(!dir.exists('./simulations/SRS/gain')){dir.create('./simulations/SRS/gain')}
-if(!dir.exists('./simulations/Balance/gain')){dir.create('./simulations/Balance/gain')}
-if(!dir.exists('./simulations/Neyman/gain')){dir.create('./simulations/Neyman/gain')}
+if(!dir.exists('./simulations/SampleOE/SRS/gain')){dir.create('./simulations/SampleOE/SRS/gain')}
+if(!dir.exists('./simulations/SampleOE/Balance/gain')){dir.create('./simulations/SampleOE/Balance/gain')}
+if(!dir.exists('./simulations/SampleOE/Neyman/gain')){dir.create('./simulations/SampleOE/Neyman/gain')}
 
 args <- commandArgs(trailingOnly = TRUE)
 task_id <- as.integer(ifelse(length(args) >= 1,
@@ -35,7 +35,7 @@ do_gain <- function(samp, info, nm, digit) {
                      alpha = 100, beta = 10, n = 10000)
   })
   
-  save(gain_imp, tm, file = file.path("simulations", nm, "gain",
+  save(gain_imp, tm, file = file.path("simulations/SampleOE", nm, "gain",
                                       paste0(digit, ".RData")))
 }
 
@@ -43,9 +43,9 @@ for (i in first_rep:last_rep){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/Complete/", digit, ".RData"))
-  samp_srs <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
-  samp_balance <- read.csv(paste0("./data/Sample/Balance/", digit, ".csv"))
-  samp_neyman <- read.csv(paste0("./data/Sample/Neyman/", digit, ".csv"))
+  samp_srs <- read.csv(paste0("./data/SampleOE/SRS/", digit, ".csv"))
+  samp_balance <- read.csv(paste0("./data/SampleOE/Balance/", digit, ".csv"))
+  samp_neyman <- read.csv(paste0("./data/SampleOE/Neyman/", digit, ".csv"))
   
   samp_srs <- match_types(samp_srs, data) %>% 
     mutate(across(all_of(data_info_srs$cat_vars), as.factor, .names = "{.col}"),

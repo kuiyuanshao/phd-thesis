@@ -9,9 +9,9 @@ generateSample <- function(data, proportion, seed){
               "rs1111875", "rs4402960", "rs4607103", "rs7754840", "rs9300039", 
               "rs5015480", "rs9465871", "rs4506565", "rs5219", "rs358806",
               "HbA1c", "Creatinine", "eGFR", "WEIGHT", "BMI", 
-              "SMOKE", "INCOME", "ALC", "EXER", "EDU", "SBP", "Triglyceride", 
+              "SMOKE", "INCOME", "ALC", "EXER", "EDU", 
               "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE", 
-              "KCAL_INTAKE", "PROTEIN_INTAKE", "HYPERTENSION",
+              "KCAL_INTAKE", "PROTEIN_INTAKE",
               "C", "EVENT", "T_I")
   # Simple Random Sampling
   srs_ind <- sample(nRow, n_phase2)
@@ -22,7 +22,7 @@ generateSample <- function(data, proportion, seed){
   # Balanced Sampling
   time_cut <- as.numeric(cut(data$T_I_STAR, breaks = c(-Inf, 6, 12, 18, Inf), 
                              labels = 1:4))
-  hba1c_cut <- as.numeric(cut(data$HbA1c_STAR, breaks = c(-Inf, 55, 70, Inf), 
+  hba1c_cut <- as.numeric(cut(data$HbA1c_STAR, breaks = c(-Inf, 40, 55, Inf), 
                    labels = 1:3))
   strata <- interaction(data$EVENT_STAR, time_cut, hba1c_cut, drop = TRUE)
   data$STRATA <- strata
@@ -53,11 +53,9 @@ generateSample <- function(data, proportion, seed){
   ### Getting Influence Function by auxiliary variables
 
   mod.aux <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                     I((HbA1c_STAR - 50) / 5) + 
-                     I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
-                     rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
-                     SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
-                   data = data, x = T, y = T)
+                     I(HbA1c_STAR - 50) + rs4506565_STAR + I((AGE - 60) / 5) + I((eGFR_STAR - 75) / 10) + 
+                     I((SBP - 140) / 10) + I(Insulin_STAR - 15) + I(BMI_STAR - 28) + SEX + INSURANCE + RACE + 
+                     SMOKE_STAR + I((SBP - 140) / 10):I(Insulin_STAR - 15), data = data)
   inf <- residuals(mod.aux, type = "dfbeta")[, 1]
   data$inf <- inf
   neyman_alloc <- exactAllocation(data, stratum_variable = "STRATA", 
@@ -86,13 +84,13 @@ if(!dir.exists('./data/Sample/SRS')){dir.create('./data/Sample/SRS')}
 if(!dir.exists('./data/Sample/Balance')){dir.create('./data/Sample/Balance')}
 if(!dir.exists('./data/Sample/Neyman')){dir.create('./data/Sample/Neyman')}
 replicate <- 500
-if (file.exists("./data/data_sampling_seed.RData")){
-  load("./data/data_sampling_seed.RData")
+if (file.exists("data/params/data_sampling_seed.RData")){
+  load("data/params/data_sampling_seed.RData")
 }else{
   seed <- sample(1:100000, 500)
-  save(seed, file = "./data/data_sampling_seed.RData")
+  save(seed, file = "data/params/data_sampling_seed.RData")
 }
-for (i in 41:replicate){
+for (i in 1:1){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/True/", digit, ".RData"))

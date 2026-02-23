@@ -1,20 +1,24 @@
 import torch
 import torch.nn.functional as F
-import os
-import sys
-import numpy as np
-import pandas as pd
-import copy
+import os, sys, numpy as np, pandas as pd
 from torch.optim import SGD, Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from tqdm import tqdm
-from sklearn.metrics import confusion_matrix
-
+from scipy.linalg import block_diag
+from sklearn.neighbors import NearestNeighbors
+import math
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from networks import SIRD_NET
 from swag import SWAG
 from data_transformer import DataTransformer
+import warnings
+from sklearn.exceptions import ConvergenceWarning
+from utils import calc_HSIC_loss
+
+warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
+warnings.filterwarnings("ignore", category=ConvergenceWarning)
+warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as true but not supported on MPS.*")
 
 
 class SIRD:
@@ -31,548 +35,683 @@ class SIRD:
             self.device = torch.device('cpu')
 
         print(f"Active Device: {self.device}")
+
         self.num_steps = config["diffusion"]["num_steps"]
         self.sum_scale = torch.tensor(config["diffusion"]["sum_scale"]).to(self.device)
-        self.task = config["else"]["task"]
+        self.task = config["diffusion"]["task"]
+        self.discrete = config["diffusion"]["discrete"]
 
-        # Diffusion schedules (Original Logic)
-        b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
-        a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
-        alphas = a / a.sum()
-        betas = b / b.sum() * self.sum_scale
-        betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
+        if self.task == "Res-F":
+            self.betas = torch.linspace(1e-4, 0.02, self.num_steps).to(self.device)
+            self.alphas = 1.0 - self.betas
+            self.alpha_bars = torch.cumprod(self.alphas, dim=0)
+            self.alpha_bars_t_minus_1 = torch.roll(self.alpha_bars, shifts=1, dims=0)
+            self.alpha_bars_t_minus_1[0] = self.alpha_bars_t_minus_1[1]
+            self.betas_bars = (1 - self.alpha_bars_t_minus_1) / (1 - self.alpha_bars) * self.betas
+            abs_dist = torch.abs(torch.sqrt(self.alpha_bars) - 0.5)
+            self.T_acc = abs_dist.argmin().item() + 1
 
-        self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
-        alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0),
-                                   value=self.alpha_bars[1])  # Padding logic from original
+        else:
+            b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
+            betas = b / b.sum() * self.sum_scale
+            betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
 
-        betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
-        self.beta_bars = torch.sqrt(betas_cumsum)
+            alpha_schedule = self.config['diffusion'].get('alpha_schedule', 'exp')
+            a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
+            alphas = a / a.sum()
+            self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
 
-        # Posterior params (Original Logic)
-        posterior_variance = betas * betas_cumsum_prev / betas_cumsum
-        posterior_variance[0] = 0
-        self.posterior_log_variance = torch.log(posterior_variance.clamp(min=1e-20))
+            alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0),
+                                       value=self.alpha_bars[1])  # Padding logic from original
 
-        self.posterior_mean_coef1 = betas_cumsum_prev / betas_cumsum
-        self.posterior_mean_coef2 = (betas * alphas_cumsum_prev - betas_cumsum_prev * alphas) / betas_cumsum
-        self.posterior_mean_coef3 = betas / betas_cumsum
-        self.posterior_mean_coef1[0] = 0
-        self.posterior_mean_coef2[0] = 0
-        self.posterior_mean_coef3[0] = 1
+            betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
+            self.beta_bars = torch.sqrt(betas_cumsum)
+
+            posterior_variance = betas * betas_cumsum_prev / betas_cumsum
+            posterior_variance[0] = 0
+            self.posterior_log_variance = torch.log(posterior_variance.clamp(min=1e-20))
+
+            self.posterior_mean_coef1 = betas_cumsum_prev / betas_cumsum
+            self.posterior_mean_coef2 = (betas * alphas_cumsum_prev - betas_cumsum_prev * alphas) / betas_cumsum
+            self.posterior_mean_coef3 = betas / betas_cumsum
+            self.posterior_mean_coef1[0] = 0
+            self.posterior_mean_coef2[0] = 0
+            self.posterior_mean_coef3[0] = 1
 
         self.model = None
         self.model_list = []
         self.swag_model = None
-
-        self._global_data = None
-        self.variable_schema = []
         self.transformer = None
-        self.Q_dict = {}
 
-        self.num_vars = []
-        self.cat_vars = []
-        self.p1_slices = {}
-        self.p2_slices = {}
-        self.aux_slices = {}
-
-    def _map_schema_indices(self):
-        self.num_vars = [v for v in self.variable_schema if 'numeric' in v['type']]
-        self.cat_vars = [v for v in self.variable_schema if 'categorical' in v['type']]
-
-        self.p1_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
-                          'p1' in v['type']}
-        self.p2_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
-                          'p2' in v['type']}
-        self.aux_slices = {v['name']: slice(v['start_idx'], v['end_idx']) for v in self.variable_schema if
-                           'aux' in v['type']}
+        self.X_num = None;
+        self.X_cat = None
+        self.Cond = None;
+        self.Q_block = None
+        self.dim_info = {};
+        self.cat_sizes = [];
+        self.has_partner_mask = []
+        self.num_names = data_info["num_vars"]
+        self.p2_vars = data_info["phase2_vars"]
+        self.Q_t = None
 
     def fit(self, file_path=None, provided_data=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
-        lr = self.config["train"]["lr"]
+
+        if provided_data is None:
+            df_raw = pd.read_csv(file_path).loc[:, lambda d: ~d.columns.str.contains('^Unnamed')]
+        else:
+            df_raw = provided_data
+        for c in self.data_info.get('num_vars', []):
+            if c in df_raw.columns: df_raw[c] = pd.to_numeric(df_raw[c], errors='coerce')
+
+        self.transformer = DataTransformer(self.data_info, self.config).fit(df_raw)
+        df_proc = self.transformer.transform(df_raw)
+
+        print("\n[DEBUG] Checking Mode Count Consistency...")
+        p1_vars = self.data_info.get('phase1_vars', [])
+        p2_vars = self.data_info.get('phase2_vars', [])
+        pair_map = {p2: p1 for p1, p2 in zip(p1_vars, p2_vars)}
+        for p2 in p2_vars:
+            if p2 in self.data_info['num_vars']:
+                p1 = pair_map.get(p2)
+                if not p1: continue
+                n_p1 = len([c for c in df_proc.columns if c.startswith(f"{p1}_mode_")])
+                n_p2 = len([c for c in df_proc.columns if c.startswith(f"{p2}_mode_")])
+                if n_p1 != n_p2: print(f"!!! MODE MISMATCH: {p1} ({n_p1} modes) vs {p2} ({n_p2} modes)")
+        print("[DEBUG] Complete.\n")
+
+        self.raw_df = df_raw
+        schema = self.transformer.get_sird_schema()
+        self._tensorize_data(df_proc, schema)
+
+        w_col = self.data_info.get('weight_var')
+        self._global_weights = torch.from_numpy(
+            df_raw[w_col].fillna(0).values if w_col in df_raw else np.ones(len(df_raw))).double().to(self.device)
+        p2_check = next((v['name'] for v in schema if 'p2' in v['type'] and '_mode' not in v['name']), None)
+        if p2_check and p2_check in df_raw:
+            self.valid_rows = np.where(df_raw[p2_check].notna().values)[0]
+        else:
+            self.valid_rows = np.arange(len(df_raw))
+
+        print(f"[Fit] Global Valid Rows (Observed Phase 2): {len(self.valid_rows)}")
+        valid_ratio = self.config.get("train", {}).get("valid", 0.0)
+        do_validation = valid_ratio > 0.0
+        if do_validation:
+            num_val = int(len(self.valid_rows) * valid_ratio)
+            shuffled_rows = np.random.permutation(self.valid_rows)
+            val_rows = shuffled_rows[:num_val]
+            train_rows = shuffled_rows[num_val:]
+            print(f"[Fit] Validation enabled: {len(train_rows)} train rows, {len(val_rows)} val rows.")
+        else:
+            train_rows = self.valid_rows
+            val_rows = []
         epochs = self.config["train"]["epochs"]
-        batch_size = self.config["train"]["batch_size"]
-        mi_approx = self.config["else"]["mi_approx"]
-        self.gamma = self.config["model"]["gamma"]
-        self.zeta = self.config["model"]["zeta"]
-
-        # 1. Process Data
-        if provided_data is None and file_path is not None:
-            # Read Raw
-            df_raw = pd.read_csv(file_path)
-            df_raw = df_raw.loc[:, ~df_raw.columns.str.contains('^Unnamed')]
-            for col in self.data_info.get('num_vars', []):
-                if col in df_raw.columns:
-                    df_raw[col] = pd.to_numeric(df_raw[col], errors='coerce')
-
-            weight_col = self.data_info.get('weight_var')
-            if weight_col and weight_col in df_raw.columns:
-                weights_raw = df_raw[weight_col].fillna(0).values
-            else:
-                weights_raw = np.ones(len(df_raw))
-
-            # Initialize and Fit Transformer
-            self.transformer = DataTransformer(self.data_info, self.config)
-            self.transformer.fit(df_raw)
-
-            # Transform
-            df_proc = self.transformer.transform(df_raw)
-            # --- DIAGNOSIS START ---
-            # --- DIAGNOSIS START ---
-            print("\n[DEBUG] Checking Mode Count Consistency...")
-            p1_vars = self.data_info.get('phase1_vars', [])
-            p2_vars = self.data_info.get('phase2_vars', [])
-            pair_map = {p2: p1 for p1, p2 in zip(p1_vars, p2_vars)}
-
-            for p2 in p2_vars:
-                if p2 in self.data_info['num_vars']:
-                    p1 = pair_map.get(p2)
-                    if not p1: continue
-
-                    # Count generated mode columns in the transformed dataframe
-                    n_p1 = len([c for c in df_proc.columns if c.startswith(f"{p1}_mode_")])
-                    n_p2 = len([c for c in df_proc.columns if c.startswith(f"{p2}_mode_")])
-
-                    # Only print if there is a mismatch
-                    if n_p1 != n_p2:
-                        print(f"!!! MODE MISMATCH: {p1} ({n_p1} modes) vs {p2} ({n_p2} modes)")
-            print("[DEBUG] Complete.\n")
-            # --- DIAGNOSIS END ---
-            # --- DIAGNOSIS END ---
-            self.raw_df = df_raw
-
-            # Schema & Q
-            self.variable_schema = self.transformer.get_sird_schema()
-            self._map_schema_indices()
-            self.Q_dict = {k: v.to(self.device) for k, v in self.transformer.Q_matrices.items()}
-
-            # Create Tensor
-            self._global_data = torch.from_numpy(df_proc.values).float().to(self.device)
-            self._global_weights = torch.from_numpy(weights_raw).double().to(self.device)
-
-            # Define Valid Rows
-            # Use presence of a primary Phase 2 variable
-            p2_check = next((v['name'] for v in self.variable_schema if 'p2' in v['type'] and '_mode' not in v['name']),
-                            None)
-            if p2_check:
-                if p2_check in df_raw.columns:
-                    valid_mask = df_raw[p2_check].notna().values
-                    valid_rows = np.where(valid_mask)[0]
-                else:
-                    valid_rows = np.arange(len(df_raw))  # Fallback
-            else:
-                valid_rows = np.arange(len(df_raw))
-
-            print(f"[Fit] Global Valid Rows (Observed Phase 2): {len(valid_rows)}")
-
-        elif provided_data is not None:
-            self._global_data = provided_data['data'].float().to(self.device)
-            self._global_weights = torch.from_numpy(provided_data['weights']).double()
-            self.variable_schema = provided_data['schema']
-            self.Q_dict = provided_data.get('Q_dict', {})
-            valid_rows = np.arange(self._global_data.shape[0])
-            self._map_schema_indices()
-
-        # 3. Training Loop
-        num_train_mods = self.config["else"]["m"] if mi_approx == "bootstrap" else 1
+        bs = self.config["train"]["batch_size"]
+        mi_approx = self.config["sample"]["mi_approx"]
+        num_train_mods = self.config["sample"]["m"] if mi_approx == "BOOTSTRAP" else 1
 
         for k in range(num_train_mods):
-            if provided_data is None:
-                print(f"\n[SIRD] Training Model {k + 1}/{num_train_mods}...")
+            print(f"\n[SIRD] Training Model {k + 1}/{num_train_mods}...")
 
-            rng = np.random.default_rng()
-            if mi_approx == "bootstrap":
-                current_rows_indices = rng.choice(np.arange(len(valid_rows)), size=len(valid_rows), replace=True)
-                train_rows = valid_rows[current_rows_indices]
-            else:
-                train_rows = valid_rows.copy()
+            idx = np.random.choice(train_rows, len(train_rows),
+                                   replace=True) if mi_approx == "BOOTSTRAP" else train_rows
+            t_idx = torch.from_numpy(idx).long().to(self.device)
 
-            train_rows = torch.from_numpy(train_rows).long().to(self.device)
-            local_weights = self._global_weights[train_rows]
+            loader = DataLoader(TensorDataset(t_idx), batch_size=bs,
+                                sampler=WeightedRandomSampler(self._global_weights[t_idx], len(t_idx) * 4, True),
+                                drop_last=False)
+            if do_validation:
+                v_idx = torch.from_numpy(val_rows).long().to(self.device)
+                val_loader = DataLoader(TensorDataset(v_idx), batch_size=bs, shuffle=False)
 
-            train_indices = torch.arange(len(train_rows))
-            sampler = WeightedRandomSampler(
-                weights=local_weights,
-                num_samples=len(train_rows) * 4,
-                replacement=True
-            )
-            loader = DataLoader(
-                TensorDataset(train_indices),
-                batch_size=batch_size,
-                sampler=sampler,
-                drop_last=False
-            )
-            loader_iter = iter(loader)
-
-            self.model = SIRD_NET(self.config, self.device, self.variable_schema).to(self.device)
+            self.model = SIRD_NET(self.config, self.device, self.dim_info).to(self.device)
             self.model.train()
 
             if mi_approx == "SWAG":
-                swa_start_iter = int(epochs * 0.80)
-                optimizer = SGD(self.model.parameters(), lr=lr, momentum=0.9)
-                scheduler = CosineAnnealingLR(optimizer, T_max=swa_start_iter, eta_min=lr * 0.5)
-                self.swag_model = SWAG(self.model, max_num_models=int(self.config["else"]["m"] * 5)).to(self.device)
+                swa_start_iter = int(epochs * 0.50)
+                optim = SGD(self.model.parameters(), lr=self.config['train']['SGD']['lr'], momentum=self.config['train']['SGD']['momentum'])
+                scheduler = CosineAnnealingLR(optim, T_max=swa_start_iter, eta_min=self.config['train']['SGD']['lr'] * 0.25)
+                self.swag_model = SWAG(self.model, max_num_models=50).to(self.device)
             else:
-                optimizer = Adam(self.model.parameters(), lr=lr, weight_decay=self.config["train"]["weight_decay"])
+                optim = Adam(self.model.parameters(), lr=self.config['train']['Adam']['lr'],
+                             weight_decay=self.config['train']['Adam']["weight_decay"])
 
-            pbar = tqdm(range(epochs), desc=f"Training M{k + 1}", file=sys.stdout, leave=False)
+            pbar = tqdm(range(epochs), desc=f"Training M{k + 1}", leave=False)
+            iter_loader = iter(loader)
+
+            best_loss = float('inf')
+            steps_no_improve = 0
+            patience = self.config['train']['patience']
+            running_train_loss = 0.0
 
             for step in pbar:
                 try:
-                    batch_local_indices = next(loader_iter)[0]
-                except StopIteration:
-                    loader_iter = iter(loader)
-                    batch_local_indices = next(loader_iter)[0]
+                    batch_idx = next(iter_loader)[0]
+                except:
+                    iter_loader = iter(loader); batch_idx = next(iter_loader)[0]
 
-                b_idx = train_rows[batch_local_indices.to(self.device)]
-                b_data = self._global_data[b_idx]
-
-                optimizer.zero_grad()
-                loss, num, cat = self.calc_loss(b_data)
+                optim.zero_grad()
+                loss, n_loss, c_loss, hsic_loss = self.calc_loss(batch_idx)
                 loss.backward()
 
+                running_train_loss += loss.item()
                 if mi_approx == "SWAG":
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-                optimizer.step()
+                optim.step()
 
                 if step % 50 == 0:
-                    pbar.set_postfix(mse=f"{num.item():.4f}",
-                                     kl_div=f"{cat.item():.4f}",)
+                    avg_train_loss = running_train_loss / (50 if step > 0 else 1)
+                    running_train_loss = 0.0
+
+                    postfix_dict = {
+                        "continuous_loss": f"{n_loss.item():.4f}",
+                        "discrete_loss": f"{c_loss.item():.4f}"
+                    }
+                    if do_validation:
+                        self.model.eval()
+                        mse_loss = 0.0
+                        cat_loss = 0.0
+                        with torch.no_grad():
+                            for v_batch in val_loader:
+                                v_batch_idx = v_batch[0]
+                                _, mse_loss, cat_loss, v_hsic = self.calc_loss(v_batch_idx)
+                                mse_loss += mse_loss.item()
+                                cat_loss += cat_loss.item()
+
+                        avg_mse = mse_loss / len(val_loader)
+                        avg_cat = cat_loss / len(val_loader)
+                        avg_hsic = v_hsic / len(val_loader)
+                        current_metric = avg_mse + avg_cat + avg_hsic
+                        postfix_dict["val_cont_loss"] = f"{avg_mse:.4f}"
+                        postfix_dict["val_disc_loss"] = f"{avg_cat:.4f}"
+                        self.model.train()
+                    else:
+                        current_metric = avg_train_loss
+                    if self.config['model']['loss_hsic'] > 0:
+                        postfix_dict["val_disc_loss"] = f"{hsic_loss:.4f}"
+
+                    if current_metric < best_loss:
+                        best_loss = current_metric
+                        steps_no_improve = 0
+                    else:
+                        steps_no_improve += 50
+                    pbar.set_postfix(**postfix_dict)
+
+                    if steps_no_improve >= patience:
+                        target_name = "Validation" if do_validation else "Training"
+                        print(f"\nEarly stopping triggered! {target_name} loss hasn't improved for {patience} steps.")
+                        break
 
                 if mi_approx == "SWAG":
                     if step < swa_start_iter:
                         scheduler.step()
                     else:
-                        for param_group in optimizer.param_groups: param_group['lr'] = lr * 0.5
+                        for param_group in optim.param_groups: param_group['lr'] = self.config['train']['SGD']['lr'] * 0.25
                         if (step - swa_start_iter) % 50 == 0:
                             self.swag_model.collect_model(self.model)
             self.model_list.append(self.model)
         return self
 
-    def calc_loss(self, batch_data):
-        B = batch_data.shape[0]
-        t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
-        a_bar = self.alpha_bars[t].view(B, 1)
-        b_bar = self.beta_bars[t].view(B, 1)
+    def _tensorize_data(self, df, schema):
+        from torch_frame.data.stats import StatType
+        x_num_list, x_cat_list = [], []
+        p1_num_list, aux_num_list = [], []
+        p1_cat_list, aux_cat_list = [], []
+        self.cat_sizes = []  # X (Target) categorical sizes
+        self.cond_cat_sizes = []  # Cond categorical sizes
+        self.has_partner_mask = []
+        q_blocks = []
 
-        x_t_dict, p1_dict, aux_dict, eps_dict = {}, {}, {}, {}
-
-        # 1. Numeric Variables (Phase 2)
-        numeric_p2 = [v for v in self.num_vars if 'p2' in v['type']]
-        if len(numeric_p2) > 0:
-            for v in numeric_p2:
-                name = v['name']
-                partner = v['pair_partner']
-
-                p2_val = batch_data[:, self.p2_slices[name]]
-                p1_val = batch_data[:, self.p1_slices[partner]]
-
-                true_residual = p1_val - p2_val
-                eps = torch.randn_like(p2_val)
-
-                # As a_bar grows (0->1), x_t moves from True(p2) to Proxy(p1)
-                x_t_dict[name] = p2_val + a_bar * true_residual + b_bar * eps
-                p1_dict[name] = p1_val
-                eps_dict[name] = eps
-
-        # 2. Categorical Variables (Phase 2 + Modes)
-
-        cat_p2_vars = [v for v in self.cat_vars if 'p2' in v['type']]
-        if len(cat_p2_vars) > 0:
-            for v in cat_p2_vars:
-                name = v['name']
-                K = v['num_classes']
-                partner = v['pair_partner']
-
-                oh_p2 = batch_data[:, self.p2_slices[name]]
-
-                # BRIDGE: Project Proxy to True Dimensionality via Q
-                if partner is not None and name in self.Q_dict:
-                    oh_p1 = batch_data[:, self.p1_slices[partner]]
-                    Q = self.Q_dict[name]
-                    pi_prior = oh_p1 @ Q  # (B, N) @ (N, M) -> (B, M)
-                    pi_prior = pi_prior * 0.99 + 0.01 / K
-                    p1_dict[name] = oh_p1  # Raw proxy for conditioning
-                else:
-                    # Fallback for modes (no proxy partner) or missing Q
-                    pi_prior = torch.ones_like(oh_p2) / oh_p2.shape[1]
-                    p1_dict[name] = torch.zeros(B, 1).to(self.device)  # Dummy? Or handle in network?
-                eps_0 = 1e-30
-                log_true = torch.log(oh_p2 + eps_0)
-                log_proxy = torch.log(pi_prior + eps_0)
-                term_true = torch.log((1.0 - a_bar) + eps_0) + log_true
-                term_proxy = torch.log(a_bar + eps_0) + log_proxy
-                log_probs_xt = torch.logaddexp(term_true, term_proxy)
-                u_noise = torch.rand_like(log_probs_xt)
-                gumbel = -torch.log(-torch.log(u_noise + eps_0) + eps_0)
-                x_t_indices = (log_probs_xt + gumbel).argmax(dim=1)
-                x_t_dict[name] = F.one_hot(x_t_indices, num_classes=K).float()
-
-        # 3. Aux Variables
-        for v in self.variable_schema:
-            if 'aux' in v['type']:
-                aux_dict[v['name']] = batch_data[:, self.aux_slices[v['name']]]
-
-        # Model Forward
-        model_out = self.model(x_t_dict, t, p1_dict, aux_dict)
-        loss_num = torch.tensor(0.0, device=self.device)
-        loss_cat = torch.tensor(0.0, device=self.device)
-        # Numeric Loss
-        if len(numeric_p2) > 0:
-            for v in numeric_p2:
-                name = v['name']
-                true_residual = p1_dict[name] - batch_data[:, self.p2_slices[name]]
-                pred_out = model_out[name]
-
-                if self.task == "Res-N":
-                    # Split channels
-                    pred_res = pred_out[:, 0:1]
-                    pred_eps = pred_out[:, 1:2]
-                    # Original logic: MSE(res) + MSE(eps)
-                    # Note: eps variable here must match the eps sampled above (which it does)
-                    loss_num += (self.gamma * F.mse_loss(pred_res, true_residual) +
-                                   F.mse_loss(pred_eps, eps_dict[name]))
-                elif self.task == "Res":
-                    loss_num += self.gamma * F.mse_loss(pred_out, true_residual)
-                elif self.task == "N":
-                    loss_num += F.mse_loss(pred_out, eps_dict[name])
-
-        # Categorical Loss (KL Divergence)
-        # ... Inside calc_loss categorical loop (Line 351) ...
-        for v in cat_p2_vars:
-            name = v['name']
-            K = v['num_classes']
-            x_t = x_t_dict[name]
-            x_true = batch_data[:, self.p2_slices[name]]
-
-            if v['pair_partner'] is not None and name in self.Q_dict:
-                oh_p1 = batch_data[:, self.p1_slices[v['pair_partner']]]
-                pi_prior = oh_p1 @ self.Q_dict[name]
+        p2_nums = [v for v in schema if 'numeric_p2' in v['type']]
+        for v in p2_nums:
+            x_num_list.append(df[v['name']].values.reshape(-1, 1))
+            partner = v['pair_partner']
+            if partner:
+                p1_num_list.append(df[partner].values.reshape(-1, 1))
             else:
-                pi_prior = torch.ones_like(x_true) / x_true.shape[1]
+                p1_num_list.append(np.zeros((len(df), 1)))
 
-            # FIX: UNINDENT THESE LINES. They must run for EVERY variable,
-            # not just those without partners.
-            pred_logits = model_out[name]
-            pred_x0_probs = F.softmax(pred_logits, dim=-1)
+        p2_cats = [v for v in schema if 'categorical_p2' in v['type']]
+        p1_cat_widths = []  # Track width of each one-hot P1 var for slicing later
 
-            x_true_smooth = x_true * (1.0 - 1e-2) + (1e-2 / K)
-            log_true_posterior = self._compute_posterior(x_t, x_true_smooth, pi_prior, t)
-            log_model_posterior = self._compute_posterior(x_t, pred_x0_probs, pi_prior, t)
+        for v in p2_cats:
+            k = v['num_classes']
+            self.cat_sizes.append(k)
+            x_cat_list.append(df[df.columns[v['start_idx']:v['end_idx']]].values)
 
-            kl = F.kl_div(log_model_posterior, log_true_posterior, reduction='batchmean',
-                          log_target=True)
-            loss_cat += kl
+            # Partner P1
+            partner = v['pair_partner']
+            if partner:
+                p1_cols = [c for c in df.columns if c.startswith(partner + "_")]
+                val = df[p1_cols].values
+                p1_cat_list.append(val)
+                self.cond_cat_sizes.append(k)
+                p1_cat_widths.append(val.shape[1])  # Should be equal to k
+                self.has_partner_mask.append(True)
 
-        return loss_num + self.zeta * loss_cat, loss_num, self.zeta * loss_cat
+                # Q Matrix
+                if v['name'] in self.transformer.Q_matrices:
+                    q_blocks.append(self.transformer.Q_matrices[v['name']].numpy())
+                else:
+                    q_blocks.append(np.eye(k))
+            else:
+                # No partner
+                val = np.zeros((len(df), k))
+                p1_cat_list.append(val)
+                self.cond_cat_sizes.append(k)
+                p1_cat_widths.append(k)
+                self.has_partner_mask.append(False)
+                q_blocks.append(np.eye(k))
 
-    def _compute_posterior(self, x_t, x_start, x_proxy, t):
-        x_start = x_start.clamp(min=1e-6, max=1.0 - 1e-6)
-        K = x_start.shape[1]
-        eps = 1e-30
+        for v in schema:
+            if 'aux' in v['type']:
+                if 'numeric' in v['type']:
+                    aux_num_list.append(df[v['name']].values.reshape(-1, 1))
+                else:
+                    k = v['num_classes']
+                    aux_cat_list.append(df[df.columns[v['start_idx']:v['end_idx']]].values)
+                    self.cond_cat_sizes.append(k)
 
-        # --- FIX START: Derive consistent Beta from Alpha ---
-        # Get cumulative Alphas (Probability of being Proxy)
-        curr_alpha_bar = self.alpha_bars.to(x_t.device)[t].view(-1, 1)
+        self.X_num = torch.tensor(np.hstack(x_num_list) if x_num_list else np.empty((len(df), 0)),
+                                  dtype=torch.float32).to(self.device)
+        self.X_cat = torch.tensor(np.hstack(x_cat_list) if x_cat_list else np.empty((len(df), 0)),
+                                  dtype=torch.float32).to(self.device)
 
-        # Handle t=0 edge case for previous alpha
-        # If t=0, prev_alpha_bar is 0 (Probability of being Proxy is 0)
-        idx_prev = (t - 1).clamp(min=0).view(-1, 1)
-        prev_alpha_bar = self.alpha_bars.to(x_t.device)[idx_prev]
-        prev_alpha_bar[t == 0] = 0.0
+        np_p1_num = np.hstack(p1_num_list) if p1_num_list else np.empty((len(df), 0))
+        np_aux_num = np.hstack(aux_num_list) if aux_num_list else np.empty((len(df), 0))
+        np_p1_cat = np.hstack(p1_cat_list) if p1_cat_list else np.empty((len(df), 0))
+        np_aux_cat = np.hstack(aux_cat_list) if aux_cat_list else np.empty((len(df), 0))
 
-        # Calculate the STRICT mathematical beta derived from your forward schedule
-        # Formula: (1 - curr) = (1 - prev) * (1 - beta)
-        # Therefore: beta = 1 - (1 - curr) / (1 - prev)
-        numerator = 1.0 - curr_alpha_bar
-        denominator = 1.0 - prev_alpha_bar
+        self.Cond_Num = np.hstack([np_p1_num, np_aux_num]) if (np_p1_num.size or np_aux_num.size) else np.empty(
+            (len(df), 0))
+        self.Cond_Cat = np.hstack([np_p1_cat, np_aux_cat]) if (np_p1_cat.size or np_aux_cat.size) else np.empty(
+            (len(df), 0))
 
-        # Clamp denominator to avoid division by zero if alpha saturates
-        fraction = numerator / (denominator + eps)
+        self.Cond = torch.tensor(np.hstack([self.Cond_Num, self.Cond_Cat]), dtype=torch.float32).to(self.device)
 
-        # This is the TRUE one-step transition probability consistent with your forward pass
-        beta_t = (1.0 - fraction).clamp(min=1e-5, max=1.0 - 1e-5)
-        # --- FIX END ---
+        p1_num_dim = np_p1_num.shape[1]
+        p1_cat_start_idx = self.Cond_Num.shape[1]
+        p1_cat_dim = np_p1_cat.shape[1]
 
-        # 1. Log-Prior at t-1: q(x_{t-1} | x_0, x_proxy)
-        # This part was mostly correct, just ensures consistent weights
-        w_s_prev = 1.0 - prev_alpha_bar
-        w_p_prev = prev_alpha_bar
+        self.dim_info = {
+            'input_dim': self.X_num.shape[1] + self.X_cat.shape[1],
+            'cond_dim': self.Cond.shape[1],
+            'out_num_dim': self.X_num.shape[1],
+            'out_cat_dim': self.X_cat.shape[1],
+            # Tokenizer Slicing Info
+            'x_num_count': self.X_num.shape[1],
+            'cond_num_count': self.Cond_Num.shape[1],
+            # Residual Slicing Info (For Reverse Diffusion)
+            'p1_num_idx': (0, p1_num_dim),
+            'p1_cat_idx': (p1_cat_start_idx, p1_cat_start_idx + p1_cat_dim)
+        }
+        x_num_stats = [
+            {StatType.MEAN: m.item(), StatType.STD: s.item()}
+            for m, s in zip(self.X_num.mean(0), self.X_num.std(0))
+        ]
+        x_cat_stats = [
+            {StatType.COUNT: [[None] * int(k)]}
+            for k in self.cat_sizes
+        ]
+        cond_num_t = torch.tensor(self.Cond_Num, dtype=torch.float32)
+        cond_num_stats = [
+            {StatType.MEAN: m.item(), StatType.STD: s.item()}
+            for m, s in zip(cond_num_t.mean(0), cond_num_t.std(0))
+        ] if cond_num_t.shape[1] > 0 else []
+        cond_cat_stats = [
+            {StatType.COUNT: [[None] * int(k)]}
+            for k in self.cond_cat_sizes
+        ]
+        self.dim_info['pt_frame_stats'] = {
+            'x_num': x_num_stats,
+            'x_cat': x_cat_stats,
+            'cond_num': cond_num_stats,
+            'cond_cat': cond_cat_stats
+        }
+        self.dim_info['x_cat_sizes'] = self.cat_sizes
+        self.dim_info['cond_cat_sizes'] = self.cond_cat_sizes
 
-        log_true_val = torch.log(x_start + eps)
-        log_proxy_val = torch.log(x_proxy + eps)
+        self.P1_num = torch.tensor(np_p1_num, dtype=torch.float32).to(self.device)
+        self.P1_cat_full = torch.tensor(np_p1_cat, dtype=torch.float32).to(self.device)
+        self.Q_block = torch.tensor(block_diag(*q_blocks), dtype=torch.float32).to(
+            self.device) if q_blocks else torch.empty(0).to(self.device)
 
-        log_prior = torch.logaddexp(
-            torch.log(w_s_prev + eps) + log_true_val,
-            torch.log(w_p_prev + eps) + log_proxy_val
+        # ---------------------------------------------------------
+        # Build Layouts for HSIC Loss
+        # ---------------------------------------------------------
+        self.layout_res = []
+        curr_idx = 0
+        num_dim = self.X_num.shape[1]
+        if num_dim > 0:
+            self.layout_res.append((curr_idx, curr_idx + num_dim, 0))
+            curr_idx += num_dim
+            if self.task == "Res-N":
+                self.layout_res.append((curr_idx, curr_idx + num_dim, 0))
+                curr_idx += num_dim
+        for k in self.cat_sizes:
+            self.layout_res.append((curr_idx, curr_idx + int(k), int(k)))
+            curr_idx += int(k)
+        self.layout_cond = []
+        curr_idx = 0
+
+        cond_num_dim = self.Cond_Num.shape[1]
+        if cond_num_dim > 0:
+            self.layout_cond.append((curr_idx, curr_idx + cond_num_dim, 0))
+            curr_idx += cond_num_dim
+
+        for k in self.cond_cat_sizes:
+            self.layout_cond.append((curr_idx, curr_idx + int(k), int(k)))
+            curr_idx += int(k)
+
+    def calc_loss(self, batch_idx):
+        b_x_num = self.X_num[batch_idx]
+        b_x_cat = self.X_cat[batch_idx]
+        b_cond = self.Cond[batch_idx]
+        b_p1_num = self.P1_num[batch_idx]
+        b_p1_cat = self.P1_cat_full[batch_idx]
+        B = len(batch_idx)
+
+        cond_drop_prob = self.config.get("train", {}).get("cond_drop_prob", 0.2)
+        if cond_drop_prob > 0.0 and self.model.training:
+            drop_mask = (torch.rand(B, 1, device=self.device) > cond_drop_prob).float()
+            b_cond = b_cond * drop_mask
+
+        if self.task == "Res-F":
+            t = torch.randint(0, self.T_acc, (B,), device=self.device).long()
+            a_bar = self.alpha_bars[t].view(B, 1)
+            true_res = b_p1_num - b_x_num
+            eps_num = torch.randn_like(b_x_num)
+            x_t_num = (torch.sqrt(a_bar) * b_x_num + (1 - torch.sqrt(a_bar)) * true_res +
+                       torch.sqrt(1 - a_bar) * eps_num)
+        else:
+            t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
+            a_bar = self.alpha_bars[t].view(B, 1)
+            b_bar = self.beta_bars[t].view(B, 1)
+            eps_num = torch.randn_like(b_x_num)
+            true_res = b_p1_num - b_x_num
+            x_t_num = b_x_num + a_bar * true_res + b_bar * eps_num
+
+        if self.Q_block.numel() > 0:
+            pi_prior = b_p1_cat @ self.Q_block
+        else:
+            pi_prior = torch.ones_like(b_x_cat)
+        log_probs = torch.logaddexp(
+            torch.log((1 - a_bar) + 1e-30) + torch.log(b_x_cat + 1e-30),
+            torch.log(a_bar + 1e-30) + torch.log(pi_prior + 1e-30)
         )
+        gumbel = -torch.log(-torch.log(torch.rand_like(log_probs) + 1e-30) + 1e-30)
+        noisy_indices = (log_probs + gumbel)
+        x_t_cat_list = []
+        curr_idx = 0
+        for k in self.cat_sizes:
+            chunk = noisy_indices[:, curr_idx: curr_idx + k]
+            x_t_cat_list.append(F.one_hot(chunk.argmax(dim=1), k).float())
+            curr_idx += k
 
-        # 2. Log-Likelihood: q(x_t | x_{t-1}, x_proxy)
-        # Use the beta_t we just derived.
-        # Logic: If I stay (1-beta), I keep state. If I transition (beta), I become Proxy.
+        x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
+        x_curr = torch.cat([x_t_num, x_t_cat], dim=1)
+        out_num, out_cat = self.model(x_curr, b_cond, t)
 
-        # Compute "Noise Likelihood" (Transition to Proxy)
-        # This relies on the TARGET state x_t, not the source.
+        loss_n = torch.tensor(0.0, device=self.device)
+        loss_c = torch.tensor(0.0, device=self.device)
+
+        if out_num is not None:
+            gamma = self.config["model"]["loss_num"]
+            if self.task == "Res-N":
+                dim = out_num.shape[1] // 2
+                p_res, p_eps = out_num[:, :dim], out_num[:, dim:]
+                loss_n = gamma * F.mse_loss(p_res, true_res) + F.mse_loss(p_eps, eps_num)
+            elif self.task == "Res":
+                loss_n = gamma * F.mse_loss(out_num, true_res)
+            elif self.task == "Res-F":
+                # alpha_t = self.alphas[t].view(B, 1)
+                # beta_t = self.betas[t].view(B, 1)
+                # resnoise = eps_num + (1 - torch.sqrt(alpha_t)) * torch.sqrt(1 - a_bar) / beta_t * true_res
+                # loss_n = gamma * F.mse_loss(out_num, resnoise)
+                loss_n = gamma * F.mse_loss(out_num, b_x_num)
+            else:
+                loss_n = F.mse_loss(out_num, eps_num)
+
+        if out_cat is not None:
+            logits_list = torch.split(out_cat, self.cat_sizes, dim=1)
+            xt_list = torch.split(x_t_cat, self.cat_sizes, dim=1)
+            x0_list = torch.split(b_x_cat, self.cat_sizes, dim=1)
+            prior_list = torch.split(pi_prior, self.cat_sizes, dim=1)
+            if self.discrete == "KL":
+                for i, (logits, xt, x0, prior) in enumerate(zip(logits_list, xt_list, x0_list, prior_list)):
+                    p = prior if self.has_partner_mask[i] else torch.ones_like(prior) / prior.shape[1]
+                    #logits = torch.log(p + 1.0e-30) + logits
+                    pred_probs = F.softmax(logits, dim=-1)
+                    log_true_post = self._compute_posterior_vec(xt, x0, p, t)
+                    log_model_post = self._compute_posterior_vec(xt, pred_probs, p, t)
+                    loss_c += (self.config["model"]["loss_cat"] *
+                               F.kl_div(log_model_post, log_true_post, reduction='batchmean', log_target=True))
+            else:
+                for i, (logits, x0, prior) in enumerate(zip(logits_list, x0_list, prior_list)):
+                    p = prior if self.has_partner_mask[i] else torch.ones_like(prior) / prior.shape[1]
+                    #logits = torch.log(p + 1.0e-30) + logits
+                    loss_c += (self.config["model"]["loss_cat"] *
+                               F.cross_entropy(logits, x0, reduction='mean'))
+        # ---------------------------------------------------------
+        # Assemble Tensors for One-Shot HSIC Calculation
+        # ---------------------------------------------------------
+        lambda_hsic = self.config["model"].get("loss_hsic", 0)
+        loss_hsic = torch.tensor(0.0, device=self.device)
+
+        if lambda_hsic > 0.0:
+            if self.task == "Res-N":
+                pred_n = out_num
+                true_n = torch.cat([true_res, eps_num], dim=1)
+            elif self.task == "Res":
+                pred_n = out_num
+                true_n = true_res
+            else:
+                pred_n = out_num
+                true_n = eps_num
+
+            pred_c_list = []
+            if out_cat is not None:
+                for i, (logits, prior) in enumerate(zip(logits_list, prior_list)):
+                    p = prior if self.has_partner_mask[i] else torch.ones_like(prior) / prior.shape[1]
+                    #logits = torch.log(p + 1.0e-30) + logits
+                    pred_c_list.append(F.softmax(logits, dim=-1))
+
+            pred_c = torch.cat(pred_c_list, dim=1) if pred_c_list else torch.empty((B, 0), device=self.device)
+            true_c = b_x_cat
+
+            x_fake = torch.cat([pred_n, pred_c], dim=1)
+            x_real = torch.cat([true_n, true_c], dim=1)
+
+            loss_hsic = calc_HSIC_loss(
+                x_fake=x_fake,
+                x_real=x_real,
+                attrs=b_cond,
+                layout_res=self.layout_res,
+                layout_attr=self.layout_cond,
+                lambda_hsic=lambda_hsic,
+            )
+
+        # Combine everything
+        total_loss = loss_n + loss_c + loss_hsic
+        return total_loss, loss_n, loss_c, loss_hsic
+
+    def _compute_posterior_vec(self, x_t, x_start, x_proxy, t):
+        B = x_t.shape[0]
+        curr_alpha = self.alpha_bars[t].view(B, 1)
+        prev_alpha = self.alpha_bars[(t - 1).clamp(0)].view(B, 1)
+        prev_alpha[t == 0] = 0.0
+        beta_t = (1.0 - (1.0 - curr_alpha) / (1.0 - prev_alpha + 1e-30)).clamp(1e-5, 1.0 - 1e-5)
+        w_s_prev = 1.0 - prev_alpha
+        w_p_prev = prev_alpha
+        log_prior = torch.logaddexp(
+            torch.log(w_s_prev + 1e-30) + torch.log(x_start + 1e-30),
+            torch.log(w_p_prev + 1e-30) + torch.log(x_proxy + 1e-30)
+        )
         p_proxy_at_xt = (x_t * x_proxy).sum(dim=1, keepdim=True)
-        log_likelihood_noise = torch.log(beta_t * p_proxy_at_xt + eps)
-
-        # Compute "Stay Likelihood" (Keep state + Chance of random match)
-        # P(xt | xt-1=xt) = (1-beta) + beta * P(xt=xt|Proxy)
-        log_likelihood_stay = torch.log((1.0 - beta_t) + beta_t * p_proxy_at_xt + eps)
-
-        # Broadcast to all possible previous states x_{t-1}
-        # If x_{t-1} matches x_t (x_t=1), we use Stay Likelihood.
-        # If x_{t-1} differs (x_t=0), we use Noise Likelihood.
-        log_likelihood = x_t * log_likelihood_stay + (1.0 - x_t) * log_likelihood_noise
-
-        # 3. Bayes
-        log_unnormalized = log_prior + log_likelihood
-        log_z = torch.logsumexp(log_unnormalized, dim=1, keepdim=True)
-        return log_unnormalized - log_z
+        log_lik_noise = torch.log(beta_t * p_proxy_at_xt + 1e-30)
+        log_lik_stay = torch.log((1.0 - beta_t) + beta_t * p_proxy_at_xt + 1e-30)
+        log_likelihood = x_t * log_lik_stay + (1.0 - x_t) * log_lik_noise
+        log_unnorm = log_prior + log_likelihood
+        return log_unnorm - torch.logsumexp(log_unnorm, dim=1, keepdim=True)
 
     def _reverse_diffusion(self, full_data, model_to_use, batch_size=2048):
         N = full_data.shape[0]
-        collected_outputs = {var['name']: [] for var in self.variable_schema if 'p2' in var['type']}
-
+        collected_outputs = {'num': [], 'cat': []}
+        p1_n_start, p1_n_end = self.dim_info['p1_num_idx']
+        p1_c_start, p1_c_end = self.dim_info['p1_cat_idx']
         with torch.no_grad():
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 B = end - start
-                b_data = full_data[start:end]
+                full_cond = full_data[start:end]
+                p1_num = full_cond[:, p1_n_start:p1_n_end]
 
-                x_t_dict, p1_dict, aux_dict = {}, {}, {}
+                if self.task == "Res-F":
+                    alpha_hat_T = self.alpha_bars[self.T_acc - 1]
+                    x_t_num = torch.sqrt(alpha_hat_T) * p1_num + torch.sqrt(1 - alpha_hat_T) * torch.randn_like(p1_num)
+                    loop_range = reversed(range(self.T_acc))
+                else:
+                    x_t_num = p1_num + torch.sqrt(self.sum_scale) * torch.randn_like(p1_num)
+                    loop_range = reversed(range(self.num_steps))
 
-                # 1. Initialize x_T
+                p1_cat_chunk = full_cond[:, p1_c_start:p1_c_end]
 
-                # Numeric: x_T = Proxy + Noise
-                numeric_p2 = [v for v in self.num_vars if 'p2' in v['type']]
-                for v in numeric_p2:
-                    name = v['name']
-                    partner = v['pair_partner']
+                if self.Q_block.numel() > 0:
+                    pi_prior = p1_cat_chunk @ self.Q_block
+                else:
+                    pi_prior = torch.ones((B, self.X_cat.shape[1]), device=self.device)
 
-                    # Proxy (Anchored P1)
-                    curr_p1 = b_data[:, self.p1_slices[partner]]
-                    init_eps = torch.randn_like(curr_p1)
-                    # Use Sum Scale for initial noise magnitude?
-                    # Original sird.py: x_T_num = curr_p1_num + torch.sqrt(self.sum_scale) * init_eps
-                    x_t_dict[name] = curr_p1 + torch.sqrt(self.sum_scale) * init_eps
-                    p1_dict[name] = curr_p1
+                x_t_cat_list = []
+                prior_list = torch.split(pi_prior, self.cat_sizes, dim=1)
+                for k, p in zip(self.cat_sizes, prior_list):
+                    log_p = torch.log(p + 1e-30)
+                    g = -torch.log(-torch.log(torch.rand_like(log_p) + 1e-30) + 1e-30)
+                    x_t_cat_list.append(F.one_hot((log_p + g).argmax(dim=1), k).float())
+                x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
 
-                # 1. Get Schedule weights at T (Final Step)
-                # Normalization Z = a_bar_T + b_bar_T
-                cat_p2_vars = [v for v in self.cat_vars if 'p2' in v['type']]
-                for v in cat_p2_vars:
-                    name = v['name']
-                    partner = v['pair_partner']
-                    K = v['num_classes']
+                cfg_scale = self.config.get("sample", {}).get("cfg_scale", 1.0)
+                null_cond = torch.zeros_like(full_cond) if cfg_scale > 1.0 else None
+                for i in loop_range:
+                    t = torch.full((B,), i, device=self.device).long()
+                    x_curr = torch.cat([x_t_num, x_t_cat], dim=1)
 
-                    if partner is not None and name in self.Q_dict:
-                        oh_p1 = b_data[:, self.p1_slices[partner]]
-                        pi_prior = oh_p1 @ self.Q_dict[name]
-                        pi_prior = pi_prior * 0.99 + 0.01 / K
-                        p1_dict[name] = oh_p1
+                    out_num, out_cat = model_to_use(x_curr, full_cond, t)
+                    if cfg_scale > 1.0:
+                        out_num_cond, out_cat_cond = model_to_use(x_curr, full_cond, t)
+                        out_num_uncond, out_cat_uncond = model_to_use(x_curr, null_cond, t)
+                        out_num = None
+                        if out_num_cond is not None:
+                            out_num = out_num_uncond + cfg_scale * (out_num_cond - out_num_uncond)
+                        out_cat = None
+                        if out_cat_cond is not None:
+                            out_cat = out_cat_uncond + cfg_scale * (out_cat_cond - out_cat_uncond)
                     else:
-                        pi_prior = torch.ones((B, K), device=self.device) / K
-                        p1_dict[name] = torch.zeros((B, K), device=self.device)
+                        out_num, out_cat = model_to_use(x_curr, full_cond, t)
 
-                    eps_0 = 1e-30
-                    log_proxy = torch.log(pi_prior + eps_0)
+                    if out_num is not None:
+                        if self.task == "Res-F":
+                            # alpha_t = self.alphas[i]
+                            # a_bar = self.alpha_bars[i]
+                            # beta_t = self.betas[i]
+                            # beta_bar = self.betas_bars[i]
+                            # pred_resnoise = out_num
+                            # sigma = torch.sqrt(beta_bar)
+                            # z = torch.randn_like(x_t_num) if i > 0 else 0
+                            # x_t_num = 1 / torch.sqrt(alpha_t) * (
+                            #         x_t_num - (beta_t / torch.sqrt(1 - a_bar)) * pred_resnoise
+                            # ) + sigma * z
+                            alpha_t = self.alphas[i]
+                            a_bar = self.alpha_bars[i]
+                            a_bar_prev = self.alpha_bars_t_minus_1[i]
+                            beta_hat = self.betas_bars[i]
 
-                    # 2. Gumbel Noise
-                    u_noise = torch.rand_like(log_proxy)
-                    gumbel = -torch.log(-torch.log(u_noise + eps_0) + eps_0)
+                            # 1. Network predicts x_0 directly
+                            pred_x_0 = out_num
 
-                    # 3. Argmax to get sample
-                    x_T_idx = (log_proxy + gumbel).argmax(dim=1)
-                    x_t_dict[name] = F.one_hot(x_T_idx, K).float()
-                # Aux
-                for v in self.variable_schema:
-                    if 'aux' in v['type']:
-                        aux_dict[v['name']] = b_data[:, self.aux_slices[v['name']]]
+                            # 2. Implied residual: R = condition - x_0
+                            pred_residual = p1_num - pred_x_0
 
-                # Loop
-                for t in reversed(range(self.num_steps)):
-                    t_b = torch.full((B,), t, device=self.device).long()
-                    out = model_to_use(x_t_dict, t_b, p1_dict, aux_dict)
+                            sigma = torch.sqrt(beta_hat)
+                            z = torch.randn_like(x_t_num) if i > 0 else 0
 
-                    # Update Numeric
-                    for v in numeric_p2:
-                        name = v['name']
-                        x_t = x_t_dict[name]
-                        x_proxy = p1_dict[name]
+                            if i == 0:
+                                # Final step: just return the predicted clean data
+                                x_t_num = pred_x_0
+                            else:
+                                # ResFusion Formula 44 (Sample Mode)
+                                term1 = torch.sqrt(alpha_t) * (1 - a_bar_prev) * (x_t_num - pred_residual)
+                                term2 = torch.sqrt(a_bar_prev) * (1 - alpha_t) * (pred_x_0 - pred_residual)
 
-                        # Res-N extraction
-                        if self.task == "Res-N":
-                            pred_res = out[name][:, 0:1]
-                            pred_eps = out[name][:, 1:2]
-                            # Original update formula
-                            # x_start_pred calculation
-                            x_start_pred = x_t - self.alpha_bars[t] * pred_res - self.beta_bars[t] * pred_eps
-                            x_start_pred = x_start_pred.clamp(-5.0, 5.0)
-                        elif self.task == "Res":
-                            pred_res = out[name]
-                            # Infer eps from residual
-                            # This part is tricky without implicit epsilon.
-                            # Using original sird formula:
-                            pred_eps = (x_t - x_proxy - (self.alpha_bars[t] - 1) * pred_res) / self.beta_bars[t]
-                            x_start_pred = x_t - self.alpha_bars[t] * pred_res - self.beta_bars[t] * pred_eps
-                            x_start_pred = x_start_pred.clamp(-5.0, 5.0)
-                        elif self.task == "N":
-                            pred_eps = out[name]
-                            x_start_pred = (x_t - self.alpha_bars[t] * x_proxy - self.beta_bars[t] * pred_eps) / \
-                                           (1 - self.alpha_bars[t]).clamp(min=1e-5)
-                            x_start_pred = x_start_pred.clamp(-5.0, 5.0)
-                            pred_res = x_proxy - x_start_pred
-
-                        # Posterior Mean Update
-                        posterior_mean = self.posterior_mean_coef1[t] * x_t + \
-                                         self.posterior_mean_coef2[t] * pred_res + \
-                                         self.posterior_mean_coef3[t] * x_start_pred
-
-                        noise = torch.randn_like(x_t) if t > 0 else 0
-                        x_t_dict[name] = posterior_mean + (0.5 * self.posterior_log_variance[t]).exp() * noise
-
-                    # Update Categorical
-                    for v in cat_p2_vars:
-                        name = v['name']
-                        K = v['num_classes']
-                        logits = out[name]
-                        pred_x0_probs = F.softmax(logits, dim=-1)
-
-                        # Recompute Prior for this batch
-                        if v['pair_partner'] is not None and name in self.Q_dict:
-                            oh_p1 = p1_dict[name]
-                            pi_prior = oh_p1 @ self.Q_dict[name]
-                            pi_prior = pi_prior * 0.99 + 0.01 / K
+                                x_t_num = ((term1 + term2) / (1 - a_bar)) + pred_residual + sigma * z
                         else:
-                            pi_prior = torch.ones_like(pred_x0_probs) / pred_x0_probs.shape[1]
+                            if self.task == "Res-N":
+                                dim = out_num.shape[1] // 2
+                                res, eps = out_num[:, :dim], out_num[:, dim:]
+                                x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
+                            elif self.task == "Res":
+                                res = out_num
+                                eps = (x_t_num - p1_num - (self.alpha_bars[i] - 1) * res) / (self.beta_bars[i] + 1e-8)
+                                x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
+                            else:
+                                eps = out_num
+                                x_start = (x_t_num - self.alpha_bars[i] * p1_num - self.beta_bars[i] * eps) / (
+                                            1 - self.alpha_bars[i] + 1e-8)
+                                x_start = x_start.clamp(-4, 4)
+                                res = p1_num - x_start
 
-                        log_posterior = self._compute_posterior(x_t_dict[name],
-                                                                pred_x0_probs, pi_prior, t_b)
-                        u_noise = torch.rand_like(log_posterior)
-                        gumbel = -torch.log(-torch.log(u_noise + eps_0) + eps_0)
-                        x_t_noise = (log_posterior + gumbel)
-                        if t == 0:
-                            x_t_dict[name] = F.softmax(x_t_noise, dim=-1)
-                        else:
-                            x_t_dict[name] = F.one_hot(x_t_noise.argmax(dim=1), K).float()
+                            x_start = x_start.clamp(-4, 4)
+                            post_mean = self.posterior_mean_coef1[i] * x_t_num + \
+                                        self.posterior_mean_coef2[i] * res + \
+                                        self.posterior_mean_coef3[i] * x_start
+                            noise = torch.randn_like(x_t_num) if i > 0 else 0
+                            x_t_num = (post_mean + (0.5 * self.posterior_log_variance[i]).exp() * noise).clamp(-4, 4)
 
-                for name, tensor in x_t_dict.items():
-                    collected_outputs[name].append(tensor.cpu())
+                    if out_cat is not None:
+                        logits_list = torch.split(out_cat, self.cat_sizes, dim=1)
+                        xt_list = torch.split(x_t_cat, self.cat_sizes, dim=1)
+                        new_cat_list = []
+                        for j, (logits, xt, prior) in enumerate(zip(logits_list, xt_list, prior_list)):
+                            p = prior if self.has_partner_mask[j] else torch.ones_like(prior) / prior.shape[1]
+                            # logits = torch.log(p + 1.0e-30) + logits
+                            pred_probs = F.softmax(logits, dim=-1)
+                            log_post = self._compute_posterior_vec(xt, pred_probs, p, t)
+                            g = -torch.log(-torch.log(torch.rand_like(log_post) + 1e-30) + 1e-30)
+                            sample = (log_post + g)
+                            new_cat_list.append(F.one_hot(sample.argmax(dim=1), self.cat_sizes[j]).float())
+                        x_t_cat = torch.cat(new_cat_list, dim=1)
 
-        final_dict = {k: torch.cat(v, dim=0).to(self.device) for k, v in collected_outputs.items()}
+                collected_outputs['num'].append(x_t_num.cpu())
+                collected_outputs['cat'].append(x_t_cat.cpu())
+
+        final_dict = {}
+        full_num = torch.cat(collected_outputs['num'], dim=0).to(self.device) if collected_outputs['num'] else None
+        full_cat = torch.cat(collected_outputs['cat'], dim=0).to(self.device) if collected_outputs['cat'] else None
+
+        schema = self.transformer.get_sird_schema()
+        curr_n, curr_c = 0, 0
+        p2_nums = [v for v in schema if 'numeric_p2' in v['type']]
+        p2_cats = [v for v in schema if 'categorical_p2' in v['type']]
+
+        if full_num is not None:
+            for v in p2_nums:
+                final_dict[v['name']] = full_num[:, curr_n:curr_n + 1]
+                curr_n += 1
+
+        if full_cat is not None:
+            for v in p2_cats:
+                k = v['num_classes']
+                final_dict[v['name']] = full_cat[:, curr_c:curr_c + k]
+                curr_c += k
+
         return final_dict
 
     def impute(self, m=None, save_path=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         pd.set_option('future.no_silent_downcasting', True)
+        m_s = m if m else self.config["sample"]["m"]
+        eval_bs = self.config["train"].get("eval_batch_size", 2048)
 
-        m_s = m if m else self.config["else"]["m"]
-        eval_bs = self.config["train"].get("eval_batch_size", 64)
-
-        target_data = self._global_data
-
-        if self.config["else"]["mi_approx"] == "SWAG":
+        if self.config["sample"]["mi_approx"] == "SWAG":
             if self.swag_model is None or self.swag_model.n_models.item() == 0:
                 print("Warning: No SWAG collected. Using base model.")
             else:
@@ -582,57 +721,58 @@ class SIRD:
         pbar = tqdm(total=m_s, desc="Imputation Rounds", file=sys.stdout)
 
         for samp_i in range(1, m_s + 1):
-            if self.config["else"]["mi_approx"] == "SWAG" and self.swag_model.n_models.item() > 1:
+            if self.config["sample"]["mi_approx"] == "SWAG" and self.swag_model.n_models.item() > 1:
                 model_to_use = self.swag_model.sample(scale=1, cov=True)
                 model_to_use.eval()
-            elif self.config["else"]["mi_approx"] == "dropout":
-                model_to_use = self.model_list[0]
+            elif self.config["sample"]["mi_approx"] == "DROPOUT":
+                model_to_use = self.model_list[0];
                 model_to_use.eval()
                 for modu in model_to_use.modules():
-                    if modu.__class__.__name__.startswith('Dropout'):
-                        modu.train()
-            elif self.config["else"]["mi_approx"] == "bootstrap":
-                model_to_use = self.model_list[samp_i - 1]
+                    if modu.__class__.__name__.startswith('Dropout'): modu.train()
+            elif self.config["sample"]["mi_approx"] == "BOOTSTRAP":
+                model_to_use = self.model_list[samp_i - 1];
                 model_to_use.eval()
             else:
-                model_to_use = self.model_list[0]
-                model_to_use.eval()
+                model_to_use = self.model_list[0]; model_to_use.eval()
 
-            # Reverse Diffusion
-            x_0_dict = self._reverse_diffusion(target_data, model_to_use, eval_bs)
+            # Pass full Cond tensor
+            x_0_dict = self._reverse_diffusion(self.Cond, model_to_use, eval_bs)
 
             gen_df_dict = {}
-            for v in self.variable_schema:
+            for v in self.transformer.get_sird_schema():
                 if 'p2' in v['type']:
-                    # x_0_dict[name] is (Batch, 1) for numeric, (Batch, K) for categorical
                     val = x_0_dict[v['name']].cpu().numpy()
-
                     if 'numeric' in v['type']:
-                        # FIX: Use the original name (e.g. INCOME).
-                        # DataTransformer.inverse_transform looks for this exact key.
                         gen_df_dict[v['name']] = val.flatten()
-
                     elif 'categorical' in v['type']:
-                        start = v['start_idx']
-                        num_cls = v['num_classes']
+                        start, num_cls = v['start_idx'], v['num_classes']
                         cols = self.transformer.generated_columns[start: start + num_cls]
-                        for k, col_name in enumerate(cols):
-                            gen_df_dict[col_name] = val[:, k]
+                        for k, col_name in enumerate(cols): gen_df_dict[col_name] = val[:, k]
 
-            # 2. Reconstruct into DataFrame
             df_gen_p2 = pd.DataFrame(gen_df_dict)
-
-            # 3. Inverse Transform (Denormalize and map categories)
             df_denorm = self.transformer.inverse_transform(df_gen_p2)
-
-            # 4. FIX: Align Index before Merge
-            # fillna matches by index. If raw_df index is non-standard, merge will fail without this.
             df_f = self.raw_df.copy()
             df_denorm.index = df_f.index
 
-            # 5. Merge Generated Data into original gaps
-            for c in df_denorm.columns:
-                if c in df_f.columns:
+            for col in df_denorm.columns:
+                if col in df_f.columns:
+                    df_denorm[col] = df_denorm[col].astype(df_f[col].dtype)
+
+            for c in self.p2_vars:
+                if self.config["sample"]["pmm"]:
+                    obs_idx = df_f[df_f[c].notna()].index;
+                    miss_idx = df_f[df_f[c].isna()].index
+                    if c in self.num_names:
+                        y_obs = df_f.loc[obs_idx, c].values
+                        yhat_obs = df_denorm.loc[obs_idx, c].values
+                        yhat_miss = df_denorm.loc[miss_idx, c].values
+                        imputed_series = pd.Series(
+                            self.pmm(yhat_obs, yhat_miss, y_obs, k=self.config["sample"]["donors"]).flatten(),
+                            index=miss_idx)
+                        df_f.loc[miss_idx, c] = imputed_series
+                    else:
+                        df_f[c] = df_f[c].fillna(df_denorm[c])
+                else:
                     df_f[c] = df_f[c].fillna(df_denorm[c])
 
             df_f.insert(0, "imp_id", samp_i)
@@ -640,16 +780,17 @@ class SIRD:
             pbar.update(1)
 
         pbar.close()
-
         if save_path is not None:
-            final_df = pd.concat(all_imputed_dfs, ignore_index=True)
-            # Final conversion for Parquet compatibility
-            for col in final_df.columns:
-                if final_df[col].dtype == 'object':
-                    final_df[col] = final_df[col].astype('string')
-
-            final_df.to_parquet(save_path, index=False)
+            pd.concat(all_imputed_dfs, ignore_index=True).to_parquet(save_path, index=False)
             print(f"Saved stacked imputations to: {save_path}")
-            return all_imputed_dfs
-
         return all_imputed_dfs
+
+    def pmm(self, yhat_obs, yhat_miss, y_obs, k=5):
+        d = np.array(yhat_obs).reshape(-1, 1)
+        t = np.array(yhat_miss).reshape(-1, 1)
+        v = np.array(y_obs).reshape(-1, 1)
+        nbrs = NearestNeighbors(n_neighbors=k, algorithm='kd_tree').fit(d)
+        _, neighbor_indices = nbrs.kneighbors(t)
+        rand_cols = np.random.randint(0, k, size=neighbor_indices.shape[0])
+        final_indices = neighbor_indices[np.arange(neighbor_indices.shape[0]), rand_cols]
+        return v[final_indices]

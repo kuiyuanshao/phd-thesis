@@ -22,9 +22,6 @@ class DataTransformer:
         self.generated_columns = None
         self.norm_type = config['processing'].get('normalization', 'gmm')
 
-    # =========================================================================
-    # CORE PIPELINE METHODS
-    # =========================================================================
 
     def fit(self, df):
         self.df_raw = df
@@ -62,16 +59,8 @@ class DataTransformer:
 
         return out_df
 
-    # =========================================================================
-    # HELPERS
-    # =========================================================================
-
     @staticmethod
     def _robust_string(val):
-        """
-        Robustly converts value to string for categorical comparison.
-        Handles '1.0' vs '1' mismatch by converting integer-like floats to ints.
-        """
         s = str(val)
         try:
             f = float(s)
@@ -80,10 +69,6 @@ class DataTransformer:
         except (ValueError, TypeError):
             pass
         return s.strip()
-
-    # =========================================================================
-    # 1. PRE-PROCESSING (LOG & RESIDUALS)
-    # =========================================================================
 
     def _fit_apply_log(self):
         p1_vars = self.data_info['phase1_vars']
@@ -143,10 +128,6 @@ class DataTransformer:
                 df[p2] = df[p1] - df[p2]
         return df
 
-    # =========================================================================
-    # 2. NUMERIC STRATEGIES (FIT)
-    # =========================================================================
-
     def _fit_strategy_gmm(self):
         p2_vars_set = set(self.data_info['phase2_vars'])
         max_components = self.config['processing']['gmm'].get('max_components', 5)
@@ -195,10 +176,6 @@ class DataTransformer:
         mu = float(np.mean(data))
         sigma = float(np.std(data))
         return {'type': 'zscore', 'mean': mu, 'std': sigma}
-
-    # =========================================================================
-    # 3. NUMERIC TRANSFORM
-    # =========================================================================
 
     def _transform_numeric(self):
         collected = {}
@@ -266,34 +243,17 @@ class DataTransformer:
                         out_df = out_df.drop(columns=pres, errors='ignore')
         return out_df
 
-    # =========================================================================
-    # CATEGORICAL
-    # =========================================================================
-
     def _fit_categorical(self):
-        """
-        Fits OneHotEncoder for each categorical variable independently.
-        Applies robust normalization (e.g., 1.0 -> 1) to ensure consistency.
-        Explicitly casts columns to object to prevent FutureWarning.
-        """
         for col in self.data_info['cat_vars']:
             if col in self.df_transformed.columns:
-                # 1. Robust Normalization
-                # We apply this to the internal dataframe so that downstream transform() sees the same values
                 non_null_mask = self.df_transformed[col].notna()
                 if non_null_mask.sum() == 0:
                     continue
-
-                # Apply normalization safely
                 normalized_series = self.df_transformed.loc[non_null_mask, col].apply(self._robust_string)
-
-                # FIX: Explicitly cast column to object if needed to avoid FutureWarning
                 if self.df_transformed[col].dtype != 'object':
                     self.df_transformed[col] = self.df_transformed[col].astype('object')
 
                 self.df_transformed.loc[non_null_mask, col] = normalized_series
-
-                # 2. Fit Independent Encoder
                 vals = normalized_series.unique().reshape(-1, 1)
                 enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
                 enc.fit(vals)
@@ -304,18 +264,13 @@ class DataTransformer:
         for col, enc in self.cat_encoders.items():
             if col not in self.df_transformed.columns: continue
 
-            # 1. Get raw values
             series = self.df_transformed[col]
             mask = series.notna().values
 
-            # 2. Prepare result array
             cat_names = [f"{col}_{c}" for c in enc.categories_[0]]
 
             if mask.sum() > 0:
-                # 3. Normalize before transform
                 raw_vals = series[mask].apply(self._robust_string).values.reshape(-1, 1)
-
-                # 4. Encode
                 encoded = enc.transform(raw_vals)
 
                 for i, name in enumerate(cat_names):

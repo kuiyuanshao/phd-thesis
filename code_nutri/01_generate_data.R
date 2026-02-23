@@ -18,8 +18,8 @@ generateData <- function(digit, seed){
   n = 1e4
   pop = data.table(id = 1:n)
   expit = function(xb){return(exp(xb)/(1+exp(xb)))}
-  load('./data/multiNorm.RData')
-  load('./data/logiReg.RData')
+  load('./data/params/multiNorm.RData')
+  load('./data/params/logiReg.RData')
   sim_sexbkg = function(dat, p, sex = c('F','M'), bkg = c('D','PR','O')){
     tb =  expand.grid(sex, bkg);colnames(tb) = c('sex', 'bkg')
     tb$idx = 1:nrow(tb)
@@ -119,7 +119,7 @@ generateData <- function(digit, seed){
   ls.pop$Data$bkg_o = 1*(ls.pop$Data$bkg=='O')
   
   dt.pop <- ls.pop$Data
-  load('./data/calibrCoeff.RData')
+  load('./data/params/calibrCoeff.RData')
   
   dt.pop$ln_na_true = as.numeric(as.matrix(cbind('Int'=1,subset(dt.pop,select=c('c_ln_na_avg','c_age','c_bmi','female','usborn','high_chol','bkg_pr','bkg_o'))))%*%sodicoeff$Estimate+rnorm(nrow(dt.pop),0,sqrt(var.df$Var.True[1])))
   dt.pop$ln_k_true = as.numeric(as.matrix(cbind('Int'=1,subset(dt.pop,select=c('c_ln_k_avg','c_age','c_bmi','female','usborn','high_chol','bkg_pr','bkg_o'))))%*%potacoeff$Estimate+rnorm(nrow(dt.pop),0,sqrt(var.df$Var.True[2])))
@@ -142,13 +142,13 @@ generateData <- function(digit, seed){
   dt.pop$c_ln_kcal_bio1 = as.numeric(scale(dt.pop$ln_kcal_bio1,scale = F))
   dt.pop$c_ln_protein_bio1 = as.numeric(scale(dt.pop$ln_protein_bio1,scale = F))
   
-  load('./data/outPar.RData')
+  load('./data/params/outPar.RData')
   suboutcome.par = data.frame(Variable = c('Intercept',all.vars(m1.formula[-2])), Estimate = m1.coefficients)
   suboutcome.par$Estimate[suboutcome.par$Variable=='C_LN_NA_CALIBR'] = log(1.3)/log(1.2)
   suboutcome.par$Estimate[suboutcome.par$Variable=='Intercept'] = log(0.08/(1-0.08))-sum(suboutcome.par$Estimate[-1]*apply(subset(dt.pop,select=c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')),2,mean))
   
   suboutcome.par = suboutcome.par[match(c("Intercept","C_AGE","C_BMI","C_LN_NA_CALIBR",'HIGH_TOTAL_CHOL','US_BORN','FEMALE','BKGRD_PR','BKGRD_OTHER'),suboutcome.par$Variable),]
-  p.par = expit(as.matrix(cbind('Intercept'=1,dt.pop[,c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')]))%*%suboutcome.par$Estimate)
+  p.par = expit(as.matrix(cbind('Intercept'=1,dt.pop[,c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')], "interaction" = dt.pop$c_ln_na_true * dt.pop$c_age))%*%c(suboutcome.par$Estimate, 0.005))
   dt.pop$hypertension = as.numeric(1*(runif(nrow(p.par))<=p.par))
   
   htn_parameters <- suboutcome.par
@@ -158,7 +158,7 @@ generateData <- function(digit, seed){
   suboutcome.par$Estimate[suboutcome.par$Variable=='Intercept'] = 120-sum(suboutcome.par$Estimate[-1]*apply(subset(dt.pop,select=c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')),2,mean))
   
   suboutcome.par = suboutcome.par[match(c("Intercept","C_AGE","C_BMI","C_LN_NA_CALIBR",'HIGH_TOTAL_CHOL','US_BORN','FEMALE','BKGRD_PR','BKGRD_OTHER'),suboutcome.par$Variable),]
-  xb.par = as.matrix(cbind('Intercept'=1,dt.pop[,c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')]))%*%suboutcome.par$Estimate
+  xb.par = as.matrix(cbind('Intercept'=1,dt.pop[,c('c_age','c_bmi','c_ln_na_true','high_chol','usborn','female','bkg_pr','bkg_o')], "interaction" = dt.pop$c_ln_na_true * dt.pop$c_age))%*%c(suboutcome.par$Estimate, 0.15)
   dt.pop$sbp = as.numeric((xb.par+rnorm(nrow(xb.par),0,m2.sigma)))
   
   sbp_parameters <- list()
@@ -167,10 +167,10 @@ generateData <- function(digit, seed){
   
   dt.pop$bkg %<>% as.character()
   pop = dt.pop
-  vars_to_delete <- c("ln_na_avg", "ln_k_avg", "ln_kcal_avg", "ln_protein_avg",
-                      "ln_na_true", "ln_k_true", "ln_kcal_true", "ln_protein_true", 
+  vars_to_delete <- c("c_ln_na_avg", "c_ln_k_avg", "c_ln_kcal_avg", "c_ln_protein_avg",
+                      "c_ln_na_true", "c_ln_k_true", "c_ln_kcal_true", "c_ln_protein_true", 
                       "ln_na_bio1", "ln_k_bio1", "ln_kcal_bio1", "ln_protein_bio1",
-                      "c_ln_na_true", "c_ln_k_true", "c_ln_kcal_true", "c_ln_protein_true",
+                      "c_ln_na_bio1", "c_ln_k_bio1", "c_ln_kcal_bio1", "c_ln_protein_bio1",
                       "sex", "bkg", "age", "bmi")
   pop[, (vars_to_delete) := NULL]
   data <- pop
@@ -182,11 +182,11 @@ generateData <- function(digit, seed){
 if(!dir.exists('./data')){dir.create("./data")}
 if(!dir.exists('./data/True')){dir.create("./data/True")}
 replicate <- 500
-if (file.exists("./data/data_generation_seed.RData")){
-  load("./data/data_generation_seed.RData")
+if (file.exists("./data/params/data_generation_seed.RData")){
+  load("./data/params/data_generation_seed.RData")
 }else{
   seed <- sample(1:100000, 500)
-  save(seed, file = "./data/data_generation_seed.RData")
+  save(seed, file = "./data/params/data_generation_seed.RData")
 }
 
 for (i in 1:replicate){

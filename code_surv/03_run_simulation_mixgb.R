@@ -2,14 +2,14 @@ lapply(c("mixgb", "dplyr", "stringr"), require, character.only = T)
 #lapply(paste0("./comparisons/mixgb/", list.files("./comparisons/mixgb/")), source)
 source("00_utils_functions.R")
 
-if(!dir.exists('./simulations')){dir.create('./simulations')}
-if(!dir.exists('./simulations/SRS')){dir.create('./simulations/SRS')}
-if(!dir.exists('./simulations/Balance')){dir.create('./simulations/Balance')}
-if(!dir.exists('./simulations/Neyman')){dir.create('./simulations/Neyman')}
+if(!dir.exists('./simulations/SampleOE')){dir.create('./simulations/SampleOE')}
+if(!dir.exists('./simulations/SampleOE/SRS')){dir.create('./simulations/SampleOE/SRS')}
+if(!dir.exists('./simulations/SampleOE/Balance')){dir.create('./simulations/SampleOE/Balance')}
+if(!dir.exists('./simulations/SampleOE/Neyman')){dir.create('./simulations/SampleOE/Neyman')}
 
-if(!dir.exists('./simulations/SRS/mixgb')){dir.create('./simulations/SRS/mixgb')}
-if(!dir.exists('./simulations/Balance/mixgb')){dir.create('./simulations/Balance/mixgb')}
-if(!dir.exists('./simulations/Neyman/mixgb')){dir.create('./simulations/Neyman/mixgb')}
+if(!dir.exists('./simulations/SampleOE/SRS/mixgb')){dir.create('./simulations/SampleOE/SRS/mixgb')}
+if(!dir.exists('./simulations/SampleOE/Balance/mixgb')){dir.create('./simulations/SampleOE/Balance/mixgb')}
+if(!dir.exists('./simulations/SampleOE/Neyman/mixgb')){dir.create('./simulations/SampleOE/Neyman/mixgb')}
 
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -51,16 +51,16 @@ do_mixgb <- function(samp, params, nm, digit) {
   cat("Variance: \n")
   cat(apply(bind_rows(lapply(cox.fit$analyses, function(i){exp(coef(i))})), 2, var), "\n")
   
-  save(mixgb_imp, tm, cv_results, file = file.path("simulations", nm, "mixgb",
+  save(mixgb_imp, tm, cv_results, file = file.path("simulations/SampleOE", nm, "mixgb",
                                                                 paste0(digit, ".RData")))
 }
 for (i in 1:500){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   load(paste0("./data/Complete/", digit, ".RData"))
-  samp_srs <- read.csv(paste0("./data/Sample/SRS/", digit, ".csv"))
-  samp_balance <- read.csv(paste0("./data/Sample/Balance/", digit, ".csv"))
-  samp_neyman <- read.csv(paste0("./data/Sample/Neyman/", digit, ".csv"))
+  samp_srs <- read.csv(paste0("./data/SampleOE/SRS/", digit, ".csv"))
+  samp_balance <- read.csv(paste0("./data/SampleOE/Balance/", digit, ".csv"))
+  samp_neyman <- read.csv(paste0("./data/SampleOE/Neyman/", digit, ".csv"))
   
   samp_srs <- match_types(samp_srs, data) %>% 
     mutate(across(all_of(data_info_srs$cat_vars), as.factor, .names = "{.col}"),
@@ -72,13 +72,13 @@ for (i in 1:500){
     mutate(across(all_of(data_info_neyman$cat_vars), as.factor, .names = "{.col}"),
            across(all_of(data_info_neyman$num_vars), as.numeric, .names = "{.col}"))
   
-  if (!file.exists(paste0("./simulations/SRS/mixgb/", digit, ".RData"))){
+  if (!file.exists(paste0("./simulations/SampleOE/SRS/mixgb/", digit, ".RData"))){
     do_mixgb(samp_srs, params_srs, "SRS", digit)
   }
-  if (!file.exists(paste0("./simulations/Balance/mixgb/", digit, ".RData"))){
+  if (!file.exists(paste0("./simulations/SampleOE/Balance/mixgb/", digit, ".RData"))){
     do_mixgb(samp_balance, params_balance, "Balance", digit)
   }
-  if (!file.exists(paste0("./simulations/Neyman/mixgb/", digit, ".RData"))){
+  if (!file.exists(paste0("./simulations/SampleOE/Neyman/mixgb/", digit, ".RData"))){
     do_mixgb(samp_neyman, params_neyman, "Neyman", digit)
   }
 }

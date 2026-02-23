@@ -5,7 +5,7 @@ import math
 
 
 class SWAG(nn.Module):
-    def __init__(self, base_model, max_num_models=20, var_clamp=1e-30):
+    def __init__(self, base_model, max_num_models=100, var_clamp=1e-30):
         """
         Stochastic Weight Averaging-Gaussian (SWAG) implementation.
         Captures the geometry of the posterior distribution using a Gaussian approximation.

@@ -2,381 +2,308 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from typing import Union, Callable, List
-
-# --- TabDDPM / RTDL Helpers ---
-
+from typing import Union, Callable
+from torch_frame import stype
+from torch_frame.nn.encoder import LinearEncoder, EmbeddingEncoder
+from bayesian_transformer import BayesianTransformerBlock
 ModuleType = Union[str, Callable[..., nn.Module]]
 
-
-class ReGLU(nn.Module):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        assert x.shape[-1] % 2 == 0
-        a, b = x.chunk(2, dim=-1)
-        return a * F.relu(b)
-
-
-def _make_nn_module(module_type: ModuleType, *args) -> nn.Module:
-    if module_type == 'ReGLU':
-        return ReGLU()
-    if isinstance(module_type, str):
-        return getattr(nn, module_type)(*args)
-    return module_type(*args)
-
-
-def timestep_embedding(timesteps, dim, max_period=10000):
-    half = dim // 2
-    freqs = torch.exp(
-        -math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half
-    ).to(device=timesteps.device)
-    args = timesteps[:, None].float() * freqs[None]
-    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
-    if dim % 2:
-        embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
-    return embedding
-
-
-# --- Core ResNet Components ---
-
-class ResNetBlock(nn.Module):
-    def __init__(self, d_main, d_hidden, dropout_first, dropout_second, d_emb):
+class FeatureTokenizer(nn.Module):
+    def __init__(self, config, dim_info):
         super().__init__()
-        self.normalization = nn.BatchNorm1d(d_main)
-        self.linear_first = nn.Linear(d_main, d_hidden)
-        self.activation = ReGLU()
-        self.dropout_first = nn.Dropout(dropout_first)
-        self.linear_second = nn.Linear(d_hidden // 2, d_main)  # //2 because ReGLU halves the dim
-        self.dropout_second = nn.Dropout(dropout_second)
+        self.d_model = config["model"]["channels"]
+        stats = dim_info['pt_frame_stats']
 
-        # Time/Label Embedding Projection
-        self.emb_proj = nn.Linear(d_emb, d_main)
-
-    def forward(self, x, emb):
-        x_input = x
-        x = self.normalization(x)
-
-        # Inject embedding at the start of each block (standard TabDDPM style)
-        x = x + self.emb_proj(emb)
-
-        x = self.linear_first(x)
-        x = self.activation(x)
-        x = self.dropout_first(x)
-        x = self.linear_second(x)
-        x = self.dropout_second(x)
-        return x_input + x
-
-
-# --- Adapted Backbone ---
-
-class MlpBackbone(nn.Module):
-    def __init__(self, config, device, variable_schema):
-        super().__init__()
-        self.device = device
-        self.task = config["else"]["task"]
-        self.num_steps = config["diffusion"]["num_steps"]
-
-        # Config parameters
-        self.d_main = config["model"]["channels"]
-        self.d_hidden = self.d_main * 2  # Standard for ReGLU/ResNet blocks
-        self.n_blocks = config["model"]["layers"]
-        self.dropout = config["model"]["dropout"]
-        self.d_emb = config["diffusion"].get("diffusion_embedding_dim", 128)
-
-        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
-        self.p1_schema = [v for v in variable_schema if 'p1' in v['type']]
-        self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
-        self.num_vars = [v['name'] for v in self.target_schema if 'numeric' in v['type']]
-
-        # 1. Calculate input dimension for flattened vector
-        self.input_dim = 0
-        self.out_dim_map = {}
-        for var in self.target_schema:
-            dim = var['num_classes'] if 'categorical' in var['type'] else 1
-            self.input_dim += dim
-            self.out_dim_map[var['name']] = dim
-        for var in self.p1_schema:
-            dim = var['num_classes'] if 'categorical' in var['type'] else 1
-            self.input_dim += dim
-            self.out_dim_map[var['name']] = dim
-        for var in self.aux_schema:
-            self.input_dim += (var['num_classes'] if 'categorical' in var['type'] else 1)
-
-        # 2. Network Layers
-        self.time_embed = nn.Sequential(
-            nn.Linear(self.d_emb, self.d_emb),
-            nn.SiLU(),
-            nn.Linear(self.d_emb, self.d_emb)
+        self.num_x_encoder = LinearEncoder(
+            out_channels=self.d_model,
+            stats_list=stats['x_num'],
+            stype=stype.numerical,
+            post_module=None
         )
-
-        self.first_layer = nn.Linear(self.input_dim, self.d_main)
-
-        self.blocks = nn.ModuleList([
-            ResNetBlock(self.d_main, self.d_hidden, self.dropout, self.dropout, self.d_emb)
-            for _ in range(self.n_blocks)
-        ])
-
-        self.final_norm = nn.BatchNorm1d(self.d_main)
-
-        # 3. Prediction Heads
-        self.cat_heads = nn.ModuleDict()
-        for var in self.target_schema:
-            if 'categorical' in var['type']:
-                name = var['name']
-                self.cat_heads[name] = nn.Linear(self.d_main, self.out_dim_map[name])
-
-        n_num = len(self.num_vars)
-        if n_num > 0:
-            if self.task == "Res-N":
-                self.numeric_res_head = nn.Linear(self.d_main, n_num)
-                self.numeric_eps_head = nn.Linear(self.d_main, n_num)
-            else:
-                self.numeric_head = nn.Linear(self.d_main, n_num)
-
-    def forward(self, x_t_dict, t, p1_dict, aux_dict):
-        # A. Flatten Inputs
-        flat_list = []
-        for var in self.target_schema:
-            flat_list.append(x_t_dict[var['name']])
-            flat_list.append(p1_dict[var['name']])
-        for var in self.aux_schema:
-            flat_list.append(aux_dict[var['name']])
-
-        x = torch.cat(flat_list, dim=1)
-
-        # B. Embed Time
-        emb = self.time_embed(timestep_embedding(t, self.d_emb))
-
-        # C. ResNet Backbone
-        x = self.first_layer(x)
-        for block in self.blocks:
-            x = block(x, emb)
-
-        x = F.relu(self.final_norm(x))
-
-        # D. Decode Heads
-        output_dict = {}
-        for name in self.cat_heads:
-            output_dict[name] = self.cat_heads[name](x)
-
-        if len(self.num_vars) > 0:
-            if self.task == "Res-N":
-                all_res, all_eps = self.numeric_res_head(x), self.numeric_eps_head(x)
-                for i, name in enumerate(self.num_vars):
-                    output_dict[name] = torch.cat([all_res[:, i:i + 1], all_eps[:, i:i + 1]], dim=1)
-            else:
-                all_pred = self.numeric_head(x)
-                for i, name in enumerate(self.num_vars):
-                    output_dict[name] = all_pred[:, i:i + 1]
-
-        return output_dict
-
-
-def get_torch_trans(heads=8, layers=1, channels=64, dropout_rate=0):
-    """
-    Creates a Transformer Encoder stack.
-    """
-    encoder_layer = nn.TransformerEncoderLayer(
-        d_model=channels, nhead=heads, dim_feedforward=64, activation="gelu", dropout=dropout_rate
-    )
-    return nn.TransformerEncoder(encoder_layer, num_layers=layers)
-
-
-def Conv1d_with_init(in_channels, out_channels, kernel_size):
-    """
-    1D Convolution with Kaiming initialization.
-    """
-    layer = nn.Conv1d(in_channels, out_channels, kernel_size)
-    nn.init.kaiming_normal_(layer.weight)
-    return layer
-
-
-class AttnDiffusionEmbedding(nn.Module):
-    def __init__(self, num_steps, embedding_dim=128, dropout_rate=0):
-        super().__init__()
-        # Precompute sinusoidal positional embeddings for time steps
-        self.register_buffer("embedding", self._build_embedding(num_steps, embedding_dim // 2), persistent=False)
-        self.projection1 = nn.Linear(embedding_dim, embedding_dim)
-        self.projection2 = nn.Linear(embedding_dim, embedding_dim)
-        self.dropout = nn.Dropout(dropout_rate)
-
-    def forward(self, diffusion_step):
-        # Retrieve and project time embeddings
-        x = self.embedding[diffusion_step]
-        return F.silu(self.projection2(self.dropout(F.silu(self.projection1(self.dropout(x))))))
-
-    def _build_embedding(self, num_steps, dim=64):
-        steps = torch.arange(num_steps).unsqueeze(1)
-        frequencies = 10.0 ** (torch.arange(dim) / (dim - 1) * 4.0).unsqueeze(0)
-        table = steps * frequencies
-        table = torch.cat([torch.sin(table), torch.cos(table)], dim=1)
-        return table
-
-
-class FeatureEmbedder(nn.Module):
-    def __init__(self, schema, channels, dropout_rate=0):
-        super().__init__()
-        self.schema = schema
-        self.channels = channels
-        self.var_names = [v['name'] for v in schema]
-        self.projectors = nn.ModuleDict()
-
-        # Create projectors for each variable based on its dimension/classes
-        for var in schema:
-            name = var['name']
-            dim = var['num_classes'] if 'categorical' in var['type'] else 1
-
-            self.projectors[name] = nn.Sequential(
-                nn.Linear(dim, channels),
-                nn.SiLU(),
-                nn.Dropout(dropout_rate),
-                nn.Linear(channels, channels)
+        self.has_cond_num = len(stats['cond_num']) > 0
+        if self.has_cond_num:
+            self.num_cond_encoder = LinearEncoder(
+                out_channels=self.d_model,
+                stats_list=stats['cond_num'],
+                stype=stype.numerical,
+                post_module=None
             )
 
-        # Learnable embeddings added to projected features (acts as variable ID)
-        self.feature_embeddings = nn.Parameter(torch.randn(len(schema), channels))
-        self.dropout = nn.Dropout(dropout_rate)
+        self.cat_x_encoder = EmbeddingEncoder(
+            out_channels=self.d_model,
+            stats_list=stats['x_cat'],
+            stype=stype.categorical,
+            post_module=None
+        )
 
-    def forward(self, input_dict):
-        embeddings = []
-        for i, name in enumerate(self.var_names):
-            val = input_dict[name]
-            token = self.projectors[name](self.dropout(val))
-            token = token + self.feature_embeddings[i].unsqueeze(0)
-            embeddings.append(token)
-        # Stack into sequence (Batch, Sequence, Channels) then permute for Conv1d (B, C, S)
-        sequence = torch.stack(embeddings, dim=1)
-        return sequence.permute(0, 2, 1)
+        self.has_cond_cat = len(stats['cond_cat']) > 0
+        if self.has_cond_cat:
+            self.cat_cond_encoder = EmbeddingEncoder(
+                out_channels=self.d_model,
+                stats_list=stats['cond_cat'],
+                stype=stype.categorical,
+                post_module=None
+            )
 
+        self.x_num_count = len(stats['x_num'])
+        self.cond_num_count = len(stats['cond_num'])
+        self.x_cat_sizes = dim_info['x_cat_sizes']
+        self.cond_cat_sizes = dim_info['cond_cat_sizes']
 
-class ResidualBlock(nn.Module):
-    def __init__(self, channels, diffusion_embedding_dim, nheads, dropout_rate=0):
+    def forward(self, x_curr, cond):
+        x_list = []
+        if self.x_num_count > 0:
+            x_list.append(self.num_x_encoder(x_curr[:, :self.x_num_count]))
+        if self.x_cat_sizes:
+            x_indices = self._recover_indices(x_curr[:, self.x_num_count:], self.x_cat_sizes)
+            x_list.append(self.cat_x_encoder(x_indices))
+        x_tokens = torch.cat(x_list, dim=1) if x_list else None
+
+        # --- Process Cond (Control) ---
+        c_list = []
+        if self.cond_num_count > 0:
+            c_list.append(self.num_cond_encoder(cond[:, :self.cond_num_count]))
+        if self.cond_cat_sizes:
+            c_indices = self._recover_indices(cond[:, self.cond_num_count:], self.cond_cat_sizes)
+            c_list.append(self.cat_cond_encoder(c_indices))
+        cond_tokens = torch.cat(c_list, dim=1) if c_list else None
+
+        return x_tokens, cond_tokens
+
+    def _recover_indices(self, flat_one_hot, sizes):
+        if not sizes:
+            return None
+        indices_list = []
+        curr = 0
+        for k in sizes:
+            chunk = flat_one_hot[:, curr: curr + k]
+            indices_list.append(chunk.argmax(dim=1).unsqueeze(1))
+            curr += k
+        return torch.cat(indices_list, dim=1)
+
+"""
+
+Adapted from https://github.com/ermongroup/CSDI/blob/main/diff_models.py
+
+"""
+class GatedResidualBlock(nn.Module):
+    def __init__(self, channels, diffusion_emb_dim, nhead, dropout, is_bayesian=False):
         super().__init__()
-        self.diffusion_projection = nn.Linear(diffusion_embedding_dim, channels)
-        self.self_attn = get_torch_trans(heads=nheads, layers=1, channels=channels, dropout_rate=dropout_rate)
-        self.cross_attn = nn.MultiheadAttention(embed_dim=channels, num_heads=nheads, dropout=dropout_rate)
-        self.norm_cross = nn.LayerNorm(channels)
-        self.mid_projection = Conv1d_with_init(channels, 2 * channels, 1)
-        self.output_projection = Conv1d_with_init(channels, 2 * channels, 1)
-        self.dropout = nn.Dropout(dropout_rate)
+        self.channels = channels
+        self.diffusion_projection = nn.Linear(diffusion_emb_dim, channels)
+        if is_bayesian:
+            self.feature_layer = BayesianTransformerBlock(
+                d_model=channels, nhead=nhead, d_ff=channels * 2, dropout=dropout
+            )
+        else:
+            self.feature_layer = nn.TransformerEncoderLayer(
+                d_model=channels, nhead=nhead, dim_feedforward=channels * 2,
+                dropout=dropout, activation="gelu", batch_first=True, norm_first=True
+            )
+        self.mid_projection = nn.Linear(channels, 2 * channels)
+        self.cond_projection = nn.Linear(channels, 2 * channels)
+        self.output_projection = nn.Linear(channels, 2 * channels)
 
-    def forward(self, x, aux, diffusion_emb):
-        x_in = x
-        # Inject time embedding
-        time_emb = self.diffusion_projection(self.dropout(diffusion_emb)).unsqueeze(-1)
-        y = x + time_emb
-
-        # Self-Attention
-        y_seq = y.permute(2, 0, 1)  # (S, B, C) for Transformer
-        y_seq = self.self_attn(self.dropout(y_seq))
-
-        # Cross-Attention with auxiliary variables if present
-        if aux is not None:
-            context = aux.permute(2, 0, 1)
-            attn_out, _ = self.cross_attn(query=y_seq, key=context, value=context)
-            y_seq = self.norm_cross(y_seq + self.dropout(attn_out))
-
-        y = y_seq.permute(1, 2, 0)
-
-        # Gated Convolution
-        y = self.mid_projection(self.dropout(y))
-        gate, filter = torch.chunk(y, 2, dim=1)
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+    def forward(self, x, cond_emb, diffusion_emb):
+        B, K, C = x.shape
+        residual_base = x
+        diff_proj = self.diffusion_projection(diffusion_emb).unsqueeze(1)
+        y = x + diff_proj
+        y = self.feature_layer(y)
+        y = self.mid_projection(self.dropout1(y))
+        cond_proj = self.cond_projection(cond_emb)
+        y = y + cond_proj
+        gate, filter = torch.chunk(y, 2, dim=-1)
         y = torch.sigmoid(gate) * torch.tanh(filter)
-        y = self.output_projection(self.dropout(y))
-
-        # Residual connection
-        residual, skip = torch.chunk(y, 2, dim=1)
-        return (x_in + residual) / math.sqrt(2.0), skip
+        y = self.output_projection(self.dropout2(y))
+        residual, skip = torch.chunk(y, 2, dim=-1)
+        return (residual_base + residual) / math.sqrt(2.0), skip
 
 
 class AttnBackbone(nn.Module):
-    def __init__(self, config, device, variable_schema):
+    def __init__(self, config, device, dim_info):
         super().__init__()
         self.device = device
-        self.channels = config["model"]["channels"]
-        self.num_steps = config["diffusion"]["num_steps"]
-        self.nheads = config["model"]["nheads"]
-        self.layers = config["model"]["layers"]
+        self.config = config
+        self.task = config["diffusion"]["task"]
+        self.d_main = config["model"]["channels"]
+        self.d_emb = config["diffusion"]["diffusion_embedding_dim"]
+        self.num_layers = config["model"]["layers"]
+        self.nhead = config["model"]["nheads"]
         self.dropout_rate = config["model"]["dropout"]
-        self.task = config["else"]["task"]
 
-        self.target_schema = [v for v in variable_schema if 'p2' in v['type']]
-        self.aux_schema = [v for v in variable_schema if 'aux' in v['type']]
+        self.out_num_dim = dim_info['out_num_dim']
+        self.out_cat_dim = dim_info['out_cat_dim']
+        self.dropout_input = nn.Dropout(self.dropout_rate / 2)
+        self.tokenizer = FeatureTokenizer(config, dim_info)
+        self.time_embed = nn.Sequential(
+            nn.Linear(self.d_emb, self.d_main),
+            nn.SiLU(),
+            nn.Linear(self.d_main, self.d_main)
+        )
 
-        self.target_embedder = FeatureEmbedder(self.target_schema, self.channels, self.dropout_rate)
-
-        self.combined_context_schema = self.aux_schema + self.target_schema
-        self.aux_embedder = FeatureEmbedder(self.combined_context_schema, self.channels, self.dropout_rate)
-
-        self.dropout = nn.Dropout(self.dropout_rate)
-        self.diffusion_embedding = AttnDiffusionEmbedding(self.num_steps, self.channels, self.dropout_rate)
-
-        self.res_blocks = nn.ModuleList([
-            ResidualBlock(self.channels, self.channels, self.nheads, self.dropout_rate) for _ in range(self.layers)
+        self.layers = nn.ModuleList([
+            GatedResidualBlock(
+                channels=self.d_main,
+                diffusion_emb_dim=self.d_main,
+                nhead=self.nhead,
+                dropout=self.dropout_rate,
+                is_bayesian=self.config["sample"].get('mi_approx') == "DROPOUT"
+            )
+            for _ in range(self.num_layers)
         ])
+        self.dropout_last = nn.Dropout(self.dropout_rate)
+        if self.out_cat_dim > 0:
+            self.head_cat = nn.Linear(self.d_main, self.out_cat_dim)
 
-        # Prediction heads for each variable type
-        self.output_heads = nn.ModuleDict()
-        for var in self.target_schema:
-            name = var['name']
-            if 'categorical' in var['type']:
-                self.output_heads[name] = nn.Linear(self.channels, var['num_classes'])
+        if self.out_num_dim > 0:
+            if self.task == "Res-N":
+                self.head_num_res = nn.Linear(self.d_main, self.out_num_dim)
+                self.head_num_eps = nn.Linear(self.d_main, self.out_num_dim)
             else:
-                if self.task == "Res-N":
-                    self.output_heads[name] = nn.ModuleDict({
-                        'res': nn.Sequential(nn.Linear(self.channels, self.channels), nn.SiLU(),
-                                             nn.Dropout(self.dropout_rate), nn.Linear(self.channels, 1)),
-                        'eps': nn.Sequential(nn.Linear(self.channels, self.channels), nn.SiLU(),
-                                             nn.Dropout(self.dropout_rate), nn.Linear(self.channels, 1))
-                    })
-                else:
-                    self.output_heads[name] = nn.Sequential(
-                        nn.Linear(self.channels, self.channels), nn.SiLU(), nn.Dropout(self.dropout_rate),
-                        nn.Linear(self.channels, 1))
+                self.head_num = nn.Linear(self.d_main, self.out_num_dim)
 
-    def forward(self, x_t_dict, t, p1_dict, aux_dict):
-        x_t_emb = self.target_embedder(x_t_dict)
-        context_dict = {**aux_dict, **p1_dict}
-        aux_emb = self.aux_embedder(context_dict) if len(self.combined_context_schema) > 0 else None
-        dif_emb = self.diffusion_embedding(t)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.d_main))
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
 
-        sequence = x_t_emb
-        skip_accum = 0
-        for block in self.res_blocks:
-            sequence, skip = block(sequence, aux_emb, dif_emb)
-            skip_accum += skip
+    def forward(self, x_curr, cond, t):
+        t_emb_raw = timestep_embedding(t, self.d_emb).to(self.device)
+        t_emb = self.time_embed(t_emb_raw)  # [B, d_main]
+        x_tokens, cond_tokens = self.tokenizer(x_curr, cond)
+        cond_context = cond_tokens.mean(dim=1, keepdim=True)
+        cls_tokens = self.cls_token.expand(x_tokens.shape[0], -1, -1)
+        x = torch.cat([cls_tokens, x_tokens], dim=1)
+        if self.config["sample"].get('mi_approx') == "DROPOUT":
+            x = self.dropout_input(x)
+            cond_context = self.dropout_input(cond_context)
+        skips = []
+        for layer in self.layers:
+            x, skip_connection = layer(x, cond_context, t_emb)
+            skips.append(skip_connection)
 
-        target_features = (skip_accum / math.sqrt(self.layers)).permute(0, 2, 1)
-        output_dict = {}
-
-        # Decode features into variable predictions
-        for i, var in enumerate(self.target_schema):
-            name = var['name']
-            feature = target_features[:, i, :]
-            if 'categorical' in var['type']:
-                output_dict[name] = self.output_heads[name](self.dropout(feature))
+        x_final = torch.sum(torch.stack(skips), dim=0) / math.sqrt(len(self.layers))
+        x_latent = self.dropout_last(x_final[:, 0])
+        out_cat = self.head_cat(x_latent) if self.out_cat_dim > 0 else None
+        out_num = None
+        if self.out_num_dim > 0:
+            if self.task == "Res-N":
+                out_num = torch.cat([self.head_num_res(x_latent), self.head_num_eps(x_latent)], dim=1)
             else:
-                if self.task == "Res-N":
-                    res_pred = self.output_heads[name]['res'](self.dropout(feature))
-                    eps_pred = self.output_heads[name]['eps'](self.dropout(feature))
-                    output_dict[name] = torch.cat([res_pred, eps_pred], dim=1)
-                else:
-                    output_dict[name] = self.output_heads[name](self.dropout(feature))
-        return output_dict
+                out_num = self.head_num(x_latent)
+
+        return out_num, out_cat
+
+"""
+
+Adapted from https://github.com/Yura52/rtdl
+
+"""
+
+class ReGLU(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        a, b = x.chunk(2, dim=-1)
+        return a * F.relu(b)
+
+def timestep_embedding(timesteps, dim, max_period=10000):
+    half = dim // 2
+    freqs = torch.exp(-math.log(max_period) * torch.arange(start=0, end=half, dtype=torch.float32) / half).to(
+        timesteps.device)
+    args = timesteps[:, None].float() * freqs[None]
+    embedding = torch.cat([torch.cos(args), torch.sin(args)], dim=-1)
+    if dim % 2: embedding = torch.cat([embedding, torch.zeros_like(embedding[:, :1])], dim=-1)
+    return embedding
+
+class ResNetBlock(nn.Module):
+    def __init__(self, d_main, d_hidden, dropout, d_cond, d_emb):
+        super().__init__()
+        self.normalization = nn.BatchNorm1d(d_main)
+        self.linear1 = nn.Linear(d_main, d_hidden)
+        self.activation1 = ReGLU()
+        self.dropout1 = nn.Dropout(dropout)
+        self.linear2 = nn.Linear(d_hidden // 2, d_main)
+        self.dropout2 = nn.Dropout(dropout)
+        self.emb_proj = nn.Linear(d_emb, d_main)
+        self.cond_proj = nn.Linear(d_cond, d_hidden // 2)
+
+    def forward(self, x, cond, emb):
+        identity = x
+        x_in = self.normalization(x)
+        x_in = x_in + self.emb_proj(emb)
+        x_in = self.dropout1(self.activation1(self.linear1(x_in)))
+        x_in = x_in + self.cond_proj(cond)
+        x_in = self.dropout2(self.linear2(x_in))
+        return x_in + identity
+
+class MlpBackbone(nn.Module):
+    def __init__(self, config, device, dim_info):
+        super().__init__()
+        self.device = device
+        self.config = config
+        self.task = config["diffusion"]["task"]
+        self.d_main = config["model"]["channels"]
+        self.d_emb = config["diffusion"].get("diffusion_embedding_dim", 128)
+
+        self.input_dim = dim_info['input_dim']
+        self.cond_dim = dim_info['cond_dim']
+        self.out_num_dim = dim_info['out_num_dim']
+        self.out_cat_dim = dim_info['out_cat_dim']
+
+        self.dropout_input = nn.Dropout(config["model"]["dropout"] / 2)
+        self.dropout_cond = nn.Dropout(config["model"]["dropout"])
+        self.time_embed = nn.Sequential(nn.Linear(self.d_emb, self.d_emb),
+                                        nn.SiLU(),
+                                        nn.Linear(self.d_emb, self.d_emb))
+        self.first_layer = nn.Linear(self.input_dim, self.d_main)
+
+        self.blocks = nn.ModuleList([
+            ResNetBlock(self.d_main, self.d_main * 2,
+                        config["model"]["dropout"], self.cond_dim, self.d_emb)
+            for _ in range(config["model"]["layers"])
+        ])
+        self.final_norm = nn.BatchNorm1d(self.d_main)
+        self.dropout_last = nn.Dropout(config["model"]["dropout"])
+        if self.out_cat_dim > 0:
+            self.head_cat = nn.Linear(self.d_main, self.out_cat_dim)
+
+        if self.out_num_dim > 0:
+            if self.task == "Res-N":
+                self.head_num_res = nn.Linear(self.d_main, self.out_num_dim)
+                self.head_num_eps = nn.Linear(self.d_main, self.out_num_dim)
+            else:
+                self.head_num = nn.Linear(self.d_main, self.out_num_dim)
+
+    def forward(self, x_curr, cond, t):
+        emb = self.time_embed(timestep_embedding(t, self.d_emb))
+        if self.config["sample"]['mi_approx'] == "DROPOUT":
+            x_curr = self.dropout_input(x_curr)
+
+        x = self.first_layer(x_curr)
+        if self.config["sample"]['mi_approx'] == "DROPOUT":
+            x = self.dropout_input(x)
+        for block in self.blocks:
+            cond_in = self.dropout_cond(cond)
+            x = block(x, cond_in, emb)
+        x = self.final_norm(x)
+
+        out_cat = self.head_cat(x) if self.out_cat_dim > 0 else None
+        out_num = None
+        if self.out_num_dim > 0:
+            if self.task == "Res-N":
+                out_num = torch.cat([self.head_num_res(x), self.head_num_eps(x)], dim=1)
+            else:
+                out_num = self.head_num(x)
+        return out_num, out_cat
 
 
 class SIRD_NET(nn.Module):
-    def __init__(self, config, device, variable_schema):
+    def __init__(self, config, device, dim_info):
         super().__init__()
-        self.net_type = config["model"]["net"]
-
-        if self.net_type == "AttnNet":
-            print("[SIRD_NET] Initializing Attention-based Backbone")
-            self.model = AttnBackbone(config, device, variable_schema)
-        elif self.net_type == "ResNet":
-            print("[SIRD_NET] Initializing ResNet Backbone")
-            self.model = MlpBackbone(config, device, variable_schema)
+        if config['model']['net'] == "ResNet":
+            self.model = MlpBackbone(config, device, dim_info)
         else:
-            raise ValueError(f"Unknown architecture: {self.net_type}. Options: 'AttnNet', 'ResNet'")
+            self.model = AttnBackbone(config, device, dim_info)
 
-    def forward(self, x_t_dict, t, p1_dict, aux_dict):
-        return self.model(x_t_dict, t, p1_dict, aux_dict)
+    def forward(self, x_curr, cond, t):
+        return self.model(x_curr, cond, t)

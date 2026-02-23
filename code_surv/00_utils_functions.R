@@ -212,7 +212,7 @@ data_info_srs <- list(
   weight_var = "W",
   cat_vars = c("SEX", "RACE", "SMOKE", "EXER", "ALC", "INSURANCE", "REGION", 
                "URBAN", "INCOME", "MARRIAGE", "HYPERTENSION", "EVENT", "EVENT_STAR",
-               "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "HYPERTENSION_STAR",
+               "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR",
                "rs10811661", "rs17584499", "rs7754840", "rs7756992", "rs9465871", 
                "rs11708067", "rs17036101", "rs358806", "rs4402960", "rs4607103", 
                "rs1111875", "rs4506565", "rs5015480", "rs5219", "rs9300039",
@@ -231,8 +231,7 @@ data_info_srs <- list(
                "Glucose", "F_Glucose", "HbA1c", "Insulin", "Ferritin", "SBP", 
                "Temperature", "HR", "SpO2", "WEIGHT", "eGFR", "T_I", "C",
                "HbA1c_STAR", "Creatinine_STAR", "eGFR_STAR", "WEIGHT_STAR", 
-               "BMI_STAR", "EDU_STAR", "SBP_STAR", 
-               "Triglyceride_STAR", "C_STAR", "T_I_STAR",
+               "BMI_STAR", "EDU_STAR", "C_STAR", "T_I_STAR",
                "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR", 
                "Na_INTAKE_STAR", "K_INTAKE_STAR", "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR", "W"),
   
@@ -240,9 +239,9 @@ data_info_srs <- list(
                   "rs1111875", "rs4402960", "rs4607103", "rs7754840", "rs9300039", 
                   "rs5015480", "rs9465871", "rs4506565", "rs5219", "rs358806",
                   "HbA1c", "Creatinine", "eGFR", "WEIGHT", "BMI", 
-                  "SMOKE", "INCOME", "ALC", "EXER", "EDU", "SBP", "Triglyceride", 
+                  "SMOKE", "INCOME", "ALC", "EXER", "EDU", 
                   "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE", 
-                  "KCAL_INTAKE", "PROTEIN_INTAKE", "HYPERTENSION",
+                  "KCAL_INTAKE", "PROTEIN_INTAKE",
                   "C", "EVENT", "T_I"),
   
   phase1_vars = c("rs10811661_STAR", "rs7756992_STAR", "rs11708067_STAR", "rs17036101_STAR", 
@@ -250,9 +249,9 @@ data_info_srs <- list(
                   "rs7754840_STAR", "rs9300039_STAR", "rs5015480_STAR", "rs9465871_STAR", 
                   "rs4506565_STAR", "rs5219_STAR", "rs358806_STAR",
                   "HbA1c_STAR", "Creatinine_STAR", "eGFR_STAR", "WEIGHT_STAR", "BMI_STAR", 
-                  "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "EDU_STAR", "SBP_STAR", "Triglyceride_STAR", 
+                  "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "EDU_STAR", 
                   "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR", "Na_INTAKE_STAR", "K_INTAKE_STAR", 
-                  "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR", "HYPERTENSION_STAR",
+                  "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR",
                   "C_STAR", "EVENT_STAR", "T_I_STAR")
 )
 

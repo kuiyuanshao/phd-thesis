@@ -4,7 +4,7 @@ import sys
 import os
 import yaml
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../")))
-from sird.tuner import BivariateTuner
+from sicg.tuner import BivariateTuner
 
 data_info_srs = {
     "weight_var": "W",
@@ -65,35 +65,41 @@ data_info_srs = {
 
 tuning_grid = {
     "lr": ("cat", [1e-4, 3e-4, 5e-4, 1e-3, 3e-3, 5e-3, 1e-2]),
-    "channels": ("cat", [256, 512, 1024, 2048]),
-    "layers": ("int", 2, 7),
+    "hidden_dim": ("cat", [64, 128, 256, 512, 1024]),
+    "layers": ("int", 1, 4),
     "weight_decay": ("cat", [1e-6, 1e-5, 1e-4, 1e-3]),
-    "sum_scale": ("cat", [0.01, 0.05, 0.10, 0.15, 0.20, 0.25]),
     "dropout": ("cat", [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]),
-    "batch_size": ("cat", [32, 64, 128, 256]),
-    "loss_num": ("int", 1, 10),
-    "loss_cat": ("int", 1, 10),
-    "num_steps": ("cat", [10, 20, 30, 40, 50]),
-    "diffusion_embedding_dim": ("cat", [64, 128, 256]),
+    "batch_size": ("cat", [200, 300, 400, 500]),
+    "loss_ce": ("int", 1, 10),
+    "loss_hsic": ("cat", [100, 200, 300, 400, 500]),
+    "pack": ("int", 2, 10),
+
+    "scale_layer": ("int", 1, 2),
+    "scale_hidden_dim": ("int", 1, 2),
+    "scale_lr": ("int", 1, 3),
+    "tau": ("float", 0.2, 0.5),
+    "discriminator_steps": ("cat", [1, 3, 5]),
 }
-reg_config = {'channels': {'min': 256.0, 'max': 2048.0, 'higher_is_more_reg': False},
-              'layers': {'min': 2.0, 'max': 7.0, 'higher_is_more_reg': False},
-              'sum_scale': {'min': 0.01, 'max': 0.25, 'higher_is_more_reg': True},
+reg_config = {'hidden_dim': {'min': 64.0, 'max': 1024.0, 'higher_is_more_reg': False},
+              'layers': {'min': 1.0, 'max': 4.0, 'higher_is_more_reg': False},
+              'pack': {'min': 2, 'max': 10, 'higher_is_more_reg': True},
               'weight_decay': {'min': 1.0e-6, 'max': 1.0e-3, 'higher_is_more_reg': True},
               'dropout': {'min': 0.05, 'max': 0.5, 'higher_is_more_reg': True},
-              'batch_size': {'min': 32.0, 'max': 256.0, 'higher_is_more_reg': False},
-              'diffusion_embedding_dim': {'min': 64.0, 'max': 256.0, 'higher_is_more_reg': False}
+              'batch_size': {'min': 200.0, 'max': 500.0, 'higher_is_more_reg': False},
+              'scale_layer': {'min': 1.0, 'max': 2.0, 'higher_is_more_reg': False},
+              'scale_hidden_dim': {'min': 1.0, 'max': 2.0, 'higher_is_more_reg': False},
+              'scale_lr': {'min': 1.0, 'max': 3.0, 'higher_is_more_reg': False},
               }
 
-with open("./base_config_hsic_residual_pac.yaml", "r") as f:
+with open("base_config_hsic_residual_pac.yaml", "r") as f:
     base_config = yaml.safe_load(f)
 
 def main():
     print("[Task] Starting Tuning for SRS...")
-    file_path = "../../../data/Sample/SRS/0001.csv"
+    file_path = "../../../data/SampleOE/SRS/0001.csv"
     df = pd.read_csv(file_path).loc[:, lambda d: ~d.columns.str.contains('^Unnamed')]
-    tuner = BivariateTuner(df, base_config, tuning_grid, data_info_srs, reg_config, n_splits=5)
-    tuner.tune(n_trials=300, output_csv='base_tuning_results.csv')
+    tuner = BivariateTuner(df, base_config, tuning_grid, data_info_srs, reg_config, n_splits=1)
+    tuner.tune(n_trials=10, output_csv='hsic_residual_pac_tuning_results.csv')
 
 if __name__ == "__main__":
     main()

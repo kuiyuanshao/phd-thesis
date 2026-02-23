@@ -1,8 +1,9 @@
+torch
 numpy
 pandas
+scipy
 scikit-learn
-torch
 tqdm
-optuna
 pyyaml
-pyarrow
+torch-frame
+optuna

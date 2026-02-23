@@ -4,14 +4,13 @@ source("00_utils_functions.R")
 # loadfonts(device="win") 
 load("./simulations/results_COMBINED.RData")
 methods <- c("true", "me", "complete_case", "raking",
-             "mice", "mixgb", "sicg")
+             "mice", "mixgb", "sicg", "sird")
 vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "AGE",
               "eGFR", "BMI", "SEX TRUE", "INSURANCE TRUE",
-              "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3",
-              "AGE:HbA1c")
+              "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3")
 combined_resultCoeff_long <- combined_resultCoeff %>% 
   pivot_longer(
-    cols = 1:15,
+    cols = 1:14,
     names_to = "Covariate", 
     values_to = "Coefficient"
   ) %>%
@@ -19,9 +18,10 @@ combined_resultCoeff_long <- combined_resultCoeff %>%
          Method = factor(Method, levels = toupper(methods)),
          `Sampling Design` = factor(Design, levels = c("SRS", "BALANCE", "NEYMAN")),
          Covariate = factor(Covariate, levels = vars_vec))
+
 combined_resultStdError_long <- combined_resultStdError %>% 
   pivot_longer(
-    cols = 1:15,
+    cols = 1:14,
     names_to = "Covariate", 
     values_to = "StdError"
   ) %>%
@@ -68,7 +68,7 @@ diffCoeff <- combined_resultCoeff %>%
 
 rmse_result_long <- rmse_result %>% 
   pivot_longer(
-    cols = 3:17,
+    cols = 3:16,
     names_to = "Covariate", 
     values_to = "Coefficient"
   ) %>%
@@ -84,26 +84,26 @@ for (design in unique(combined_resultCI$Design)){
     ind <- which(combined_resultCI$Design == design & combined_resultCI$Method == method)
     curr_g <- NULL
     for (i in ind){
-      curr.lower <- combined_resultCI[i, 1:15]
-      curr.upper <- combined_resultCI[i, 16:32]
+      curr.lower <- combined_resultCI[i, 1:14]
+      curr.upper <- combined_resultCI[i, 15:31]
       curr_g <- rbind(curr_g, c(calcCICover(truth, curr.lower, curr.upper), design, method))
     }
     CIcoverage <- rbind(CIcoverage, curr_g)
   }
 }
 CIcoverage <- as.data.frame(CIcoverage)
-names(CIcoverage) <- c(names(combined_resultCoeff)[1:15],
+names(CIcoverage) <- c(names(combined_resultCoeff)[1:14],
                       "Design", "Method")
 
 CIcoverage <- CIcoverage %>%
   select(Method, Design, all_of(cols)) %>%
-  mutate(across(all_of(names(.)[3:17]), as.logical)) %>%
+  mutate(across(all_of(names(.)[3:16]), as.logical)) %>%
   group_by(Design, Method) %>%
   summarise(across(all_of(cols), ~ mean(.x)), .groups = "drop")
 
 CIcoverage_long <- CIcoverage %>%
   pivot_longer(
-    cols = 3:17,
+    cols = 3:16,
     names_to = "Covariate", 
     values_to = "Coverage"
   ) %>%
@@ -191,6 +191,9 @@ ggplot(combined_resultStdError_long) +
 
 ggsave("./simulations/Imputation_StdError_Boxplot.png", width = 30, height = 10, limitsize = F)
 
+
+
+### Fill for V and UnV, Lines for imputations, lty differences
 generateNumD <- function(data, imp_list, info){
   # 1. Variable Filtering
   info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
@@ -240,8 +243,8 @@ generateNumD <- function(data, imp_list, info){
       
       # Formatting
       xlim(val_range[1], val_range[2]) +
-      labs(x = "Value", y = "Density", title = v2_name) +
-      scale_colour_manual(name = "Dataset Type", values = color_map) +
+      labs(x = "", y = "", title = v2_name) +
+      scale_colour_manual(name = "Type", values = color_map) +
       theme_minimal() + 
       theme(
         text = element_text(family = "Times New Roman"),
@@ -277,7 +280,7 @@ ggsave("./simulations/RawDensity.png", width = 20, height = 20, limitsize = F)
 
 
 
-generateErrorD <- function(data, imp_list, info){
+generateErrorD <- function(data, imp, info){
   info$num_vars <- info$num_vars[!(info$num_vars %in% c("EDU", "EDU_STAR"))]
   phase2_target <- info$phase2_vars[info$phase2_vars %in% info$num_vars]
   phase1_target <- info$phase1_vars[info$phase1_vars %in% info$num_vars]

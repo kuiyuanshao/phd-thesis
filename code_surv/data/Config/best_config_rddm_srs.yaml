@@ -1,0 +1,42 @@
+processing:
+  normalization: 'z-score'
+  log: true
+  anchor: false
+  gmm:
+    max_components: 1
+    epsilon: 1.0e-06
+diffusion:
+  task: "Res-N"
+  discrete: "CE"
+  diffusion_embedding_dim: 128
+  num_steps: 50
+  sum_scale: 0.01 # must > 0, and cannot be too small
+sample:
+  m: 5
+  mi_approx: "DROPOUT" # "SWAG"
+  pmm: false
+  donors: 5
+  cfg_scale: 0
+model:
+  net: "ResNet"
+  channels: 256
+  dropout: 0.5
+  layers: 5
+  nheads: 8
+  loss_num: 1
+  loss_cat: 1
+  loss_hsic: 0
+train:
+  patience: 10000
+  valid_ratio: 0
+  cond_drop_prob: 0
+  batch_size: 256
+  epochs: 10000
+  eval_batch_size: 1024
+  Adam:
+    lr: 2.0e-4
+    weight_decay: 1.0e-06
+  SGD:
+    lr: 1.0e-2
+    momentum: 0.9
+    weight_decay: 1.0e-4

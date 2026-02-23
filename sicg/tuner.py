@@ -4,7 +4,7 @@ import numpy as np
 import copy
 from sklearn.model_selection import KFold, train_test_split
 from .metric import Regularization, Loss
-from .sird import SIRD
+from .sicg import SICG
 import gc
 import torch
 
@@ -30,44 +30,67 @@ class BivariateTuner:
             self.splits = [(self.train_idx, self.val_idx)]
         self.trial_history = []
 
+    def _deep_update(self, base_dict, update_dict):
+        """Recursively merges the update dictionary into the base configuration."""
+        for key, value in update_dict.items():
+            if isinstance(value, dict) and key in base_dict:
+                self._deep_update(base_dict[key], value)
+            else:
+                base_dict[key] = value
+
     def _get_trial_config(self, trial):
         config = copy.deepcopy(self.base_config)
         flat_params = {}
 
-        for param_name, params in self.param_grid.items():
-            param_type = params[0]
-            if param_type == "cat":
-                choices = params[1]
-                chosen_value = trial.suggest_categorical(param_name, choices)
-            elif param_type == "int":
-                low, high = params[1], params[2]
-                chosen_value = trial.suggest_int(param_name, low, high)
-            elif param_type == "float":
-                low, high = params[1], params[2]
-                chosen_value = trial.suggest_float(param_name, low, high)
-            elif param_type == "log_float":
-                low, high = params[1], params[2]
-                chosen_value = trial.suggest_float(param_name, low, high, log=True)
-            else:
-                raise ValueError(f"Unknown parameter type: {param_type} for {param_name}")
+        # 1. Purely sample your grid. flat_params remains pristine.
+        for key, params in self.param_grid.items():
+            p_type = params[0]
+            if p_type == "cat":
+                flat_params[key] = trial.suggest_categorical(key, params[1])
+            elif p_type == "int":
+                flat_params[key] = trial.suggest_int(key, params[1], params[2])
+            elif p_type == "float":
+                flat_params[key] = trial.suggest_float(key, params[1], params[2])
+            elif p_type == "log_float":
+                flat_params[key] = trial.suggest_float(key, params[1], params[2], log=True)
 
-            flat_params[param_name] = chosen_value
-
-            found = self._update(config, param_name, chosen_value)
-            if not found:
-                print(f"[Warning] Parameter '{param_name}' not found in base_config. It was skipped.")
+        p = flat_params
+        p["batch_size"] -= p["batch_size"] % p["pack"]
+        # 2. Elegantly build the structured updates mimicking your YAML
+        yaml_updates = {
+            "model": {
+                "generator": {
+                    "hidden_dim": p["hidden_dim"] * p["scale_hidden_dim"],
+                    "layers": p["layers"] * p["scale_layer"],
+                    "dropout": p["dropout"]
+                },
+                "discriminator": {
+                    "hidden_dim": p["hidden_dim"],
+                    "layers": p["layers"],
+                    "pack": p["pack"]
+                }
+            },
+            "train": {
+                "batch_size": p["batch_size"],
+                "Adam": {
+                    "lr_d": p["lr"],
+                    "lr_g": p["lr"] / p["scale_lr"],
+                    "weight_decay": p["weight_decay"]
+                },
+                "SGD": {  # Included so both optimizers in your YAML stay aligned
+                    "lr_d": p["lr"],
+                    "lr_g": p["lr"] / p["scale_lr"],
+                    "weight_decay": p["weight_decay"]
+                },
+                "loss": {
+                    "loss_ce": p["loss_ce"],
+                    "loss_hsic": p["loss_hsic"]
+                }
+            }
+        }
+        self._deep_update(config, yaml_updates)
 
         return config, flat_params
-
-    def _update(self, d, target_key, target_val):
-        for k, v in d.items():
-            if k == target_key:
-                d[k] = target_val
-                return True
-            elif isinstance(v, dict):
-                if self._update(v, target_key, target_val):
-                    return True
-        return False
 
     def objective(self, trial):
         trial_config, flat_params = self._get_trial_config(trial)
@@ -82,7 +105,7 @@ class BivariateTuner:
             masked_data = self.data.copy()
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
-            model = SIRD(trial_config, self.data_info)
+            model = SICG(trial_config, self.data_info)
             model.fit(provided_data=masked_data)
             imputed_data = model.impute()
 

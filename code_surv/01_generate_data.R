@@ -100,12 +100,12 @@ generateData <- function(n, seed){
                                                                        prob = GENO_M[true_val, ])})
   }
   # T_I: Time Interval between Treatment Initiation SGLT2 and T2D Diagnosis (Months)
-  mm_T_I <- model.matrix(~ I((HbA1c - 50) / 5)  + 
-                                rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) + 
-                                SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE + 
-                           I((HbA1c - 50) / 5):I((AGE - 50) / 5), data = data)
-  betas_T_I <- log(c(1, 1.25, 1.02, 1.04, 1.05, 0.9,
-                     1.1, 1.2, 0.90, 0.90, 1, 0.9, 1.1, 0.85, 0.9, 0.85))
+  mm_T_I <- model.matrix(~ I(HbA1c - 50) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) + 
+                           I((SBP - 140) / 10) + I(Insulin - 15) + I(BMI - 28) + SEX + INSURANCE + RACE + 
+                           SMOKE + I((SBP - 140) / 10):I(Insulin - 15), data = data)
+  betas_T_I <- log(c(0.5, 1.25, 1.075, 1.15, 1.1, 0.9,
+                     1.1, 1.1, 1.1, 0.85, 0.9, 0.90, 1, 0.9, 0.8,
+                     0.85, 0.9, 1.05))
   eta_I <- as.vector(mm_T_I %*% betas_T_I)
   k <- 2
   lambda <- log(2) / (25 ^ k)
@@ -129,33 +129,26 @@ generateData <- function(n, seed){
 
 add_measurement_errors <- function(data) {
   n <- nrow(data)
-  # Linear Measurement Error Model: W = a0 + a1*X + a2*Z1 + ... + e
-  apply_linear_error <- function(true_vec, slope = 1.0, intercept = 0.0, 
-                                 z_list = NULL, z_coeffs = NULL, noise_sd = 0.1,
-                                 min_val = 0.1) {
-    
-    mu_orig <- mean(true_vec, na.rm = TRUE)
-    sd_orig <- sd(true_vec, na.rm = TRUE)
-    val <- as.vector(scale(true_vec)) + intercept
-    if (!is.null(z_list) && !is.null(z_coeffs)) {
-      for (i in 1:length(z_list)) {
-        vec_raw <- as.vector(as.numeric(z_list[[i]]))
-        is_cat <- length(unique(vec_raw)) <= 20
-        if (is_cat) {
-          cov_z <- vec_raw
-        } else {
-          cov_z <- as.vector(scale(vec_raw))
-        }
-        val <- val + z_coeffs[i] * cov_z
+  # Linear Measurement Error Model: X^* = a0 + a1*X + a2*Z1 + ... + e
+  apply_forward_error <- function(x_true, slope = 1.0, intercept = 0.0, 
+                                  z_matrix_raw = NULL, z_coeffs = NULL, noise_var = 0.1) {
+    x_true_log <- log(x_true)
+    c_x_true_log <- x_true_log - mean(x_true_log, na.rm = TRUE)
+    covariate_effect <- rep(0, length(x_true))
+    z_processed <- z_matrix_raw
+    for (i in 1:ncol(z_processed)) {
+      if (length(unique(z_processed[, i])) > 3) {
+        z_processed[, i] <- z_processed[, i] - mean(z_processed[, i])
       }
     }
-    val <- (val + rnorm(length(true_vec), mean = 0, sd = noise_sd)) / slope
-    val <- (val * sd_orig) + mu_orig
-    k <- 2 
-    val_smooth <- min_val + log1p(exp(k * (val - min_val))) / k
-    val_final <- ifelse(val > min_val, val, val_smooth)
+    covariate_effect <- as.numeric(z_processed %*% z_coeffs)
     
-    return(val_final)
+    noise_sd <- sqrt(noise_var)
+    noise <- rnorm(length(x_true), mean = 0, sd = noise_sd)
+    x_star_log <- intercept + (slope * c_x_true_log) + covariate_effect + noise
+    x_star_raw <- exp(x_star_log)
+    
+    return(x_star_raw)
   }
   apply_cat_error <- function(true_vec, levels_vec, z_list = NULL, z_coeffs = NULL, base_accuracy = 0.80) {
     n_obs <- length(true_vec)
@@ -175,174 +168,174 @@ add_measurement_errors <- function(data) {
     }
     return(res)
   }
-  # HbA1c_STAR ~
-  data$HbA1c_STAR <- exp(apply_linear_error(
-    true_vec = log(data$HbA1c), 
-    slope = 1.2, 
-    intercept = -2, 
-    z_list = list(data$SEX, data$BMI, 
-                  data$EDU,
-                  as.numeric(data$INSURANCE == F), 
-                  data$MED_Count,
-                  as.numeric(data$RACE %in% c("SAS", "AMR"))),
-    z_coeffs = c(-0.2, -0.2, 0.15, 0.1, -0.2, -0.2), 
-    noise_sd = 0.5,
-    min_val = 3.8))
   
   # eGFR: Recalculated from a very noisy Creatinine
   data$Creatinine_STAR <- data$Creatinine + rnorm(n, 0, sd(data$Creatinine) * 0.2)
-  
   scr <- data$Creatinine_STAR / 88.4
   k <- ifelse(data$SEX, 0.9, 0.7); alpha <- ifelse(data$SEX, -0.411, -0.329)
   sex_f <- ifelse(data$SEX, 1.0, 1.018)
   data$eGFR_STAR <- 141 * (pmin(scr/k, 1)^alpha) * (pmax(scr/k, 1)^-1.209) * (0.993^data$AGE) * sex_f
   data$eGFR_STAR <- pmin(data$eGFR_STAR, 140)
   
-  data$WEIGHT_STAR <- exp(apply_linear_error(log(data$WEIGHT), 
-                                         slope = 1.1, 
-                                         intercept = -1,
-                                         z_list = list(data$BMI, 
-                                                       data$AGE,
-                                                       as.numeric(data$SEX == 1)),
-                                         z_coeffs = c(0.05, 0.05, 0.05), 
-                                         noise_sd = 0.35,
-                                         min_val = 3.8))
+  data$HbA1c_STAR <- apply_forward_error(
+    data$HbA1c, 
+    slope = 0.45, 
+    intercept = log(52),
+    z_matrix_raw = cbind(data$BMI, data$AGE, 
+                         as.numeric(data$INSURANCE == FALSE), 
+                         data$MED_Count, 
+                         as.numeric(data$RACE == "SAS"), 
+                         as.numeric(data$RACE == "AMR"),
+                         as.numeric(data$INCOME < 3)),
+    z_coeffs = c(0.015, 0.01, -0.01, 0.01, 0.015, 0.01, 0.01), 
+    noise_var = 0.005
+  )
+  
+  data$WEIGHT_STAR <- apply_forward_error(
+    data$WEIGHT, 
+    slope = 0.42, 
+    intercept = log(75),
+    z_matrix_raw = cbind(data$BMI, data$AGE, as.numeric(data$SEX == 1), data$HEIGHT, 
+                         as.numeric(data$EXER == 2), data$INCOME < 3),
+    z_coeffs = c(-0.015, -0.01, 0.07, 0.005, 0.005, -0.01), 
+    noise_var = 0.02
+  )
   
   data$BMI_STAR <- data$WEIGHT_STAR / (data$HEIGHT / 100)^2
   
-  data$Glucose_STAR <- exp(apply_linear_error(log(data$Glucose), 
-                                          slope = 1.1, 
-                                          intercept = 0, 
-                                          z_list = list(data$HbA1c, 
-                                                        data$BMI), 
-                                          z_coeffs = c(-0.1, -0.05), 
-                                          noise_sd = 0.5,
-                                          min_val = 1.5))
+  data$Glucose_STAR <- apply_forward_error(
+    data$Glucose, 
+    slope = 0.38, 
+    intercept = log(10),
+    z_matrix_raw = cbind(data$HbA1c, data$BMI, data$KCAL_INTAKE, data$Insulin),
+    z_coeffs = c(0.015, 0.01, 0.015, 0.015), 
+    noise_var = 0.04
+  )
   
-  data$F_Glucose_STAR <- exp(apply_linear_error(log(data$F_Glucose), 
-                                            slope = 1.05, 
-                                            intercept = 0, 
-                                            z_list = list(data$Insulin, 
-                                                          data$AGE), 
-                                            z_coeffs = c(-0.03, -0.01), 
-                                            noise_sd = 0.6,
-                                            min_val = 1.3))
+  data$F_Glucose_STAR <- apply_forward_error(
+    data$F_Glucose, 
+    slope = 0.39, 
+    intercept = log(8),
+    z_matrix_raw = cbind(data$Insulin, data$AGE, data$SBP, data$HbA1c, data$BMI, 
+                         as.numeric(data$SMOKE == 1)),
+    z_coeffs = c(0.005, 0.005, 0.015, 0.01, 0.005, 0.01), 
+    noise_var = 0.02
+  )
   
-  data$Insulin_STAR <- exp(apply_linear_error(log(data$Insulin), 
-                                          slope = 1.05, 
-                                          intercept = 0.05, 
-                                          z_list = list(data$BMI, 
-                                                        data$Glucose), 
-                                          z_coeffs = c(0.04, 0.05), 
-                                          noise_sd = 0.55,
-                                          min_val = 0.7))
+  data$Insulin_STAR <- apply_forward_error(
+    data$Insulin, 
+    slope = 0.41, 
+    intercept = log(12),
+    z_matrix_raw = cbind(data$BMI, data$Glucose, data$AGE),
+    z_coeffs = c(0.01, 0.015, -0.015), 
+    noise_var = 0.05
+  )
   
-  data$Na_INTAKE_STAR <- exp(apply_linear_error(log(data$Na_INTAKE), 
-                                            slope = 1.1, 
-                                            intercept = -1, 
-                                            z_list = list(data$BMI, 
-                                                          as.numeric(data$HYPERTENSION)), 
-                                            z_coeffs = c(0.05, 0.03), 
-                                            noise_sd = 0.5,
-                                            min_val = 0.7))
+  data$Na_INTAKE_STAR <- apply_forward_error(
+    data$Na_INTAKE, 
+    slope = 0.65, 
+    intercept = log(7.5),
+    z_matrix_raw = cbind(data$BMI, as.numeric(data$HYPERTENSION), data$KCAL_INTAKE, data$EDU, data$AGE, as.numeric(data$URBAN)),
+    z_coeffs = c(-0.005, -0.001, 0.005, -0.0015, -0.001, 0.0015), 
+    noise_var = 0.0005
+  )
   
-  data$K_INTAKE_STAR <- apply_linear_error(data$K_INTAKE, 
-                                           slope = 1.2, 
-                                           intercept = -1, 
-                                           z_list = list(data$EDU), 
-                                           z_coeffs = c(0.05), 
-                                           noise_sd = 0.55,
-                                           min_val = 6.9)
+  data$K_INTAKE_STAR <- apply_forward_error(
+    data$K_INTAKE, 
+    slope = 0.55, 
+    intercept = log(8.5),
+    z_matrix_raw = cbind(data$EDU, as.numeric(data$INCOME < 3), 
+                         data$KCAL_INTAKE, as.numeric(data$SEX == 0), data$AGE, as.numeric(data$URBAN)),
+    z_coeffs = c(0.001, 0.0015, 0.002, 0.001, 0.0015, 0.001), 
+    noise_var = 0.001
+  )
   
-  data$KCAL_INTAKE_STAR <- apply_linear_error(data$KCAL_INTAKE, 
-                                              slope = 1.3, 
-                                              intercept = -0.5, 
-                                              z_list = list(data$BMI, 
-                                                            as.numeric(data$SEX == 2),
-                                                            data$AGE), 
-                                              z_coeffs = c(0.02, 0.15, 0.005), 
-                                              noise_sd = 0.5,
-                                              min_val = 7.1)
+  data$KCAL_INTAKE_STAR <- apply_forward_error(
+    data$KCAL_INTAKE, 
+    slope = 0.65, 
+    intercept = log(8),
+    z_matrix_raw = cbind(data$BMI, as.numeric(data$SEX == 1), data$AGE, data$EDU, 
+                         as.numeric(data$INCOME == 1), as.numeric(data$SMOKE == 2)),
+    z_coeffs = c(-0.002, -0.0015, -0.0015, 0.0015, 0.0015, -0.001), 
+    noise_var = 0.0005
+  )
   
-  data$PROTEIN_INTAKE_STAR <- apply_linear_error(data$PROTEIN_INTAKE, 
-                                                 slope = 1.1, 
-                                                 intercept = -0.5, 
-                                                 z_list = list(data$BMI, 
-                                                               as.numeric(data$SEX == 2)), 
-                                                 z_coeffs = c(0.1, 0.1), 
-                                                 noise_sd = 0.4,
-                                                 min_val = 3.7)
+  data$PROTEIN_INTAKE_STAR <- apply_forward_error(
+    data$PROTEIN_INTAKE, 
+    slope = 0.6, 
+    intercept = log(4.5),
+    z_matrix_raw = cbind(data$BMI, as.numeric(data$SEX == 1), data$KCAL_INTAKE, data$AGE),
+    z_coeffs = c(0.0015, 0.001, 0.002, -0.001), 
+    noise_var = 0.0001
+  )
   
-  data$SBP_STAR <- apply_linear_error(data$SBP, 
-                                      slope = 1.1, 
-                                      intercept = 0, 
-                                      z_list = list(data$AGE, 
-                                                    data$BMI,
-                                                    as.numeric(data$HYPERTENSION)), 
-                                      z_coeffs = c(0.1, 0.2, 0.1), 
-                                      noise_sd = 0.85,
-                                      min_val = 90.0)
+  data$EDU_STAR <- apply_forward_error(
+    data$EDU, 
+    slope = 0.42, 
+    intercept = log(12),
+    z_matrix_raw = cbind(data$AGE, as.numeric(data$URBAN), as.numeric(data$INCOME < 3),
+                         data$INSURANCE, as.numeric(data$RACE == "SAS"), as.numeric(data$RACE == "EAS")),
+    z_coeffs = c(-0.025, 0.01, -0.01, 0.02, 0.01, 0.015), 
+    noise_var = 0.02
+  )
   
-  data$HYPERTENSION_STAR <- with(data, SBP_STAR >= 140)
+  data$EDU <- pmax(0, as.integer(data$EDU))
   
-  data$Triglyceride_STAR <- exp(log(data$Triglyceride) + rnorm(dim(data)[1], 0, 0.2))
-  
-  data$EDU_STAR <- apply_linear_error(data$EDU, 
-                                      slope = 1.2, 
-                                      intercept = 1, 
-                                      z_list = list(data$AGE, 
-                                                    as.numeric(data$URBAN),
-                                                    data$INCOME < 3), 
-                                      z_coeffs = c(-0.03, -0.1, 0.05), 
-                                      noise_sd = 0.7)
-  data$EDU_STAR <- pmax(0, as.integer(data$EDU_STAR))
-  # ============================================================================
-  # NECESSARY CATEGORICAL CONTROLS & AUXILIARY Z
-  # ============================================================================
-  data$SMOKE_STAR <- apply_cat_error(data$SMOKE, 
-                                     levels_vec = sort(unique(data$SMOKE)),
-                                     base_accuracy = 0.75, 
-                                     z_list = list(data$AGE - mean(data$AGE), 
-                                                   as.numeric(data$SEX == 1),
-                                                   data$EDU - mean(data$EDU)), 
-                                     z_coeffs = c(0.5, -0.5, -0.5))
-  data$INCOME_STAR <- apply_cat_error(data$INCOME, 
-                                      levels_vec = sort(unique(data$INCOME)), 
-                                      base_accuracy = 0.75, 
-                                      z_list = list(data$EDU - mean(data$EDU), 
-                                                    data$AGE - mean(data$AGE),
-                                                    as.numeric(data$MARRIAGE == 1)), 
-                                      z_coeffs = c(0.5, 0.2, -0.3))
-  data$ALC_STAR <- apply_cat_error(data$ALC, 
-                                   levels_vec = sort(unique(data$ALC)), 
-                                   base_accuracy = 0.80, 
-                                   z_list = list(as.numeric(data$SEX == 1), 
-                                                 data$AGE - mean(data$AGE),
-                                                 data$SMOKE == 1), 
-                                   z_coeffs = c(-0.5, 0.2, 0.3))
-  data$EXER_STAR <- apply_cat_error(data$EXER, 
-                                    levels_vec = sort(unique(data$EXER)), 
-                                    base_accuracy = 0.75, 
-                                    z_list = list(data$BMI - mean(data$BMI), 
-                                                  data$EDU - mean(data$EDU),
-                                                  data$AGE - mean(data$AGE)), 
-                                    z_coeffs = c(-0.4, 0.3, 0.2))
-  ######## Survival
-  C_STAR <- apply_linear_error(data$C, 
-                               slope = 1.1, 
-                               intercept = 0,
-                               z_list = list(data$URBAN, 
-                                             data$AGE,
-                                             as.numeric(data$SMOKE == 1),
-                                             data$BMI,
-                                             as.numeric(data$INSURANCE == 1)),
-                               z_coeffs = c(0.1, 0.05, 0.05, 0.02, 0.01), 
-                               noise_sd = 0.25,
-                               min_val = 0)
+  C_STAR <- apply_forward_error(data$C, 
+                                slope = 0.4, 
+                                intercept = log(14),
+                                z_matrix_raw = cbind(data$URBAN, 
+                                               data$AGE,
+                                               data$BMI,
+                                               as.numeric(data$INSURANCE == TRUE)),
+                                z_coeffs = c(0.015, 0.02, 0.02, 0.025), 
+                                noise_var = 0.35)
   C_STAR <- pmin(C_STAR, 24)
   data$C_STAR <- C_STAR
   data$T_I_STAR <- pmin(data$T_I, C_STAR)
   data$EVENT_STAR <- as.integer(data$T_I <= C_STAR)
+  
+  data$SMOKE_STAR <- apply_cat_error(data$SMOKE, 
+                                     levels_vec = sort(unique(data$SMOKE)),
+                                     base_accuracy = 0.70, 
+                                     z_list = list(data$EDU, 
+                                                   data$INCOME == 1,
+                                                   data$SpO2,
+                                                   data$ALC == 3),
+                                     z_coeffs = c(-0.2, -0.2, 0.1, 0.2))
+  
+  data$INCOME_STAR <- apply_cat_error(data$INCOME, 
+                                      levels_vec = sort(unique(data$INCOME)), 
+                                      base_accuracy = 0.70, 
+                                      z_list = list(data$EDU, 
+                                                    data$AGE,
+                                                    as.numeric(data$MARRIAGE == 1),
+                                                    as.numeric(data$URBAN),
+                                                    as.numeric(data$INSURANCE == TRUE),
+                                                    data$MED_Count),
+                                      z_coeffs = c(0.4, 0.2, -0.3, -0.2, 0.3, -0.1))
+  
+  data$ALC_STAR <- apply_cat_error(data$ALC, 
+                                   levels_vec = sort(unique(data$ALC)), 
+                                   base_accuracy = 0.65, 
+                                   z_list = list(as.numeric(data$SEX == 1), 
+                                                 data$AGE,
+                                                 data$SMOKE == 2,
+                                                 data$GGT,
+                                                 data$EDU,
+                                                 data$KCAL_INTAKE),
+                                   z_coeffs = c(0.5, -0.2, 0.4, -0.3, 0.2, 0.1))
+  
+  data$EXER_STAR <- apply_cat_error(data$EXER, 
+                                    levels_vec = sort(unique(data$EXER)), 
+                                    base_accuracy = 0.75, 
+                                    z_list = list(data$BMI, 
+                                                  data$EDU,
+                                                  data$AGE,
+                                                  data$HR,
+                                                  as.numeric(data$URBAN),
+                                                  data$SpO2),
+                                    z_coeffs = c(-0.5, 0.3, -0.2, -0.4, 0.2, 0.1))
   
   return(data)
 }
@@ -382,19 +375,19 @@ scaleVariables <- function(data){
   data$Ferritin    <- soft_fit(data$Ferritin, target_mean = 150, target_sd = 100, min = 10, max = 1000)
   
   # Note: Added biological Max for Glucose/Insulin to facilitate the smooth curve (S-shape)
-  data$F_Glucose   <- soft_fit(data$F_Glucose, target_mean = 9.5, target_sd = 2.5, min = 4.0, max = 40.0)
+  data$F_Glucose   <- soft_fit(data$F_Glucose, target_mean = 9.5, target_sd = 2.5, min = 5.0, max = 40.0)
   
   # First fit Glucose loosely
   data$Glucose     <- soft_fit(data$Glucose, target_mean = 11, target_sd = 3.5, min = 4.5, max = 50.0)
   # Then apply soft constraint: Glucose must be >= F_Glucose
   data$Glucose     <- soft_max_2var(data$Glucose, data$F_Glucose)
   
-  data$HbA1c       <- soft_fit(data$HbA1c, target_mean = 65, target_sd = 10, min = 48, max = 150) # Max 150 added
-  data$Insulin     <- soft_fit(data$Insulin, target_mean = 18, target_sd = 10, min = 2.0, max = 100.0) # Max 100 added
+  data$HbA1c       <- soft_fit(data$HbA1c, target_mean = 58, target_sd = 8, min = 44, max = 100) 
+  data$Insulin     <- soft_fit(data$Insulin, target_mean = 14, target_sd = 8, min = 5.0, max = 60) 
   
   # Kidney Function
   data$Creatinine  <- soft_fit(data$Creatinine, target_mean = 88.0, target_sd = 25.0, min = 45.0, max = 300.0)
-  data$Urea        <- soft_fit(data$Urea, target_mean = 7.0, target_sd = 3.0, min = 2.0, max = 50.0) # Max 50 added
+  data$Urea        <- soft_fit(data$Urea, target_mean = 7.0, target_sd = 3.0, min = 2.0, max = 50.0)
   
   # Electrolytes
   data$Potassium   <- soft_fit(data$Potassium, target_mean = 4.2, target_sd = 0.4, min = 3.0, max = 6.5)
@@ -465,7 +458,7 @@ loadGenotypeInfo <- function(){
              r2d = "r2",
              token = "979f246a6b57") 
   }
-  if (!file.exists("./data/genoFreq.RData")){
+  if (!file.exists("data/params/genoFreq.RData")){
     genoFreq <- vector("list", 150)
     m <- 1
     for (i in rsids$refsnp_id){
@@ -479,11 +472,11 @@ loadGenotypeInfo <- function(){
     }
     genoFreq <- bind_rows(genoFreq)
     genoFreq <- merge(genoFreq, rsids)
-    save(genoFreq, file = "./data/genoFreq.RData")
+    save(genoFreq, file = "data/params/genoFreq.RData")
   }else{
-    load("./data/genoFreq.RData")
+    load("data/params/genoFreq.RData")
   }
-  if (!file.exists("./data/genoCorr.RData")){
+  if (!file.exists("data/params/genoCorr.RData")){
     genoCorr <- list()
     for (i in unique_chrs){
       chr_list <- vector("list", 5)
@@ -496,11 +489,11 @@ loadGenotypeInfo <- function(){
         genoCorr[[as.character(i)]] <- bind_rows(chr_list) 
       }
     }
-    save(genoCorr, file = "./data/genoCorr.RData")
+    save(genoCorr, file = "data/params/genoCorr.RData")
   }else{
-    load("./data/genoCorr.RData")
+    load("data/params/genoCorr.RData")
   }
-  if (!file.exists("./data/genoTrait.RData")){
+  if (!file.exists("data/params/genoTrait.RData")){
     pat <- "^[+-]?[0-9]+(?:\\.[0-9]+)?-[+-]?[0-9]+(?:\\.[0-9]+)?"
     trait <- LDtrait(snps = rsids$refsnp_id,
                      pop = "ALL",
@@ -544,17 +537,17 @@ loadGenotypeInfo <- function(){
         mutate(PHENO = pheno_code)
     })
     genoTrait <- bind_rows(all_mats)
-    save(genoTrait, file = "./data/genoTrait.RData")
+    save(genoTrait, file = "data/params/genoTrait.RData")
   }else{
-    load("./data/genoTrait.RData")
+    load("data/params/genoTrait.RData")
   }
   return (list(rsids = rsids, genoFreq = genoFreq, genoCorr = genoCorr, genoTrait = genoTrait))
 }
 
 
 loadCovarInfo <- function(genoInfo){
-  if (!file.exists("./data/covarInfo.RData")){
-    load("./data/labtest_parameters.RData")
+  if (!file.exists("data/params/covarInfo.RData")){
+    load("data/params/labtest_parameters.RData")
     # HEIGHT ~ SEX + Genos
     formu_HEIGHT <- as.formula(paste0(" ~ SEX + ", paste0(genoInfo$genoTrait[genoInfo$genoTrait$PHENO == "HEIGHT", ]$Query, collapse = " + ")))
     betas_HEIGHT <- c(162, 13, transform_betas(genoInfo$genoTrait[genoInfo$genoTrait$PHENO == "HEIGHT", ]$Beta))
@@ -745,9 +738,9 @@ loadCovarInfo <- function(genoInfo){
                  VITALS = "MVNorm", RENAL = "MVNorm", LIPIDS = "MVNorm",
                  HEMA = "MVNorm", NUTRIENTS = "MVNorm", LIVER = "MVNorm",
                  DIABETE = "MVNorm", FERRITIN = "Norm")
-    save(formu, betas, sigma, type, file = "./data/covarInfo.RData")
+    save(formu, betas, sigma, type, file = "data/params/covarInfo.RData")
   }else{
-    load("./data/covarInfo.RData")
+    load("data/params/covarInfo.RData")
   }
   return (list(formu = formu, betas = betas, sigma = sigma, type = type))
 }
@@ -1130,7 +1123,7 @@ fetch_parameters <- function(){
                 Diabete = Diabete_Sigma,
                 Ferritin = Ferritin_Sigma,
                 BMI = BMI_Sigma)
-  save(Mod_list, Sigma, file = "./data/labtest_parameters.RData",
+  save(Mod_list, Sigma, file = "data/params/labtest_parameters.RData",
        compress = TRUE)
 }
 
@@ -1139,14 +1132,14 @@ if(!dir.exists('./data')){dir.create("./data")}
 if(!dir.exists('./data/True')){dir.create("./data/True")}
 replicate <- 500
 n <- 2e4
-if (file.exists("./data/data_generation_seed.RData")){
-  load("./data/data_generation_seed.RData")
+if (file.exists("data/params/data_generation_seed.RData")){
+  load("data/params/data_generation_seed.RData")
 }else{
   seed <- sample(1:100000, 500)
-  save(seed, file = "./data/data_generation_seed.RData")
+  save(seed, file = "data/params/data_generation_seed.RData")
 }
 
-for (i in 1:replicate){
+for (i in 1:1){
   digit <- stringr::str_pad(i, 4, pad = 0)
   cat("Current:", digit, "\n")
   data <- suppressMessages({generateData(n, seed[i])})
@@ -1154,17 +1147,13 @@ for (i in 1:replicate){
 }
 
 
-# fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-#                     I((HbA1c_STAR - 50) / 5) + I(I((HbA1c_STAR - 50) / 5)^2) +
-#                     I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
-#                     rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
-#                     SEX + INSURANCE + RACE + I(BMI_STAR / 5) + SMOKE_STAR,
-#                   data = data)
-# fit.TRUE <- coxph(Surv(T_I, EVENT) ~
-#                     I((HbA1c - 50) / 5) + I(I((HbA1c - 50) / 5)^2) +
-#                     I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-#                     rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-#                     SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-#                   data = data)
-# exp(coef(fit.TRUE)) - exp(coef(fit.STAR))
+fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
+                    I(HbA1c_STAR - 50) + rs4506565_STAR + I((AGE - 60) / 5) + I((eGFR_STAR - 75) / 10) + 
+                    I((SBP - 140) / 10) + I(Insulin_STAR - 15) + I(BMI_STAR - 28) + SEX + INSURANCE + RACE + 
+                    SMOKE_STAR + I((SBP - 140) / 10):I(Insulin_STAR - 15), data = data)
+fit.TRUE <- coxph(Surv(T_I, EVENT) ~
+                    I(HbA1c - 50) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) + 
+                    I((SBP - 140) / 10) + I(Insulin - 15) + I(BMI - 28) + SEX + INSURANCE + RACE + 
+                    SMOKE + I((SBP - 140) / 10):I(Insulin - 15), data = data)
+exp(coef(fit.TRUE)) - exp(coef(fit.STAR))
 

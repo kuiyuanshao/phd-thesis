@@ -167,7 +167,7 @@ def main():
             n_trials=30,
             n_folds=4
         )
-        tuner.tune(config_path="../../data/best_config_srs.yaml",
+        tuner.tune(config_path="../../data/best_config_rddm_srs.yaml",
                    results_path="tuning_results_srs.csv")
 
     elif args.task == "bal":
@@ -191,7 +191,7 @@ def main():
             n_trials=30,
             n_folds=4
         )
-        tuner.tune(config_path="../../data/best_config_bal.yaml",
+        tuner.tune(config_path="../../data/best_config_rddm_bal.yaml",
                    results_path="tuning_results_bal.csv")
 
     elif args.task == "ney":
@@ -215,7 +215,7 @@ def main():
             n_trials=30,
             n_folds=4
         )
-        tuner.tune(config_path="../../data/best_config_ney.yaml",
+        tuner.tune(config_path="../../data/best_config_rddm_ney.yaml",
                    results_path="tuning_results_ney.csv")
 
 

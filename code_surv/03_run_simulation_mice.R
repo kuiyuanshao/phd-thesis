@@ -1,14 +1,14 @@
 lapply(c("mice", "dplyr", "stringr"), require, character.only = T)
 source("00_utils_functions.R")
 
-if(!dir.exists('./simulations')){dir.create('./simulations')}
-if(!dir.exists('./simulations/SRS')){dir.create('./simulations/SRS')}
-if(!dir.exists('./simulations/Balance')){dir.create('./simulations/Balance')}
-if(!dir.exists('./simulations/Neyman')){dir.create('./simulations/Neyman')}
+if(!dir.exists('./simulations/SampleOE')){dir.create('./simulations/SampleOE')}
+if(!dir.exists('./simulations/SampleOE/SRS')){dir.create('./simulations/SampleOE/SRS')}
+if(!dir.exists('./simulations/SampleOE/Balance')){dir.create('./simulations/SampleOE/Balance')}
+if(!dir.exists('./simulations/SampleOE/Neyman')){dir.create('./simulations/SampleOE/Neyman')}
 
-if(!dir.exists('./simulations/SRS/mice')){dir.create('./simulations/SRS/mice')}
-if(!dir.exists('./simulations/Balance/mice')){dir.create('./simulations/Balance/mice')}
-if(!dir.exists('./simulations/Neyman/mice')){dir.create('./simulations/Neyman/mice')}
+if(!dir.exists('./simulations/SampleOE/SRS/mice')){dir.create('./simulations/SampleOE/SRS/mice')}
+if(!dir.exists('./simulations/SampleOE/Balance/mice')){dir.create('./simulations/SampleOE/Balance/mice')}
+if(!dir.exists('./simulations/SampleOE/Neyman/mice')){dir.create('./simulations/SampleOE/Neyman/mice')}
 
 # args <- commandArgs(trailingOnly = TRUE)
 # task_id <- as.integer(ifelse(length(args) >= 1,
@@ -49,7 +49,7 @@ do_mice <- function(dat, nm, digit, best_config) {
       cat(sprintf("[system.time] user=%.3fs sys=%.3fs elapsed=%.3fs\n",
                   tm[["user.self"]], tm[["sys.self"]], tm[["elapsed"]]))
       
-      save(mice_imp, tm, file = file.path("simulations", nm, "mice",
+      save(mice_imp, tm, file = file.path("simulations/SampleOE", nm, "mice",
                                       paste0(digit, ".RData")))
       break
     }
@@ -67,9 +67,9 @@ for (i in 1:10) {
   load(file.path("./data/Complete", paste0(digit, ".RData")))
   
   if (sampling_design %in% c("SRS", "All")) {
-    if (!file.exists(file.path("simulations", "SRS", "mice",
+    if (!file.exists(file.path("simulations/SampleOE", "SRS", "mice",
                                paste0(digit, ".RData")))){
-      samp <- read.csv(file.path("./data/Sample/SRS", paste0(digit, ".csv"))) %>%
+      samp <- read.csv(file.path("./data/SampleOE/SRS", paste0(digit, ".csv"))) %>%
         match_types(data) %>%
         mutate(across(all_of(data_info_srs$cat_vars), as.factor),
                across(all_of(data_info_srs$num_vars), as.numeric))
@@ -78,9 +78,9 @@ for (i in 1:10) {
   }
   
   if (sampling_design %in% c("Balance", "All")) {
-    if (!file.exists(file.path("simulations", "Balance", "mice",
+    if (!file.exists(file.path("simulations/SampleOE", "Balance", "mice",
                                paste0(digit, ".RData")))){
-      samp <- read.csv(file.path("./data/Sample/Balance",
+      samp <- read.csv(file.path("./data/SampleOE/Balance",
                                  paste0(digit, ".csv"))) %>%
         match_types(data) %>%
         mutate(across(all_of(data_info_balance$cat_vars), as.factor),
@@ -90,9 +90,9 @@ for (i in 1:10) {
   }
   
   if (sampling_design %in% c("Neyman", "All")) {
-    if (!file.exists(file.path("simulations", "Neyman", "mice",
+    if (!file.exists(file.path("simulations/SampleOE", "Neyman", "mice",
                                paste0(digit, ".RData")))){
-      samp <- read.csv(file.path("./data/Sample/Neyman",
+      samp <- read.csv(file.path("./data/SampleOE/Neyman",
                                  paste0(digit, ".csv"))) %>%
         match_types(data) %>%
         mutate(across(all_of(data_info_neyman$cat_vars), as.factor),

@@ -79,21 +79,19 @@ tuning_grid = {
 reg_config = {'channels': {'min': 256.0, 'max': 2048.0, 'higher_is_more_reg': False},
               'layers': {'min': 2.0, 'max': 7.0, 'higher_is_more_reg': False},
               'sum_scale': {'min': 0.01, 'max': 0.25, 'higher_is_more_reg': True},
-              'weight_decay': {'min': 1.0e-6, 'max': 1.0e-3, 'higher_is_more_reg': True},
-              'dropout': {'min': 0.05, 'max': 0.5, 'higher_is_more_reg': True},
-              'batch_size': {'min': 32.0, 'max': 256.0, 'higher_is_more_reg': False},
-              'diffusion_embedding_dim': {'min': 64.0, 'max': 256.0, 'higher_is_more_reg': False}
+              'weight_decay': {'min': 1.0e-6, 'max': 1.0e-2, 'higher_is_more_reg': True},
+              'dropout': {'min': 0.05, 'max': 0.5, 'higher_is_more_reg': True}
               }
 
-with open("./base_config_hsic_residual_pac.yaml", "r") as f:
+with open("./base_config_base.yaml", "r") as f:
     base_config = yaml.safe_load(f)
 
 def main():
     print("[Task] Starting Tuning for SRS...")
-    file_path = "../../../data/Sample/SRS/0001.csv"
+    file_path = "../../../data/SampleOE/SRS/0001.csv"
     df = pd.read_csv(file_path).loc[:, lambda d: ~d.columns.str.contains('^Unnamed')]
-    tuner = BivariateTuner(df, base_config, tuning_grid, data_info_srs, reg_config, n_splits=5)
-    tuner.tune(n_trials=300, output_csv='base_tuning_results.csv')
+    tuner = BivariateTuner(df, base_config, tuning_grid, data_info_srs, reg_config, n_splits=1)
+    tuner.tune(n_trials=10, output_csv='base_tuning_results.csv')
 
 if __name__ == "__main__":
     main()
