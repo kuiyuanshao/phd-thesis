@@ -31,7 +31,7 @@ train:
   cond_drop_prob: 0
   valid: 0
   batch_size: 128
-  epochs: 5000
+  epochs: 10
   eval_batch_size: 1024
   Adam:
     lr: 2.0e-4

@@ -29,6 +29,7 @@ model:
   loss_cat: 1
   loss_hsic: 0
 train:
+  patience: 1000
   cond_drop_prob: 0
   valid: 0
   batch_size: 128

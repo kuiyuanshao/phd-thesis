@@ -84,7 +84,7 @@ class BivariateTuner:
             masked_data = self.data.copy()
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
-            with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f):
+            with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                 model = SIRD(trial_config, self.data_info)
                 model.fit(provided_data=masked_data)
                 imputed_data = model.impute()

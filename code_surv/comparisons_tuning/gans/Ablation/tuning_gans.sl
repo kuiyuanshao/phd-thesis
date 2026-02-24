@@ -16,4 +16,4 @@ source /home/ksha712/00_nesi_projects/uoa03789_nobackup/venv/bin/activate
 
 echo "Running Python Tuning"
 
-python tuning_gans.py --task "residual_pac"
+python tuning_gans.py --profile "residual_pac"

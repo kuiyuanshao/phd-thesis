@@ -130,7 +130,6 @@ CONFIG_PROFILES = {
     }
 }
 
-
 def main():
     # --- 2. Setup Argparse ---
     parser = argparse.ArgumentParser(description="Run tuner with selected configuration profile.")

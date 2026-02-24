@@ -14,4 +14,4 @@ module load Python/3.11.3-gimkl-2022a
 export PYTHONNOUSERSITE=1
 source /nesi/project/uoa03789/phd-thesis/tpvmi_rddm/my_venv/bin/activate
 
-python tuning_rddm.py --task "ce"
+python tuning_rddm.py --profile "ce"
