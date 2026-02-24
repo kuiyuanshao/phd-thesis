@@ -6,27 +6,23 @@ options(survey.lonely.psu = "certainty")
 retrieveEst <- function(method){
   resultCoeff <- resultStdError <- resultCI <- NULL
   sampling_designs <- c("SRS")#, "Balance", "Neyman")
-  for (i in 1:40){
+  for (i in 1:50){
     digit <- stringr::str_pad(i, 4, pad = 0)
     cat("Current:", digit, "\n")
     load(paste0("./data/True/", digit, ".RData"))
     if (method == "true"){
       cox.mod <- coxph(Surv(T_I, EVENT) ~
-                         I((HbA1c - 50) / 5) +
-                         #I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                         rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                         SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-                       data = data)
+                         I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                         I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                         SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
       resultCoeff <- rbind(resultCoeff, c(exp(coef(cox.mod)), toupper(method), toupper(method), digit))
       resultStdError <- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(method), toupper(method), digit))
       resultCI <- rbind(resultCI, c(exp(confint(cox.mod)[, 1]), exp(confint(cox.mod)[, 2]), toupper(method), toupper(method), digit))
     }else if (method == "me"){
       cox.mod <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                         I((HbA1c_STAR - 50) / 5) +
-                         #I((HbA1c_STAR - 50) / 5):I((AGE - 50) / 5) +
-                         rs4506565_STAR + I((AGE - 50) / 5) + I((eGFR_STAR - 90) / 10) +
-                         SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE_STAR,
-                       data = data)
+                         I((HbA1c_STAR - 50) / 5) + rs4506565_STAR + I((AGE - 60) / 5) + I((eGFR_STAR - 75) / 10) +
+                         I((Insulin_STAR - 15) / 2) + I((BMI_STAR - 28) / 2) + SEX + INSURANCE + RACE +
+                         SMOKE_STAR + I((AGE - 60) / 5):I((Insulin_STAR - 15) / 2), data = data)
       resultCoeff <- rbind(resultCoeff, c(exp(coef(cox.mod)), toupper(method), toupper(method), digit))
       resultStdError<- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(method), toupper(method), digit))
       resultCI <- rbind(resultCI, c(exp(confint(cox.mod)[, 1]), 
@@ -34,31 +30,27 @@ retrieveEst <- function(method){
     }else{
       for (j in sampling_designs){
         if (method == "complete_case"){
-          samp <- read.csv(paste0("./data/Sample/", j, "/", digit, ".csv"))
+          samp <- read.csv(paste0("./data/SampleOE/", j, "/", digit, ".csv"))
           samp <- match_types(samp, data)
           if (j %in% c("Balance", "Neyman")){
             design <- svydesign(ids = ~1, strata = ~STRATA, weights = ~W, 
                                 data = samp)
             cox.mod <- svycoxph(Surv(T_I, EVENT) ~
-                                  I((HbA1c - 50) / 5)  +
-                                  # I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                                  rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                                  SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-                                design)
+                                  I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                                  I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                                  SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), design)
           }else{
             cox.mod <- coxph(Surv(T_I, EVENT) ~
-                               I((HbA1c - 50) / 5)  +
-                               # I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                               rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                               SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE,
-                             data = data)
+                               I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                               I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                               SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = samp)
           }
           resultCoeff <- rbind(resultCoeff, c(exp(coef(cox.mod)), toupper(j), toupper(method), digit))
           resultStdError <- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(j), toupper(method), digit))
           resultCI <- rbind(resultCI, c(exp(confint(cox.mod)[, 1]), 
                                         exp(confint(cox.mod)[, 2]), toupper(j), toupper(method), digit))
         }else if (method == "raking"){
-          load(paste0("./simulations/", j, "/", method, "/", digit, ".RData"))
+          load(paste0("./simulations/SampleOE/", j, "/", method, "/", digit, ".RData"))
           cox.mod <- rakingest
           resultCoeff <- rbind(resultCoeff, c(exp(coef(cox.mod)), toupper(j), toupper(method), digit))
           resultStdError <- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(j), toupper(method), digit))
@@ -66,10 +58,10 @@ retrieveEst <- function(method){
         }else{
           if (!(method %in% c("sicg", "sird"))){
             temp_env <- new.env()
-            load(paste0("./simulations/", j, "/", method, "/", digit, ".RData"), envir = temp_env)
+            load(paste0("./simulations/SampleOE/", j, "/", method, "/", digit, ".RData"), envir = temp_env)
             multi_impset <- temp_env[[ls(temp_env)[1]]]
           }else{
-            multi_impset <- read_parquet(paste0("./simulations/", j, "/", method, "/", digit, ".parquet"))
+            multi_impset <- read_parquet(paste0("./simulations/SampleOE/", j, "/", method, "/", digit, ".parquet"))
             multi_impset <- multi_impset %>% group_split(imp_id)
             multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
           }
@@ -88,10 +80,9 @@ retrieveEst <- function(method){
           }
           cox.mod <- with(data = imp.mids, 
                           exp = coxph(Surv(T_I, EVENT) ~
-                                        I((HbA1c - 50) / 5)  +
-                                        # I((HbA1c - 50) / 5):I((AGE - 50) / 5) +
-                                        rs4506565 + I((AGE - 50) / 5) + I((eGFR - 90) / 10) +
-                                        SEX + INSURANCE + RACE + I(BMI / 5) + SMOKE))
+                                        I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                                        I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                                        SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2)))
           pooled <- MIcombine(cox.mod)
           capture.output(sumry <- summary(pooled), file = "NUL")
           resultCoeff <- rbind(resultCoeff, c(exp(sumry$results), toupper(j), toupper(method), digit))
@@ -101,9 +92,10 @@ retrieveEst <- function(method){
       }
     }
   }
-  vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "AGE",
-                "eGFR", "BMI", "SEX TRUE", "INSURANCE TRUE",
-                "RACE AFR", "RACE AMR", "RACE SAS", "RACE EAS", "SMOKE 2", "SMOKE 3")
+  vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "Age",
+                "eGFR", "Insulin", "BMI", "Sex TRUE", "Insurance TRUE",
+                "Race AFR", "Race AMR", "Race SAS", "Race EAS", "Smoke 2", "Smoke 3",
+                "Age:Insulin")
                 #"AGE:HbA1c")
   resultCoeff <- as.data.frame(resultCoeff)
   names(resultCoeff) <- c(vars_vec, "Design", "Method", "ID")
@@ -120,11 +112,11 @@ retrieveEst <- function(method){
 #methods <- c("true", "me", "complete_case", "raking",
 #             "mice", "mixgb", "sicg", "sird")
 #methods <- c("true", "me", "complete_case", "sicg")
-methods <- c("true", "me", "complete_case", "sicg", "sird")
+methods <- c("true", "me", "complete_case", "sicg")
 for (method in methods){
   retrieveEst(method)
 }
-methods <- c("true", "me", "complete_case", "sicg", "sird")
+methods <- c("true", "me", "complete_case", "sicg")
 combine <- function(){
   filenames <- paste0("./simulations/results_", toupper(methods), ".RData")
   list_coeff <- list()

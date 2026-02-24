@@ -2,10 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class ReGLU(nn.Module):
     def forward(self, x):
-        x1, x2 = x.chunk(2, dim=-1)
-        return x1 * F.relu(x2)
+        a, b = x.chunk(2, dim=-1)
+        return F.relu(a) * b
 
 
 class ResNetBlock(nn.Module):
@@ -13,12 +17,10 @@ class ResNetBlock(nn.Module):
         super(ResNetBlock, self).__init__()
         self.bn = nn.BatchNorm1d(in_dim)
         self.linear1 = nn.Linear(in_dim, hidden_dim * 2)
-        self.bn1 = nn.BatchNorm1d(hidden_dim * 2)
         self.reglu = ReGLU()
         self.dropout1 = nn.Dropout(dropout_p)
 
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.bn2 = nn.BatchNorm1d(hidden_dim)
         self.dropout2 = nn.Dropout(dropout_p)
 
         if in_dim != hidden_dim:
@@ -31,16 +33,14 @@ class ResNetBlock(nn.Module):
             self.shortcut = nn.Identity()
 
     def forward(self, x):
-        residual = self.shortcut(self.bn(x))
-        out = self.linear1(x)
-        out = self.bn1(out)
+        residual = self.shortcut(x)
+        out = self.bn(x)
+        out = self.linear1(out)
         out = self.reglu(out)
         out = self.dropout1(out)
         out = self.linear2(out)
-        out = self.bn2(out)
         out = self.dropout2(out)
         return out + residual
-
 
 class Generator(nn.Module):
     def __init__(self, config, p1_dim, p2_dim, cond_cols_dim):
@@ -60,24 +60,20 @@ class Generator(nn.Module):
 
         for _ in range(num_layers):
             self.blocks.append(
-                nn.Sequential(
-                    nn.Linear(current_input_dim, hidden_dim * 2),
-                    nn.BatchNorm1d(hidden_dim * 2),
-                    ReGLU(),
-                    nn.Dropout(dropout_p)
-                )
+                ResNetBlock(current_input_dim, hidden_dim, dropout_p)
             )
-            current_input_dim += hidden_dim
+            current_input_dim = hidden_dim
 
         self.output_layer = nn.Linear(current_input_dim, p2_dim)
 
     def forward(self, z, p1, cond):
         x = torch.cat([z, p1, cond], dim=1)
-        if self.config['sample']['mi_approx'] == "DROPOUT":
+        if self.config.get('sample', {}).get('mi_approx') == "DROPOUT":
             x = self.dropout(x)
+
         for block in self.blocks:
-            out = block(x)
-            x = torch.cat([out, x], dim=1)
+            x = block(x)
+
         return self.output_layer(x)
 
 
@@ -95,14 +91,26 @@ class Discriminator(nn.Module):
         current_dim = self.pack_dim
         for _ in range(num_layers):
             layers.append(nn.Linear(current_dim, hidden_dim))
-            layers.append(nn.LeakyReLU(0.2))
+            if self.config['train']['loss']['loss_info'] > 0:
+                layers.append(nn.LayerNorm(hidden_dim))
+                layers.append(nn.LeakyReLU(0.2, inplace=True))
+            else:
+                layers.append(nn.LeakyReLU(0.2))
             layers.append(nn.Dropout(0.5))
             current_dim = hidden_dim
         layers.append(nn.Linear(current_dim, 1))
+
+        if self.config['train']['loss']['loss_info'] > 0:
+            layers.append(nn.ReLU(True))
+            self.info_head = nn.Sequential(*layers[:len(layers) - 3])
+
         self.seq_head = nn.Sequential(*layers)
 
     def forward(self, input):
         input = input.view(-1, self.pack_dim)
         out = self.seq_head(input)
-        return out
+        if self.config['train']['loss']['loss_info'] > 0:
+            info = self.info_head(input)
+            return out, info
+        return out, 0
 

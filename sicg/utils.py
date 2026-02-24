@@ -314,7 +314,7 @@ def gumbel_activation(x, layout, tau, hard):
     for start, end, card in layout:
         chunk = x[:, start:end]
         if card == 0:
-            out_parts.append(chunk)
+            out_parts.append(chunk.clamp(min=-4.0, max=4.0))
         else:
             b, w = chunk.shape
             n_vars = w // card
@@ -327,25 +327,25 @@ def gumbel_activation(x, layout, tau, hard):
 def gradient_penalty(discriminator, real, fake, lambda_gp):
     device = real.device
     pack = getattr(discriminator, 'pack', 1)
-    batch_size = real.size(0)
-    alpha = torch.rand(batch_size, 1, device=device)
 
-    interpolates = (alpha * real + (1 - alpha) * fake).requires_grad_(True)
-    d_interpolates = discriminator(interpolates)
-    fake_output = torch.ones_like(d_interpolates)
+    alpha = torch.rand(real.size(0) // pack, 1, 1, device=device)
+    alpha = alpha.repeat(1, pack, real.size(1))
+    alpha = alpha.view(-1, real.size(1))
+
+    interpolates = (alpha * real + ((1 - alpha) * fake)).requires_grad_(True)
+
+    disc_interpolates, _ = discriminator(interpolates)
 
     gradients = torch.autograd.grad(
-        outputs=d_interpolates,
+        outputs=disc_interpolates,
         inputs=interpolates,
-        grad_outputs=fake_output,
+        grad_outputs=torch.ones(disc_interpolates.size(), device=device),
         create_graph=True,
         retain_graph=True,
-        only_inputs=True
+        only_inputs=True,
     )[0]
 
-    if pack > 1:
-        gradients = gradients.reshape(-1, pack * interpolates.size(1))
-
+    gradients = gradients.view(-1, pack * real.size(1))
     gp = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return lambda_gp * gp
 
@@ -415,11 +415,7 @@ def recon_loss(fake, real, mode='p2', layout=None, proj_groups=None, alpha=1.0, 
                 loss += beta * (proj_loss_sum / total_obs)
     return loss
 
-
-def moment_matching_loss(pca, real, fake):
-    real = pca(real)
-    fake = pca(fake)
-
+def moment_matching_loss(real, fake):
     real_mean = real.mean(dim=0)
     fake_mean = fake.mean(dim=0)
 

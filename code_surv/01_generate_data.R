@@ -100,17 +100,17 @@ generateData <- function(n, seed){
                                                                        prob = GENO_M[true_val, ])})
   }
   # T_I: Time Interval between Treatment Initiation SGLT2 and T2D Diagnosis (Months)
-  mm_T_I <- model.matrix(~ I(HbA1c - 50) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) + 
-                           I((SBP - 140) / 10) + I(Insulin - 15) + I(BMI - 28) + SEX + INSURANCE + RACE + 
-                           SMOKE + I((SBP - 140) / 10):I(Insulin - 15), data = data)
-  betas_T_I <- log(c(0.5, 1.25, 1.075, 1.15, 1.1, 0.9,
-                     1.1, 1.1, 1.1, 0.85, 0.9, 0.90, 1, 0.9, 0.8,
-                     0.85, 0.9, 1.05))
+  mm_T_I <- model.matrix(~ I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                           I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE +
+                           SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
+  betas_T_I <- log(c(1, 1.25, 1.075, 1.15, 1.1, 0.9,
+                     1.1, 1.1, 0.85, 0.9, 0.90, 1, 0.9, 0.8,
+                     0.85, 0.9, 1.1))
   eta_I <- as.vector(mm_T_I %*% betas_T_I)
   k <- 2
   lambda <- log(2) / (25 ^ k)
   T_I <- (-log(runif(n)) / (lambda*exp(eta_I)))^(1/k)
-  scale_vec <- 10 * exp(0.05 * (data$AGE - 50) - 0.1 * as.numeric(data$URBAN))
+  scale_vec <- 10 * exp(0.05 * ((data$AGE - 60) / 5) - 0.05 * as.numeric(data$URBAN))
   C_drop <- rweibull(n, shape = 1.5, scale = scale_vec)
   C <- pmin(C_drop, 24)
   # True Event Time
@@ -179,7 +179,7 @@ add_measurement_errors <- function(data) {
   
   data$HbA1c_STAR <- apply_forward_error(
     data$HbA1c, 
-    slope = 0.45, 
+    slope = 0.55,
     intercept = log(52),
     z_matrix_raw = cbind(data$BMI, data$AGE, 
                          as.numeric(data$INSURANCE == FALSE), 
@@ -188,47 +188,47 @@ add_measurement_errors <- function(data) {
                          as.numeric(data$RACE == "AMR"),
                          as.numeric(data$INCOME < 3)),
     z_coeffs = c(0.015, 0.01, -0.01, 0.01, 0.015, 0.01, 0.01), 
-    noise_var = 0.005
+    noise_var = 0.0015
   )
   
   data$WEIGHT_STAR <- apply_forward_error(
     data$WEIGHT, 
-    slope = 0.42, 
+    slope = 0.5,
     intercept = log(75),
     z_matrix_raw = cbind(data$BMI, data$AGE, as.numeric(data$SEX == 1), data$HEIGHT, 
                          as.numeric(data$EXER == 2), data$INCOME < 3),
     z_coeffs = c(-0.015, -0.01, 0.07, 0.005, 0.005, -0.01), 
-    noise_var = 0.02
+    noise_var = 0.01
   )
   
   data$BMI_STAR <- data$WEIGHT_STAR / (data$HEIGHT / 100)^2
   
   data$Glucose_STAR <- apply_forward_error(
     data$Glucose, 
-    slope = 0.38, 
+    slope = 0.45,
     intercept = log(10),
     z_matrix_raw = cbind(data$HbA1c, data$BMI, data$KCAL_INTAKE, data$Insulin),
     z_coeffs = c(0.015, 0.01, 0.015, 0.015), 
-    noise_var = 0.04
+    noise_var = 0.02
   )
   
   data$F_Glucose_STAR <- apply_forward_error(
     data$F_Glucose, 
-    slope = 0.39, 
+    slope = 0.6,
     intercept = log(8),
     z_matrix_raw = cbind(data$Insulin, data$AGE, data$SBP, data$HbA1c, data$BMI, 
                          as.numeric(data$SMOKE == 1)),
     z_coeffs = c(0.005, 0.005, 0.015, 0.01, 0.005, 0.01), 
-    noise_var = 0.02
+    noise_var = 0.01
   )
   
   data$Insulin_STAR <- apply_forward_error(
     data$Insulin, 
-    slope = 0.41, 
+    slope = 0.6,
     intercept = log(12),
     z_matrix_raw = cbind(data$BMI, data$Glucose, data$AGE),
     z_coeffs = c(0.01, 0.015, -0.015), 
-    noise_var = 0.05
+    noise_var = 0.02
   )
   
   data$Na_INTAKE_STAR <- apply_forward_error(
@@ -247,7 +247,7 @@ add_measurement_errors <- function(data) {
     z_matrix_raw = cbind(data$EDU, as.numeric(data$INCOME < 3), 
                          data$KCAL_INTAKE, as.numeric(data$SEX == 0), data$AGE, as.numeric(data$URBAN)),
     z_coeffs = c(0.001, 0.0015, 0.002, 0.001, 0.0015, 0.001), 
-    noise_var = 0.001
+    noise_var = 0.0005
   )
   
   data$KCAL_INTAKE_STAR <- apply_forward_error(
@@ -257,7 +257,7 @@ add_measurement_errors <- function(data) {
     z_matrix_raw = cbind(data$BMI, as.numeric(data$SEX == 1), data$AGE, data$EDU, 
                          as.numeric(data$INCOME == 1), as.numeric(data$SMOKE == 2)),
     z_coeffs = c(-0.002, -0.0015, -0.0015, 0.0015, 0.0015, -0.001), 
-    noise_var = 0.0005
+    noise_var = 0.0002
   )
   
   data$PROTEIN_INTAKE_STAR <- apply_forward_error(
@@ -271,19 +271,19 @@ add_measurement_errors <- function(data) {
   
   data$EDU_STAR <- apply_forward_error(
     data$EDU, 
-    slope = 0.42, 
+    slope = 0.7,
     intercept = log(12),
     z_matrix_raw = cbind(data$AGE, as.numeric(data$URBAN), as.numeric(data$INCOME < 3),
                          data$INSURANCE, as.numeric(data$RACE == "SAS"), as.numeric(data$RACE == "EAS")),
     z_coeffs = c(-0.025, 0.01, -0.01, 0.02, 0.01, 0.015), 
-    noise_var = 0.02
+    noise_var = 0.015
   )
   
   data$EDU <- pmax(0, as.integer(data$EDU))
   
   C_STAR <- apply_forward_error(data$C, 
-                                slope = 0.4, 
-                                intercept = log(14),
+                                slope = 0.6,
+                                intercept = log(12),
                                 z_matrix_raw = cbind(data$URBAN, 
                                                data$AGE,
                                                data$BMI,
@@ -297,12 +297,12 @@ add_measurement_errors <- function(data) {
   
   data$SMOKE_STAR <- apply_cat_error(data$SMOKE, 
                                      levels_vec = sort(unique(data$SMOKE)),
-                                     base_accuracy = 0.70, 
+                                     base_accuracy = 0.80,
                                      z_list = list(data$EDU, 
                                                    data$INCOME == 1,
                                                    data$SpO2,
                                                    data$ALC == 3),
-                                     z_coeffs = c(-0.2, -0.2, 0.1, 0.2))
+                                     z_coeffs = c(-0.02, -0.02, 0.01, 0.02))
   
   data$INCOME_STAR <- apply_cat_error(data$INCOME, 
                                       levels_vec = sort(unique(data$INCOME)), 
@@ -313,18 +313,18 @@ add_measurement_errors <- function(data) {
                                                     as.numeric(data$URBAN),
                                                     as.numeric(data$INSURANCE == TRUE),
                                                     data$MED_Count),
-                                      z_coeffs = c(0.4, 0.2, -0.3, -0.2, 0.3, -0.1))
+                                      z_coeffs = c(0.04, 0.02, -0.03, -0.02, 0.03, -0.01))
   
   data$ALC_STAR <- apply_cat_error(data$ALC, 
                                    levels_vec = sort(unique(data$ALC)), 
-                                   base_accuracy = 0.65, 
+                                   base_accuracy = 0.70,
                                    z_list = list(as.numeric(data$SEX == 1), 
                                                  data$AGE,
                                                  data$SMOKE == 2,
                                                  data$GGT,
                                                  data$EDU,
                                                  data$KCAL_INTAKE),
-                                   z_coeffs = c(0.5, -0.2, 0.4, -0.3, 0.2, 0.1))
+                                   z_coeffs = c(0.05, -0.02, 0.04, -0.03, 0.02, 0.01))
   
   data$EXER_STAR <- apply_cat_error(data$EXER, 
                                     levels_vec = sort(unique(data$EXER)), 
@@ -335,7 +335,7 @@ add_measurement_errors <- function(data) {
                                                   data$HR,
                                                   as.numeric(data$URBAN),
                                                   data$SpO2),
-                                    z_coeffs = c(-0.5, 0.3, -0.2, -0.4, 0.2, 0.1))
+                                    z_coeffs = c(-0.05, 0.03, -0.02, -0.04, 0.02, 0.01))
   
   return(data)
 }
@@ -1148,12 +1148,12 @@ for (i in 1:1){
 
 
 fit.STAR <- coxph(Surv(T_I_STAR, EVENT_STAR) ~
-                    I(HbA1c_STAR - 50) + rs4506565_STAR + I((AGE - 60) / 5) + I((eGFR_STAR - 75) / 10) + 
-                    I((SBP - 140) / 10) + I(Insulin_STAR - 15) + I(BMI_STAR - 28) + SEX + INSURANCE + RACE + 
-                    SMOKE_STAR + I((SBP - 140) / 10):I(Insulin_STAR - 15), data = data)
+                    I((HbA1c_STAR - 50) / 5) + rs4506565_STAR + I((AGE - 60) / 5) + I((eGFR_STAR - 75) / 10) +
+                    I((Insulin_STAR - 15) / 2) + I((BMI_STAR - 28) / 2) + SEX + INSURANCE + RACE +
+                    SMOKE_STAR + I((AGE - 60) / 5):I((Insulin_STAR - 15) / 2), data = data)
 fit.TRUE <- coxph(Surv(T_I, EVENT) ~
-                    I(HbA1c - 50) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) + 
-                    I((SBP - 140) / 10) + I(Insulin - 15) + I(BMI - 28) + SEX + INSURANCE + RACE + 
-                    SMOKE + I((SBP - 140) / 10):I(Insulin - 15), data = data)
+                    I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                    I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE +
+                    SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
 exp(coef(fit.TRUE)) - exp(coef(fit.STAR))
 

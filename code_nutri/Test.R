@@ -9,7 +9,7 @@ cox.fit <- glm(sbp ~ ln_na_true + c_age + c_bmi + high_chol + usborn + female + 
                  ln_na_true:c_age, data = data)
 cox.star <- glm(sbp ~ ln_k_avg + c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr +
                   ln_na_true:c_age, data = data)
-multi_impset <- read_parquet(paste0("./simulations/SRS/sird/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){

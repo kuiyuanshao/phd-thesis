@@ -150,18 +150,15 @@ def main():
     output_csv = selected["output_csv"]
 
     print(f"[Task] Starting Tuning for SRS using profile: {args.profile}")
-
     # Load the YAML specific to the chosen profile
     with open(yaml_file, "r") as f:
         base_config = yaml.safe_load(f)
 
     file_path = "../../../data/SampleOE/SRS/0001.csv"
     df = pd.read_csv(file_path).loc[:, lambda d: ~d.columns.str.contains('^Unnamed')]
-
     # Pass dynamically selected parameters
     tuner = BivariateTuner(df, base_config, tuning_grid, data_info_srs, reg_config, n_splits=1)
     tuner.tune(n_trials=300, output_csv=output_csv)
-
 
 if __name__ == "__main__":
     main()

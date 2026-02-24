@@ -99,7 +99,7 @@ class SICG:
 
         self._pca.fit(torch.from_numpy(df_p2[pca_cols].values.astype("float32")))
 
-        if self.config['model']['sinkhorn']:
+        if self.config['train']['loss']['loss_sinkhorn'] > 0:
             self.SinkHorn = SamplesLoss(loss="sinkhorn", p=2, blur=0.05, backend="auto")
 
         weight_var = self.data_info.get('weight_var')
@@ -234,8 +234,8 @@ class SICG:
                     fake_act = gumbel_activation(fake_raw, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
                     fake_d = torch.cat([fake_act, A, C], dim=1)
                     true_d = torch.cat([X, A, C], dim=1)
-                    d_fake = D(fake_d.detach())
-                    d_real = D(true_d)
+                    d_fake, _ = D(fake_d)
+                    d_real, _ = D(true_d)
                     d_loss = d_fake.mean() - d_real.mean()
                     if loss_cfg['lambda_gp'] > 0:
                         d_loss += gradient_penalty(D, true_d, fake_d, loss_cfg['lambda_gp'])
@@ -261,14 +261,19 @@ class SICG:
                 fake_p2_act = gumbel_activation(fake_p2, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
                 fake_d = torch.cat([fake_p2_act, A_p2, C_p2], dim=1)
 
-                g_adv2 = D(fake_d)
+                g_adv2, info_fake = D(fake_d)
                 g_adv2 = -g_adv2.mean()
                 g_loss = g_adv2 + loss_p2
 
-                if self.config['model']['mml']:
-                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(self._pca, torch.cat([X_p2, A_p2, C_p2], dim=1), fake_d)
+                if loss_cfg['loss_mml'] > 0:
+                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(self._pca(torch.cat([X_p2, A_p2, C_p2], dim=1)), self._pca(fake_d))
                     g_loss += loss_marg
-                if self.config['model']['hsic']:
+                if loss_cfg['loss_info'] > 0:
+                    true_d = torch.cat([X_p2, A_p2, C_p2], dim=1)
+                    _, info_true = D(true_d)
+                    loss_info = loss_cfg['loss_info'] * moment_matching_loss(info_true, info_fake)
+                    g_loss += loss_info
+                if loss_cfg['loss_hsic'] > 0:
                     loss_hsic = calc_HSIC_loss(fake_p2, X_p2,
                                                torch.cat([A_p2, C_p2], dim=1),
                                                self.layout,
@@ -303,7 +308,7 @@ class SICG:
                     g_adv1 = D(fake_d1)
                     g_adv1 = -g_adv1.mean()
                     g_loss = g_adv1 + loss_p1
-                    if self.config['model']['sinkhorn']:
+                    if loss_cfg['loss_sinkhorn'] > 0:
                         try:
                             batch_p2 = next(data_iter_p2)
                         except StopIteration:
@@ -316,7 +321,7 @@ class SICG:
                         fake_p1_hard = fake_p1_act = gumbel_activation(fake_p1, self.layout, loss_cfg['tau'], True)
                         fake_sh = torch.cat([fake_p1_hard, A_p1, C_p1], dim=1)
                         true = torch.cat([X_p2, A_p2, C_p2], dim=1)
-                        loss_sh = self.SinkHorn(fake_p1_hard, X_p2)
+                        loss_sh = loss_cfg['loss_sinkhorn'] * self.SinkHorn(fake_sh, true)
                         g_loss += loss_sh
                     g_loss.backward()
 
@@ -331,11 +336,13 @@ class SICG:
                     'G_Adv': f"{g_adv2.item():.4f}",
                     'Recon': f"{loss_p2.item():.4f}"
                 }
-                if self.config['model']['mml']:
+                if loss_cfg['loss_mml'] > 0:
                     logs['Moment'] = f"{loss_marg.item():.4f}"
-                if self.config['model']['hsic']:
+                if loss_cfg['loss_info'] > 0:
+                    logs['Info'] = f"{loss_info.item():.4f}"
+                if loss_cfg['loss_hsic'] > 0:
                     logs['HSIC'] = f"{loss_hsic.item():.4f}"
-                if self.config['model']['sinkhorn']:
+                if loss_cfg['loss_sinkhorn'] > 0:
                     logs['Sinkhorn'] = f"{loss_sh.item():.4f}"
 
                 pbar.set_postfix(logs)
@@ -537,8 +544,5 @@ class SICG:
                     'cols': cols
                 })
             curr += w
-
-        if len(sorted_cols) != len(cols_to_process):
-            raise ValueError(f"维度不匹配！输入 {len(cols_to_process)}, 得到 {len(sorted_cols)}")
 
         return sorted_cols, hsic_layout, meta_map

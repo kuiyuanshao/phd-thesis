@@ -93,7 +93,7 @@ with open("./data/Config/best_config_gans_srs.yaml", "r") as f:
 # with open("./data/Config/best_config_gans_ney.yaml", "r") as f:
 #     config_ney = yaml.safe_load(f)
 
-for i in range(1, 10):
+for i in range(1, 100):
     digit = str(i).zfill(4)
     file_path_srs = "./data/SampleOE/SRS/" + digit + ".csv"
     file_path_bal = "./data/SampleOE/Balance/" + digit + ".csv"

@@ -56,7 +56,7 @@ ggplot(data) +
   geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
 
 ggplot(data) + geom_point(aes(x = HbA1c, y = multi_impset[[1]]$HbA1c)) + geom_abline()
-ggplot(data) + geom_point(aes(x = T_I, y = multi_impset[[1]]$T_I)) + geom_abline()
+ggplot(data) + geom_point(aes(x = T_I, y = multi_impset[[1]]$T_I)) + geom_abline() + ylim(0, 25)
 # log_param <- read.csv("./comparisons_tuning/mice/mice_tuning_log_srs.csv")
 # log_param_fd <- read.csv("./comparisons_tuning/mice/mice_tuning_log_fd_srs.csv")
 # pairs(log_param_fd[, 2:4])
