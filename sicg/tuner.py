@@ -7,6 +7,8 @@ from .metric import Regularization, Loss
 from .sicg import SICG
 import gc
 import torch
+import os
+import contextlib
 
 class BivariateTuner:
     def __init__(self, data, base_config, param_grid, data_info, reg_config, n_splits=1):
@@ -30,19 +32,34 @@ class BivariateTuner:
             self.splits = [(self.train_idx, self.val_idx)]
         self.trial_history = []
 
-    def _deep_update(self, base_dict, update_dict):
-        """Recursively merges the update dictionary into the base configuration."""
-        for key, value in update_dict.items():
-            if isinstance(value, dict) and key in base_dict:
-                self._deep_update(base_dict[key], value)
-            else:
-                base_dict[key] = value
+    def enforce_wgan_rules(self, config, p):
+        # 1. Enforce pack limit (modifies 'p' so the correct batch_size is logged in history)
+        p["batch_size"] -= p["batch_size"] % p["pack"]
+        config["train"]["batch_size"] = p["batch_size"]
+
+        # 2. Apply Generator scaling overrides
+        config["model"]["generator"]["hidden_dim"] = p["hidden_dim"] * p["scale_hidden_dim"]
+        config["model"]["generator"]["layers"] = p["layers"] * p["scale_layer"]
+
+        # 3. Apply Learning Rate rules (maps the flat 'lr' to the specific YAML targets)
+        lr_g = p["lr"] / p["scale_lr"]
+        for optimizer in ["Adam", "SGD"]:
+            config["train"][optimizer]["lr_d"] = p["lr"]
+            config["train"][optimizer]["lr_g"] = lr_g
+
+        return config
+
+    def _smart_update(self, config_node, p):
+        for key, value in config_node.items():
+            if isinstance(value, dict):
+                self._smart_update(value, p)
+            elif key in p:
+                config_node[key] = p[key]
 
     def _get_trial_config(self, trial):
         config = copy.deepcopy(self.base_config)
         flat_params = {}
 
-        # 1. Purely sample your grid. flat_params remains pristine.
         for key, params in self.param_grid.items():
             p_type = params[0]
             if p_type == "cat":
@@ -55,40 +72,9 @@ class BivariateTuner:
                 flat_params[key] = trial.suggest_float(key, params[1], params[2], log=True)
 
         p = flat_params
-        p["batch_size"] -= p["batch_size"] % p["pack"]
-        # 2. Elegantly build the structured updates mimicking your YAML
-        yaml_updates = {
-            "model": {
-                "generator": {
-                    "hidden_dim": p["hidden_dim"] * p["scale_hidden_dim"],
-                    "layers": p["layers"] * p["scale_layer"],
-                    "dropout": p["dropout"]
-                },
-                "discriminator": {
-                    "hidden_dim": p["hidden_dim"],
-                    "layers": p["layers"],
-                    "pack": p["pack"]
-                }
-            },
-            "train": {
-                "batch_size": p["batch_size"],
-                "Adam": {
-                    "lr_d": p["lr"],
-                    "lr_g": p["lr"] / p["scale_lr"],
-                    "weight_decay": p["weight_decay"]
-                },
-                "SGD": {  # Included so both optimizers in your YAML stay aligned
-                    "lr_d": p["lr"],
-                    "lr_g": p["lr"] / p["scale_lr"],
-                    "weight_decay": p["weight_decay"]
-                },
-                "loss": {
-                    "loss_ce": p["loss_ce"],
-                    "loss_hsic": p["loss_hsic"]
-                }
-            }
-        }
-        self._deep_update(config, yaml_updates)
+
+        self._smart_update(config, p)
+        config = self.enforce_wgan_rules(config, p)
 
         return config, flat_params
 
@@ -105,9 +91,10 @@ class BivariateTuner:
             masked_data = self.data.copy()
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
-            model = SICG(trial_config, self.data_info)
-            model.fit(provided_data=masked_data)
-            imputed_data = model.impute()
+            with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f):
+                model = SICG(trial_config, self.data_info)
+                model.fit(provided_data=masked_data)
+                imputed_data = model.impute()
 
             del model
             gc.collect()

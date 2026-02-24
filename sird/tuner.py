@@ -7,6 +7,8 @@ from .metric import Regularization, Loss
 from .sird import SIRD
 import gc
 import torch
+import os
+import contextlib
 
 class BivariateTuner:
     def __init__(self, data, base_config, param_grid, data_info, reg_config, n_splits=1):
@@ -82,9 +84,10 @@ class BivariateTuner:
             masked_data = self.data.copy()
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
-            model = SIRD(trial_config, self.data_info)
-            model.fit(provided_data=masked_data)
-            imputed_data = model.impute()
+            with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f):
+                model = SIRD(trial_config, self.data_info)
+                model.fit(provided_data=masked_data)
+                imputed_data = model.impute()
 
             del model
             gc.collect()

@@ -85,7 +85,7 @@ reg_config = {'channels': {'min': 256.0, 'max': 2048.0, 'higher_is_more_reg': Fa
               'diffusion_embedding_dim': {'min': 64.0, 'max': 256.0, 'higher_is_more_reg': False}
               }
 
-with open("./base_config_hsic_residual_pac.yaml", "r") as f:
+with open("./base_config_residual_pac.yaml", "r") as f:
     base_config = yaml.safe_load(f)
 
 def main():
