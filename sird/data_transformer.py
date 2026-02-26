@@ -36,7 +36,8 @@ class DataTransformer:
         self._clean_categorical_strings(self.df_raw)
         self.df_transformed = self.df_raw.copy()
 
-        self._fit_apply_log()
+        if self.config['processing']['log']:
+            self._fit_apply_log()
         self._fit_numeric()
         self._fit_categorical()
 
@@ -64,7 +65,8 @@ class DataTransformer:
         out_df = df.copy()
         out_df = self._inverse_categorical(out_df)
         out_df = self._inverse_numeric(out_df)
-        out_df = self._inverse_log(out_df)
+        if self.config['processing']['log']:
+            out_df = self._inverse_log(out_df)
 
         return out_df
 
@@ -98,10 +100,8 @@ class DataTransformer:
                 self.mins[p2] = shift
                 vals1 = np.log1p(v1 + shift)
                 vals2 = np.log1p(v2 + shift)
-                self.shift[p1] = 0
-                self.shift[p2] = np.nanmean(vals1) - np.nanmean(vals2)
-                self.df_transformed[p1] = (vals1 + self.shift[p1])
-                self.df_transformed[p2] = (vals2 + self.shift[p2])
+                self.df_transformed[p1] = vals1
+                self.df_transformed[p2] = vals2
                 processed_numerics.update([p1, p2])
 
         for col in self.data_info['num_vars']:
@@ -117,7 +117,7 @@ class DataTransformer:
             if col in df.columns:
                 vals = pd.to_numeric(df[col], errors='coerce')
                 if col in set(self.data_info["phase1_vars"] + self.data_info['phase2_vars']):
-                    logged = np.log1p(vals + shift) + self.shift[col]
+                    logged = np.log1p(vals + shift)
                 else:
                     logged = np.log1p(vals + shift)
                 df[col] = logged
@@ -127,7 +127,7 @@ class DataTransformer:
         for col, shift in self.mins.items():
             if col in df.columns:
                 if col in set(self.data_info["phase1_vars"] + self.data_info['phase2_vars']):
-                    unlogged = np.expm1(df[col] - self.shift[col]) - shift
+                    unlogged = np.expm1(df[col]) - shift
                 else:
                     unlogged = np.expm1(df[col]) - shift
                 df[col] = unlogged
@@ -135,11 +135,20 @@ class DataTransformer:
 
     def _fit_numeric(self):
         # Fit statistical models (GMM, Quantile, or Z-score) for scaling numeric variables
-        p1_vars = set(self.data_info.get('phase1_vars', []))
-        p2_vars = set(self.data_info.get('phase2_vars', []))
+        p1_vars = self.data_info.get('phase1_vars', [])
+        p2_vars = self.data_info.get('phase2_vars', [])
         self.pair_map = {p2: p1 for p1, p2 in
                          zip(self.data_info.get('phase1_vars', []), self.data_info.get('phase2_vars', []))}
 
+        if self.config['processing']['anchor']:
+            for p1, p2 in zip(p1_vars, p2_vars):
+                if p1 in self.data_info['num_vars']:
+                    vals1 = pd.to_numeric(self.df_transformed[p1], errors='coerce')
+                    vals2 = pd.to_numeric(self.df_transformed[p2], errors='coerce')
+                    self.shift[p1] = 0
+                    self.shift[p2] = np.nanmean(vals1) - np.nanmean(vals2)
+                    self.df_transformed[p1] = (vals1 + self.shift[p1])
+                    self.df_transformed[p2] = (vals2 + self.shift[p2])
         for col in self.data_info['num_vars']:
             if col not in self.df_transformed.columns: continue
             data = self.df_transformed[col].dropna().values.reshape(-1, 1)
@@ -287,7 +296,8 @@ class DataTransformer:
 
     def _inverse_numeric(self, df):
         epsilon = 1e-6
-
+        p1_vars = self.data_info.get('phase1_vars', [])
+        p2_vars = self.data_info.get('phase2_vars', [])
         for col in self.data_info['num_vars']:
             if col not in df.columns: continue
             anchor = self.pair_map.get(col)
@@ -326,6 +336,9 @@ class DataTransformer:
                     z_robust = (x_smooth - target_means) / empirical_scales
                     df[col] = target_means + (z_robust * target_stds)
                     df.drop(columns=existing_modes, inplace=True)
+            if self.config['processing']['anchor']:
+                if col in p2_vars:
+                    df[col] = df[col] - self.shift[col]
         return df
 
     def _fit_categorical(self):

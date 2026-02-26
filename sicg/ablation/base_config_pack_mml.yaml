@@ -1,19 +1,19 @@
 # Data Processing Hyperparameters
 processing:
-  normalization: 'gmm'
+  normalization: 'zscore'
   log: false
   gmm:
     max_components: 1
     epsilon: 1.0e-06
 
 model:
-  residual_modeling: true
+  residual_modeling: false
   semi_supervised: false
   generator:
-    noise_dim: 256
+    noise_dim: 64
     hidden_dim: 256
     layers: 2
-    dropout: 0.2
+    dropout: 0.5
 
   discriminator:
     hidden_dim: 256
@@ -22,7 +22,7 @@ model:
 
 sample:
   m: 5
-  mi_approx: "DROPOUT"
+  mi_approx: None
   pmm: false
   donors: 5
 
@@ -37,14 +37,14 @@ train:
     weight_decay: 1.0e-06
   SGD:
     lr_g: 1.0e-2
-    lr_d: 1.0e-2
     momentum_g: 0.9
+    lr_d: 1.0e-2
     momentum_d: 0.9
     weight_decay: 1.0e-4
   loss:
     lambda_gp: 10
     loss_mse: 0
-    loss_ce: 1
+    loss_ce: 0
     loss_mml: 1
     loss_info: 0
     tau: 0.2

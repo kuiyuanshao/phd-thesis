@@ -1,6 +1,6 @@
 processing:
   normalization: 'zscore'
-  log: true
+  log: false
   anchor: false
   gmm:
     max_components: 1
@@ -8,27 +8,27 @@ processing:
 diffusion:
   task: "Res-N"
   discrete: "CE"
-  alpha_schedule: "exp"
   diffusion_embedding_dim: 128
   num_steps: 25
-  sum_scale: 0.01 # must > 0, and cannot be too small
+  sum_scale: 0.05 # must > 0, and cannot be too small
 sample:
   m: 5
-  mi_approx: "None" # "SWAG"
+  mi_approx: "DROPOUT" # "SWAG"
   pmm: false
   donors: 5
-  cfg_scale: 0
+  cfg_scale: 1.2
 model:
-  net: "AttnNet"
-  channels: 64
+  net: "ResNet"
+  channels: 256
   dropout: 0.5
-  layers: 1
+  layers: 2
   nheads: 4
   loss_num: 1
   loss_cat: 1
   loss_hsic: 0
 train:
-  cond_drop_prob: 0
+  patience: 1000
+  cond_drop_prob: 0.1
   valid: 0
   batch_size: 128
   epochs: 5000

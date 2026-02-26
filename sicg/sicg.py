@@ -7,15 +7,28 @@ from tqdm import tqdm
 import warnings
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.neighbors import NearestNeighbors
-from geomloss import SamplesLoss
 
 warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as true but not supported on MPS.*")
-from .data_transformer import DataTransformer, ImputationDataset
-from .networks import Generator, Discriminator
-from .utils import gumbel_activation, gradient_penalty, recon_loss, moment_matching_loss, PCA, calc_HSIC_loss
-from .swag import SWAG
+import sys
+from pathlib import Path
+
+def setup_project_paths():
+    current_path = Path(__file__).resolve()
+    for parent in current_path.parents:
+        if parent.name == 'sicg':
+            project_root = parent
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+            return
+    sys.path.insert(0, str(current_path.parent))
+setup_project_paths()
+
+from data_transformer import DataTransformer, ImputationDataset
+from networks import Generator, Discriminator
+from utils import gumbel_activation, gradient_penalty, recon_loss, moment_matching_loss, PCA
+from swag import SWAG
 
 class SICG:
     def __init__(self, config, data_info, device=None):
@@ -98,9 +111,6 @@ class SICG:
         pca_cols = [c for c in pca_cols if c in df_p2.columns]
 
         self._pca.fit(torch.from_numpy(df_p2[pca_cols].values.astype("float32")))
-
-        if self.config['train']['loss']['loss_sinkhorn'] > 0:
-            self.SinkHorn = SamplesLoss(loss="sinkhorn", p=2, blur=0.05, backend="auto")
 
         weight_var = self.data_info.get('weight_var')
         self.use_weighted_sampler = False
@@ -195,6 +205,8 @@ class SICG:
         loss_cfg = self.config['train']['loss']
         noise_dim = self.config['model']['generator']['noise_dim']
 
+        loop = self.config['model']['generator'].get('cyclic_p1_mapping', False)
+
         for k in range(num_models):
             print(f"\nTraining Model {k + 1}/{num_models} ({mi_approx})")
             dataloader_p1 = self._get_dataloader("p1", is_bootstrap=(mi_approx == 'BOOTSTRAP'))
@@ -266,20 +278,14 @@ class SICG:
                 g_loss = g_adv2 + loss_p2
 
                 if loss_cfg['loss_mml'] > 0:
-                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(self._pca(torch.cat([X_p2, A_p2, C_p2], dim=1)), self._pca(fake_d))
+                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(self._pca(torch.cat([X_p2, A_p2, C_p2], dim=1)),
+                                                                            self._pca(fake_d))
                     g_loss += loss_marg
                 if loss_cfg['loss_info'] > 0:
                     true_d = torch.cat([X_p2, A_p2, C_p2], dim=1)
                     _, info_true = D(true_d)
                     loss_info = loss_cfg['loss_info'] * moment_matching_loss(info_true, info_fake)
                     g_loss += loss_info
-                if loss_cfg['loss_hsic'] > 0:
-                    loss_hsic = calc_HSIC_loss(fake_p2, X_p2,
-                                               torch.cat([A_p2, C_p2], dim=1),
-                                               self.layout,
-                                               self.layout_attrs,
-                                               loss_cfg['loss_hsic'])
-                    g_loss += loss_hsic
                 g_loss.backward()
 
                 if mi_approx == 'SWAG':
@@ -305,24 +311,9 @@ class SICG:
                                          alpha=loss_cfg['loss_mse'], beta=loss_cfg['loss_ce'])
                     fake_p1_act = gumbel_activation(fake_p1, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
                     fake_d1 = torch.cat([fake_p1_act, A_p1, C_p1], dim=1)
-                    g_adv1 = D(fake_d1)
+                    g_adv1, info_fake = D(fake_d1)
                     g_adv1 = -g_adv1.mean()
                     g_loss = g_adv1 + loss_p1
-                    if loss_cfg['loss_sinkhorn'] > 0:
-                        try:
-                            batch_p2 = next(data_iter_p2)
-                        except StopIteration:
-                            data_iter_p2 = iter(dataloader_p2)
-                            batch_p2 = next(data_iter_p2)
-
-                        A_p2 = batch_p2['A'].to(self.device, non_blocking=True)
-                        X_p2 = batch_p2['X'].to(self.device, non_blocking=True)
-                        C_p2 = batch_p2['C'].to(self.device, non_blocking=True)
-                        fake_p1_hard = fake_p1_act = gumbel_activation(fake_p1, self.layout, loss_cfg['tau'], True)
-                        fake_sh = torch.cat([fake_p1_hard, A_p1, C_p1], dim=1)
-                        true = torch.cat([X_p2, A_p2, C_p2], dim=1)
-                        loss_sh = loss_cfg['loss_sinkhorn'] * self.SinkHorn(fake_sh, true)
-                        g_loss += loss_sh
                     g_loss.backward()
 
                     if mi_approx == 'SWAG':
@@ -340,10 +331,6 @@ class SICG:
                     logs['Moment'] = f"{loss_marg.item():.4f}"
                 if loss_cfg['loss_info'] > 0:
                     logs['Info'] = f"{loss_info.item():.4f}"
-                if loss_cfg['loss_hsic'] > 0:
-                    logs['HSIC'] = f"{loss_hsic.item():.4f}"
-                if loss_cfg['loss_sinkhorn'] > 0:
-                    logs['Sinkhorn'] = f"{loss_sh.item():.4f}"
 
                 pbar.set_postfix(logs)
 
@@ -515,14 +502,14 @@ class SICG:
                 remaining.append(col)
 
         sorted_cols = []
-        hsic_layout = []
+        layout = []
         meta_map = []
         curr = 0
 
         if remaining:
             sorted_cols.extend(remaining)
             w = len(remaining)
-            hsic_layout.append((curr, curr + w, 0))
+            layout.append((curr, curr + w, 0))
             curr += w
 
         for base_key in sorted(var_groups.keys()):
@@ -534,7 +521,7 @@ class SICG:
 
             w = len(cols)
             sorted_cols.extend(cols)
-            hsic_layout.append((curr, curr + w, w))
+            layout.append((curr, curr + w, w))
 
             if base_key in data_info['cat_vars']:
                 meta_map.append({
@@ -545,4 +532,4 @@ class SICG:
                 })
             curr += w
 
-        return sorted_cols, hsic_layout, meta_map
+        return sorted_cols, layout, meta_map

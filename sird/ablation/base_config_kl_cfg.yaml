@@ -9,33 +9,33 @@ diffusion:
   task: "Res-N"
   discrete: "KL"
   diffusion_embedding_dim: 128
-  num_steps: 50
+  num_steps: 25
   sum_scale: 0.01 # must > 0, and cannot be too small
 sample:
   m: 5
-  mi_approx: "DROPOUT" # "SWAG"
+  mi_approx: "None" # "SWAG"
   pmm: false
   donors: 5
-  cfg_scale_num: 1.2
-  cfg_scale_cat: 1.2
+  cfg_scale_num: 1
+  cfg_scale_cat: 1
 model:
   net: "ResNet"
-  channels: 256
+  channels: 512
   dropout: 0.5
-  layers: 5
+  layers: 4
   nheads: 8
   loss_num: 1
   loss_cat: 1
 train:
-  patience: 10000
-  valid_ratio: 0
+  patience: 2500
   cond_drop_prob: 0.1
-  batch_size: 256
-  epochs: 10000
+  valid: 0
+  batch_size: 128
+  epochs: 5000
   eval_batch_size: 1024
   Adam:
     lr: 2.0e-4
-    weight_decay: 1.0e-06
+    weight_decay: 1.0e-04
   SGD:
     lr: 1.0e-2
     momentum: 0.9

@@ -1,6 +1,7 @@
 import pandas as pd
 from scipy.spatial.distance import cdist
 
+
 class Loss:
     def __init__(self, data_info, weight_mse=None, weight_ce=None, weight_ed=None):
         # Extract relevant variables targeting phase 2
@@ -18,6 +19,12 @@ class Loss:
         # Flag for auto-balancing if any target weight is missing
         self.auto_balance = (weight_mse is None) or (weight_ce is None) or (weight_ed is None)
 
+        # Track attempts and running sums for stable locking
+        self.attempts = 0
+        self._sum_raw_mse = 0.0
+        self._sum_raw_ce = 0.0
+        self._sum_raw_ed = 0.0
+
     def calculate_loss(self, true_data, fake_data):
         # Ensure targeted numeric variables are strictly evaluated as floats
         cast_dict = {col: float for col in self.target_num_vars}
@@ -30,10 +37,25 @@ class Loss:
 
         # Compute and assign inverse weights if auto-balancing is triggered
         if self.auto_balance:
-            self.weight_mse = 1.0 / raw_mse
-            self.weight_ce = 1.0 / raw_ce
-            self.weight_ed = 1.0 / raw_ed
-            self.auto_balance = False
+            self.attempts += 1
+
+            # Accumulate raw losses to compute a stable average for the lock
+            self._sum_raw_mse += raw_mse
+            self._sum_raw_ce += raw_ce
+            self._sum_raw_ed += raw_ed
+
+            # Dynamically scale the current batch (Attempts 1 through 5)
+            # Using max(..., 1e-8) prevents ZeroDivisionError
+            self.weight_mse = 1.0 / max(raw_mse, 1e-8)
+            self.weight_ce = 1.0 / max(raw_ce, 1e-8)
+            self.weight_ed = 1.0 / max(raw_ed, 1e-8)
+
+            # On the 5th attempt, lock the weights using the average of the first 5 batches
+            if self.attempts == 5:
+                self.weight_mse = 1.0 / max(self._sum_raw_mse / 5.0, 1e-8)
+                self.weight_ce = 1.0 / max(self._sum_raw_ce / 5.0, 1e-8)
+                self.weight_ed = 1.0 / max(self._sum_raw_ed / 5.0, 1e-8)
+                self.auto_balance = False  # Lock the weights permanently
 
         norm_mse = raw_mse * self.weight_mse
         norm_ce = raw_ce * self.weight_ce
@@ -79,6 +101,9 @@ class Loss:
 
     def _compute_categorical_loss(self, true_data, fake_data):
         # Compute misclassification error rates for categorical targets
+        if not self.target_cat_vars:
+            return 0.0
+
         error_rate_sum = 0.0
 
         for col in self.target_cat_vars:

@@ -163,7 +163,7 @@ class DataTransformer:
                         'type': 'gmm',
                         'model': best_gmm,
                         'means': best_gmm.means_.flatten().astype(np.float32),
-                        'stds': np.sqrt(best_gmm.covariances_.flatten()).astype(np.float32),
+                        'stds': 4 * np.sqrt(best_gmm.covariances_.flatten()).astype(np.float32),
                     }
 
                     mode_enc = OneHotEncoder(sparse_output=False, handle_unknown='ignore')
@@ -175,7 +175,7 @@ class DataTransformer:
     def _fit_standard(self, data):
         mu = float(np.mean(data))
         sigma = float(np.std(data))
-        return {'type': 'zscore', 'mean': mu, 'std': sigma}
+        return {'type': 'zscore', 'mean': mu, 'std': 4 * sigma}
 
     def _transform_numeric(self):
         collected = {}

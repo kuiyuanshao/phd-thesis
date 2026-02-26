@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import copy
 from sklearn.model_selection import KFold, train_test_split
-from .metric import Regularization, Loss
-from .sicg import SICG
+from metric import Regularization, Loss
+from sicg import SICG
 import gc
 import torch
 import os
@@ -34,7 +34,8 @@ class BivariateTuner:
 
     def enforce_wgan_rules(self, config, p):
         # 1. Enforce pack limit (modifies 'p' so the correct batch_size is logged in history)
-        p["batch_size"] -= p["batch_size"] % p["pack"]
+        if "pac" in p:
+            p["batch_size"] -= p["batch_size"] % p["pac"]
         config["train"]["batch_size"] = p["batch_size"]
 
         # 2. Apply Generator scaling overrides

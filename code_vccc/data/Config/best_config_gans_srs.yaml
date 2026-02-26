@@ -7,18 +7,18 @@ processing:
     epsilon: 1.0e-06
 
 model:
-  residual_modeling: true
+  residual_modeling: false
   semi_supervised: false
   generator:
-    noise_dim: 256
+    noise_dim: 64
     hidden_dim: 256
     layers: 2
-    dropout: 0.2
+    dropout: 0.5
 
   discriminator:
     hidden_dim: 256
     layers: 2
-    pack: 2
+    pack: 5
 
 sample:
   m: 5
@@ -28,13 +28,13 @@ sample:
 
 train:
   epochs: 10000
-  batch_size: 500
+  batch_size: 250
   Adam:
     lr_g: 0.0002
     lr_d: 0.0002
     betas_g: [0.5, 0.9]
     betas_d: [0.5, 0.9]
-    weight_decay: 1.0e-06
+    weight_decay: 1.0e-05
   SGD:
     lr_g: 1.0e-2
     lr_d: 1.0e-2
@@ -43,10 +43,12 @@ train:
     weight_decay: 1.0e-4
   loss:
     lambda_gp: 10
-    loss_mse: 0
+    loss_hsic: 200
+    loss_mse: 1
     loss_ce: 1
-    loss_mml: 1
+    loss_mml: 0
     loss_info: 0
+    loss_cyclic: 1
     tau: 0.2
     hard_gumbel: false
     discriminator_steps: 1

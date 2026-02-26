@@ -99,3 +99,5 @@ reallocate <- function(samp){
   
   return (samp)
 }
+
+

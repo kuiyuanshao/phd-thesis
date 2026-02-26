@@ -99,3 +99,37 @@ reallocate <- function(samp){
   
   return (samp)
 }
+
+
+data_info_vccc <- list(
+  weight_var = "W",
+  cat_vars = c(
+    "SEX", "RACEETH", "RISK1", "RISK2", "DEATH_EVER", 
+    "GENERIC_ART_NAME_v", "GENERIC_ART_NAME_nv", 
+    "SOURCE_nv", "ART_SOURCE_nv", 
+    "DIAGNOSIS_v", "DIAGNOSIS_nv", 
+    "ANY_OI_v", "ANY_OI_nv"
+  ),
+  num_vars = c(
+    "CFAR_PID", "AGE_AT_FIRST_VISIT", "AGE_AT_LAST_VISIT", "AGE_AT_DEATH",
+    "YEAR_OF_ENROLLMENT", "YEAR_OF_LAST_VISIT", "YEAR_OF_DEATH", "YEARS_IN_STUDY",
+    "AGE_AT_MED_START_v", "AGE_AT_MED_STOP_v", 
+    "AGE_AT_MED_START_nv", "AGE_AT_MED_STOP_nv", 
+    "AGE_AT_DX_ONSET_v", "YEAR_OF_DX_ONSET_v", 
+    "AGE_AT_DX_ONSET_nv", "YEAR_OF_DX_ONSET_nv", 
+    "CD4_COUNT_BSL_v", "CD4_COUNT_1Y_v", "VL_COUNT_BSL_v", "VL_COUNT_BSL_nv", 
+    "CD4_COUNT_BSL_sqrt_v", "CD4_COUNT_1Y_sqrt_v", "VL_COUNT_BSL_LOG_v", "VL_COUNT_BSL_LOG_nv"
+  ),
+  phase2_vars = c(
+    "AGE_AT_MED_START_v", "AGE_AT_MED_STOP_v", "GENERIC_ART_NAME_v", 
+    "AGE_AT_DX_ONSET_v", "DIAGNOSIS_v", "YEAR_OF_DX_ONSET_v", "ANY_OI_v", 
+    "VL_COUNT_BSL_v", 
+    "VL_COUNT_BSL_LOG_v"
+  ),
+  phase1_vars = c(
+    "AGE_AT_MED_START_nv", "AGE_AT_MED_STOP_nv", "GENERIC_ART_NAME_nv", 
+    "AGE_AT_DX_ONSET_nv", "DIAGNOSIS_nv", "YEAR_OF_DX_ONSET_nv", "ANY_OI_nv", 
+    "VL_COUNT_BSL_nv", 
+    "VL_COUNT_BSL_LOG_nv"
+  )
+)

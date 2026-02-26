@@ -104,8 +104,7 @@ gradientPenalty <- function(D, real_samples, fake_samples, params, device, ones_
   
   d_interpolates <- D(interpolates)
   
-  fake <- ones_buf
-  fake <- fake$detach()
+  fake <- torch_ones(c(d_interpolates$size()), device = device)
   
   gradients <- torch::autograd_grad(
     outputs = d_interpolates,

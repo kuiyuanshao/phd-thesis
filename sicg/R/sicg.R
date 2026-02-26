@@ -358,7 +358,7 @@ sicg <- function(data, m = 5,
         d_loss <- -(torch_mean(x_true) - torch_mean(x_fake))
         
         if (params$lambda > 0){
-          gp <- gradientPenalty(dnet, fake_AC, true_AC, params, device = device, ones_buf = ones_buf) 
+          gp <- gradientPenalty(dnet, fake_AC, true_AC, params, device = device) 
           d_loss <- d_loss + params$lambda * gp
         }
         

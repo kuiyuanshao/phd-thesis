@@ -1,13 +1,13 @@
 # Data Processing Hyperparameters
 processing:
   normalization: 'gmm'
-  log: true
+  log: false
   gmm:
     max_components: 1
     epsilon: 1.0e-06
 
 model:
-  residual_modeling: true
+  residual_modeling: false
   semi_supervised: false
   generator:
     noise_dim: 64
@@ -43,12 +43,10 @@ train:
     weight_decay: 1.0e-4
   loss:
     lambda_gp: 10
-    loss_hsic: 0
     loss_mse: 0
     loss_ce: 1
     loss_mml: 1
     loss_info: 0
-    loss_sinkhorn: 0
     tau: 0.2
     hard_gumbel: false
     discriminator_steps: 1

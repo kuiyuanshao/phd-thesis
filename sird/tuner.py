@@ -3,12 +3,15 @@ import pandas as pd
 import numpy as np
 import copy
 from sklearn.model_selection import KFold, train_test_split
-from .metric import Regularization, Loss
-from .sird import SIRD
 import gc
 import torch
 import os
 import contextlib
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from metric import Regularization, Loss
+from sird import SIRD
+
 
 class BivariateTuner:
     def __init__(self, data, base_config, param_grid, data_info, reg_config, n_splits=1):

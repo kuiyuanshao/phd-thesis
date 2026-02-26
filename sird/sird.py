@@ -7,14 +7,13 @@ from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from tqdm import tqdm
 from scipy.linalg import block_diag
 from sklearn.neighbors import NearestNeighbors
-import math
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from networks import SIRD_NET
 from swag import SWAG
 from data_transformer import DataTransformer
+
 import warnings
 from sklearn.exceptions import ConvergenceWarning
-from utils import calc_HSIC_loss
 
 warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
@@ -41,42 +40,37 @@ class SIRD:
         self.task = config["diffusion"]["task"]
         self.discrete = config["diffusion"]["discrete"]
 
-        if self.task == "Res-F":
-            self.betas = torch.linspace(1e-4, 0.02, self.num_steps).to(self.device)
-            self.alphas = 1.0 - self.betas
-            self.alpha_bars = torch.cumprod(self.alphas, dim=0)
-            self.alpha_bars_t_minus_1 = torch.roll(self.alpha_bars, shifts=1, dims=0)
-            self.alpha_bars_t_minus_1[0] = self.alpha_bars_t_minus_1[1]
-            self.betas_bars = (1 - self.alpha_bars_t_minus_1) / (1 - self.alpha_bars) * self.betas
-            abs_dist = torch.abs(torch.sqrt(self.alpha_bars) - 0.5)
-            self.T_acc = abs_dist.argmin().item() + 1
+        b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
+        betas = b / b.sum() * self.sum_scale
+        betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
 
-        else:
-            b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
-            betas = b / b.sum() * self.sum_scale
-            betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
+        alpha_schedule = self.config['diffusion'].get('alpha_schedule', 'exp')
+        a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
+        alphas = a / a.sum()
+        self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
 
-            alpha_schedule = self.config['diffusion'].get('alpha_schedule', 'exp')
-            a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
-            alphas = a / a.sum()
-            self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
+        alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0),
+                                    value=self.alpha_bars[1])  # Padding logic from original
 
-            alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0),
-                                       value=self.alpha_bars[1])  # Padding logic from original
+        betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
+        self.beta_bars = torch.sqrt(betas_cumsum)
 
-            betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
-            self.beta_bars = torch.sqrt(betas_cumsum)
+        self.post_w_p = F.pad(self.alpha_bars[:-1], (1, 0), value=0.0).to(self.device)
+        self.post_w_s = 1.0 - self.post_w_p
+        self.post_beta_t = (1.0 - (1.0 - self.alpha_bars) / (1.0 - self.post_w_p + 1e-30)).clamp(1e-5, 1.0 - 1e-5)
+        self.log_post_w_p = torch.log(self.post_w_p + 1e-30)
+        self.log_post_w_s = torch.log(self.post_w_s + 1e-30)
 
-            posterior_variance = betas * betas_cumsum_prev / betas_cumsum
-            posterior_variance[0] = 0
-            self.posterior_log_variance = torch.log(posterior_variance.clamp(min=1e-20))
+        posterior_variance = betas * betas_cumsum_prev / betas_cumsum
+        posterior_variance[0] = 0
+        self.posterior_log_variance = torch.log(posterior_variance.clamp(min=1e-20))
 
-            self.posterior_mean_coef1 = betas_cumsum_prev / betas_cumsum
-            self.posterior_mean_coef2 = (betas * alphas_cumsum_prev - betas_cumsum_prev * alphas) / betas_cumsum
-            self.posterior_mean_coef3 = betas / betas_cumsum
-            self.posterior_mean_coef1[0] = 0
-            self.posterior_mean_coef2[0] = 0
-            self.posterior_mean_coef3[0] = 1
+        self.posterior_mean_coef1 = betas_cumsum_prev / betas_cumsum
+        self.posterior_mean_coef2 = (betas * alphas_cumsum_prev - betas_cumsum_prev * alphas) / betas_cumsum
+        self.posterior_mean_coef3 = betas / betas_cumsum
+        self.posterior_mean_coef1[0] = 0
+        self.posterior_mean_coef2[0] = 0
+        self.posterior_mean_coef3[0] = 1
 
         self.model = None
         self.model_list = []
@@ -191,7 +185,7 @@ class SIRD:
                     iter_loader = iter(loader); batch_idx = next(iter_loader)[0]
 
                 optim.zero_grad()
-                loss, n_loss, c_loss, hsic_loss = self.calc_loss(batch_idx)
+                loss, n_loss, c_loss = self.calc_loss(batch_idx)
                 loss.backward()
 
                 running_train_loss += loss.item()
@@ -214,21 +208,18 @@ class SIRD:
                         with torch.no_grad():
                             for v_batch in val_loader:
                                 v_batch_idx = v_batch[0]
-                                _, mse_loss, cat_loss, v_hsic = self.calc_loss(v_batch_idx)
+                                _, mse_loss, cat_loss = self.calc_loss(v_batch_idx)
                                 mse_loss += mse_loss.item()
                                 cat_loss += cat_loss.item()
 
                         avg_mse = mse_loss / len(val_loader)
                         avg_cat = cat_loss / len(val_loader)
-                        avg_hsic = v_hsic / len(val_loader)
-                        current_metric = avg_mse + avg_cat + avg_hsic
+                        current_metric = avg_mse + avg_cat
                         postfix_dict["val_cont_loss"] = f"{avg_mse:.4f}"
                         postfix_dict["val_disc_loss"] = f"{avg_cat:.4f}"
                         self.model.train()
                     else:
                         current_metric = avg_train_loss
-                    if self.config['model']['loss_hsic'] > 0:
-                        postfix_dict["val_disc_loss"] = f"{hsic_loss:.4f}"
 
                     if current_metric < best_loss:
                         best_loss = current_metric
@@ -403,6 +394,13 @@ class SIRD:
             self.layout_cond.append((curr_idx, curr_idx + int(k), int(k)))
             curr_idx += int(k)
 
+        resid = self.P1_num - self.X_num
+        res_mean = resid.mean(dim=0, keepdim=True)
+        res_std = resid.std(dim=0, keepdim=True)
+        std_res = (resid - res_mean) / (res_std + 1e-8)
+        shuffle_indices = torch.randperm(std_res.size(0), device=std_res.device)
+        self.std_res = std_res[shuffle_indices]
+
     def calc_loss(self, batch_idx):
         b_x_num = self.X_num[batch_idx]
         b_x_cat = self.X_cat[batch_idx]
@@ -416,20 +414,14 @@ class SIRD:
             drop_mask = (torch.rand(B, 1, device=self.device) > cond_drop_prob).float()
             b_cond = b_cond * drop_mask
 
-        if self.task == "Res-F":
-            t = torch.randint(0, self.T_acc, (B,), device=self.device).long()
-            a_bar = self.alpha_bars[t].view(B, 1)
-            true_res = b_p1_num - b_x_num
-            eps_num = torch.randn_like(b_x_num)
-            x_t_num = (torch.sqrt(a_bar) * b_x_num + (1 - torch.sqrt(a_bar)) * true_res +
-                       torch.sqrt(1 - a_bar) * eps_num)
-        else:
-            t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
-            a_bar = self.alpha_bars[t].view(B, 1)
-            b_bar = self.beta_bars[t].view(B, 1)
-            eps_num = torch.randn_like(b_x_num)
-            true_res = b_p1_num - b_x_num
-            x_t_num = b_x_num + a_bar * true_res + b_bar * eps_num
+
+        t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
+        a_bar = self.alpha_bars[t].view(B, 1)
+        b_bar = self.beta_bars[t].view(B, 1)
+        eps_num = torch.randn_like(b_x_num)
+        true_res = b_p1_num - b_x_num
+        #eps_num = self.std_res[batch_idx]
+        x_t_num = b_x_num + a_bar * true_res + b_bar * eps_num
 
         if self.Q_block.numel() > 0:
             pi_prior = b_p1_cat @ self.Q_block
@@ -463,13 +455,7 @@ class SIRD:
                 loss_n = gamma * F.mse_loss(p_res, true_res) + F.mse_loss(p_eps, eps_num)
             elif self.task == "Res":
                 loss_n = gamma * F.mse_loss(out_num, true_res)
-            elif self.task == "Res-F":
-                # alpha_t = self.alphas[t].view(B, 1)
-                # beta_t = self.betas[t].view(B, 1)
-                # resnoise = eps_num + (1 - torch.sqrt(alpha_t)) * torch.sqrt(1 - a_bar) / beta_t * true_res
-                # loss_n = gamma * F.mse_loss(out_num, resnoise)
-                loss_n = gamma * F.mse_loss(out_num, b_x_num)
-            else:
+            elif self.task == "N":
                 loss_n = F.mse_loss(out_num, eps_num)
 
         if out_cat is not None:
@@ -492,65 +478,24 @@ class SIRD:
                     #logits = torch.log(p + 1.0e-30) + logits
                     loss_c += (self.config["model"]["loss_cat"] *
                                F.cross_entropy(logits, x0, reduction='mean'))
-        # ---------------------------------------------------------
-        # Assemble Tensors for One-Shot HSIC Calculation
-        # ---------------------------------------------------------
-        lambda_hsic = self.config["model"].get("loss_hsic", 0)
-        loss_hsic = torch.tensor(0.0, device=self.device)
 
-        if lambda_hsic > 0.0:
-            if self.task == "Res-N":
-                pred_n = out_num
-                true_n = torch.cat([true_res, eps_num], dim=1)
-            elif self.task == "Res":
-                pred_n = out_num
-                true_n = true_res
-            else:
-                pred_n = out_num
-                true_n = eps_num
-
-            pred_c_list = []
-            if out_cat is not None:
-                for i, (logits, prior) in enumerate(zip(logits_list, prior_list)):
-                    p = prior if self.has_partner_mask[i] else torch.ones_like(prior) / prior.shape[1]
-                    #logits = torch.log(p + 1.0e-30) + logits
-                    pred_c_list.append(F.softmax(logits, dim=-1))
-
-            pred_c = torch.cat(pred_c_list, dim=1) if pred_c_list else torch.empty((B, 0), device=self.device)
-            true_c = b_x_cat
-
-            x_fake = torch.cat([pred_n, pred_c], dim=1)
-            x_real = torch.cat([true_n, true_c], dim=1)
-
-            loss_hsic = calc_HSIC_loss(
-                x_fake=x_fake,
-                x_real=x_real,
-                attrs=b_cond,
-                layout_res=self.layout_res,
-                layout_attr=self.layout_cond,
-                lambda_hsic=lambda_hsic,
-            )
-
-        # Combine everything
-        total_loss = loss_n + loss_c + loss_hsic
-        return total_loss, loss_n, loss_c, loss_hsic
+        total_loss = loss_n + loss_c
+        return total_loss, loss_n, loss_c
 
     def _compute_posterior_vec(self, x_t, x_start, x_proxy, t):
-        B = x_t.shape[0]
-        curr_alpha = self.alpha_bars[t].view(B, 1)
-        prev_alpha = self.alpha_bars[(t - 1).clamp(0)].view(B, 1)
-        prev_alpha[t == 0] = 0.0
-        beta_t = (1.0 - (1.0 - curr_alpha) / (1.0 - prev_alpha + 1e-30)).clamp(1e-5, 1.0 - 1e-5)
-        w_s_prev = 1.0 - prev_alpha
-        w_p_prev = prev_alpha
+        log_w_s = self.log_post_w_s[t].unsqueeze(1)
+        log_w_p = self.log_post_w_p[t].unsqueeze(1)
+        beta_t = self.post_beta_t[t].unsqueeze(1)
         log_prior = torch.logaddexp(
-            torch.log(w_s_prev + 1e-30) + torch.log(x_start + 1e-30),
-            torch.log(w_p_prev + 1e-30) + torch.log(x_proxy + 1e-30)
+            log_w_s + torch.log(x_start + 1e-30),
+            log_w_p + torch.log(x_proxy + 1e-30)
         )
         p_proxy_at_xt = (x_t * x_proxy).sum(dim=1, keepdim=True)
+
         log_lik_noise = torch.log(beta_t * p_proxy_at_xt + 1e-30)
         log_lik_stay = torch.log((1.0 - beta_t) + beta_t * p_proxy_at_xt + 1e-30)
         log_likelihood = x_t * log_lik_stay + (1.0 - x_t) * log_lik_noise
+
         log_unnorm = log_prior + log_likelihood
         return log_unnorm - torch.logsumexp(log_unnorm, dim=1, keepdim=True)
 
@@ -559,6 +504,10 @@ class SIRD:
         collected_outputs = {'num': [], 'cat': []}
         p1_n_start, p1_n_end = self.dim_info['p1_num_idx']
         p1_c_start, p1_c_end = self.dim_info['p1_cat_idx']
+
+        cfg_scale_num = self.config.get("sample", {}).get("cfg_scale_num", 1.0)
+        cfg_scale_cat = self.config.get("sample", {}).get("cfg_scale_cat", 1.0)
+        use_cfg = self.config['train']['cond_drop_prob'] > 0
         with torch.no_grad():
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
@@ -566,13 +515,8 @@ class SIRD:
                 full_cond = full_data[start:end]
                 p1_num = full_cond[:, p1_n_start:p1_n_end]
 
-                if self.task == "Res-F":
-                    alpha_hat_T = self.alpha_bars[self.T_acc - 1]
-                    x_t_num = torch.sqrt(alpha_hat_T) * p1_num + torch.sqrt(1 - alpha_hat_T) * torch.randn_like(p1_num)
-                    loop_range = reversed(range(self.T_acc))
-                else:
-                    x_t_num = p1_num + torch.sqrt(self.sum_scale) * torch.randn_like(p1_num)
-                    loop_range = reversed(range(self.num_steps))
+                x_t_num = p1_num + torch.sqrt(self.sum_scale) * torch.randn_like(p1_num)
+                loop_range = reversed(range(self.num_steps))
 
                 p1_cat_chunk = full_cond[:, p1_c_start:p1_c_end]
 
@@ -589,82 +533,49 @@ class SIRD:
                     x_t_cat_list.append(F.one_hot((log_p + g).argmax(dim=1), k).float())
                 x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
 
-                cfg_scale = self.config.get("sample", {}).get("cfg_scale", 1.0)
-                null_cond = torch.zeros_like(full_cond) if cfg_scale > 1.0 else None
+                null_cond = torch.zeros_like(full_cond)
                 for i in loop_range:
                     t = torch.full((B,), i, device=self.device).long()
                     x_curr = torch.cat([x_t_num, x_t_cat], dim=1)
 
-                    out_num, out_cat = model_to_use(x_curr, full_cond, t)
-                    if cfg_scale > 1.0:
-                        out_num_cond, out_cat_cond = model_to_use(x_curr, full_cond, t)
-                        out_num_uncond, out_cat_uncond = model_to_use(x_curr, null_cond, t)
+                    if use_cfg:
+                        x_curr_double = torch.cat([x_curr, x_curr], dim=0)
+                        cond_double = torch.cat([full_cond, null_cond], dim=0)
+                        t_double = torch.cat([t, t], dim=0)
+                        out_num_double, out_cat_double = model_to_use(x_curr_double, cond_double, t_double)
                         out_num = None
-                        if out_num_cond is not None:
-                            out_num = out_num_uncond + cfg_scale * (out_num_cond - out_num_uncond)
+                        if out_num_double is not None:
+                            out_num_cond, out_num_uncond = out_num_double.chunk(2, dim=0)
+                            out_num = out_num_uncond + cfg_scale_num * (out_num_cond - out_num_uncond)
                         out_cat = None
-                        if out_cat_cond is not None:
-                            out_cat = out_cat_uncond + cfg_scale * (out_cat_cond - out_cat_uncond)
+                        if out_cat_double is not None:
+                            out_cat_cond, out_cat_uncond = out_cat_double.chunk(2, dim=0)
+                            out_cat = out_cat_uncond + cfg_scale_cat * (out_cat_cond - out_cat_uncond)
                     else:
                         out_num, out_cat = model_to_use(x_curr, full_cond, t)
 
                     if out_num is not None:
-                        if self.task == "Res-F":
-                            # alpha_t = self.alphas[i]
-                            # a_bar = self.alpha_bars[i]
-                            # beta_t = self.betas[i]
-                            # beta_bar = self.betas_bars[i]
-                            # pred_resnoise = out_num
-                            # sigma = torch.sqrt(beta_bar)
-                            # z = torch.randn_like(x_t_num) if i > 0 else 0
-                            # x_t_num = 1 / torch.sqrt(alpha_t) * (
-                            #         x_t_num - (beta_t / torch.sqrt(1 - a_bar)) * pred_resnoise
-                            # ) + sigma * z
-                            alpha_t = self.alphas[i]
-                            a_bar = self.alpha_bars[i]
-                            a_bar_prev = self.alpha_bars_t_minus_1[i]
-                            beta_hat = self.betas_bars[i]
-
-                            # 1. Network predicts x_0 directly
-                            pred_x_0 = out_num
-
-                            # 2. Implied residual: R = condition - x_0
-                            pred_residual = p1_num - pred_x_0
-
-                            sigma = torch.sqrt(beta_hat)
-                            z = torch.randn_like(x_t_num) if i > 0 else 0
-
-                            if i == 0:
-                                # Final step: just return the predicted clean data
-                                x_t_num = pred_x_0
-                            else:
-                                # ResFusion Formula 44 (Sample Mode)
-                                term1 = torch.sqrt(alpha_t) * (1 - a_bar_prev) * (x_t_num - pred_residual)
-                                term2 = torch.sqrt(a_bar_prev) * (1 - alpha_t) * (pred_x_0 - pred_residual)
-
-                                x_t_num = ((term1 + term2) / (1 - a_bar)) + pred_residual + sigma * z
+                        if self.task == "Res-N":
+                            dim = out_num.shape[1] // 2
+                            res, eps = out_num[:, :dim], out_num[:, dim:]
+                            x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
+                        elif self.task == "Res":
+                            res = out_num
+                            eps = (x_t_num - p1_num - (self.alpha_bars[i] - 1) * res) / (self.beta_bars[i] + 1e-8)
+                            x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
                         else:
-                            if self.task == "Res-N":
-                                dim = out_num.shape[1] // 2
-                                res, eps = out_num[:, :dim], out_num[:, dim:]
-                                x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
-                            elif self.task == "Res":
-                                res = out_num
-                                eps = (x_t_num - p1_num - (self.alpha_bars[i] - 1) * res) / (self.beta_bars[i] + 1e-8)
-                                x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
-                            else:
-                                eps = out_num
-                                x_start = (x_t_num - self.alpha_bars[i] * p1_num - self.beta_bars[i] * eps) / (
-                                            1 - self.alpha_bars[i] + 1e-8)
-                                x_start = x_start.clamp(-4, 4)
-                                res = p1_num - x_start
-
+                            eps = out_num
+                            x_start = (x_t_num - self.alpha_bars[i] * p1_num - self.beta_bars[i] * eps) / (
+                                    1 - self.alpha_bars[i] + 1e-8)
                             x_start = x_start.clamp(-4, 4)
-                            post_mean = self.posterior_mean_coef1[i] * x_t_num + \
-                                        self.posterior_mean_coef2[i] * res + \
-                                        self.posterior_mean_coef3[i] * x_start
-                            noise = torch.randn_like(x_t_num) if i > 0 else 0
-                            x_t_num = (post_mean + (0.5 * self.posterior_log_variance[i]).exp() * noise).clamp(-4, 4)
+                            res = p1_num - x_start
+
+                        x_start = x_start.clamp(-4, 4)
+                        post_mean = self.posterior_mean_coef1[i] * x_t_num + \
+                                    self.posterior_mean_coef2[i] * res + \
+                                    self.posterior_mean_coef3[i] * x_start
+                        noise = torch.randn_like(x_t_num) if i > 0 else 0
+                        x_t_num = (post_mean + (0.5 * self.posterior_log_variance[i]).exp() * noise).clamp(-4, 4)
 
                     if out_cat is not None:
                         logits_list = torch.split(out_cat, self.cat_sizes, dim=1)
@@ -672,14 +583,12 @@ class SIRD:
                         new_cat_list = []
                         for j, (logits, xt, prior) in enumerate(zip(logits_list, xt_list, prior_list)):
                             p = prior if self.has_partner_mask[j] else torch.ones_like(prior) / prior.shape[1]
-                            # logits = torch.log(p + 1.0e-30) + logits
                             pred_probs = F.softmax(logits, dim=-1)
                             log_post = self._compute_posterior_vec(xt, pred_probs, p, t)
                             g = -torch.log(-torch.log(torch.rand_like(log_post) + 1e-30) + 1e-30)
                             sample = (log_post + g)
                             new_cat_list.append(F.one_hot(sample.argmax(dim=1), self.cat_sizes[j]).float())
                         x_t_cat = torch.cat(new_cat_list, dim=1)
-
                 collected_outputs['num'].append(x_t_num.cpu())
                 collected_outputs['cat'].append(x_t_cat.cpu())
 
@@ -735,9 +644,7 @@ class SIRD:
             else:
                 model_to_use = self.model_list[0]; model_to_use.eval()
 
-            # Pass full Cond tensor
             x_0_dict = self._reverse_diffusion(self.Cond, model_to_use, eval_bs)
-
             gen_df_dict = {}
             for v in self.transformer.get_sird_schema():
                 if 'p2' in v['type']:
