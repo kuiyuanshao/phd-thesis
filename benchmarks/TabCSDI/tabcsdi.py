@@ -15,7 +15,7 @@ from pathlib import Path
 def setup_project_paths():
     current_path = Path(__file__).resolve()
     for parent in current_path.parents:
-        if parent.name == 'gain':
+        if parent.name == 'GAIN':
             project_root = parent
             if str(project_root) not in sys.path:
                 sys.path.insert(0, str(project_root))
@@ -329,7 +329,7 @@ class TabCSDI(nn.Module):
         rand_for_mask = rand_for_mask.reshape(len(rand_for_mask), -1)
 
         for i in range(len(observed_mask)):
-            sample_ratio = np.random.rand()
+            sample_ratio = 0.8 #np.random.rand()
             num_observed = observed_mask[i].sum().item()
             num_masked = round(num_observed * sample_ratio)
             rand_for_mask[i][rand_for_mask[i].topk(num_masked).indices] = -1

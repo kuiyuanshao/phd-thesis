@@ -1,5 +1,5 @@
 import yaml
-from sird.sird import SIRD
+from SIRD.sird import SIRD
 import os
 
 if not os.path.exists("./simulations/SampleOE/SRS/sird"):
@@ -99,9 +99,9 @@ for i in range(1, 2):
     file_path_bal = "F:/phd-thesis/code_surv/data/SampleOE/Balance/" + digit + ".csv"
     file_path_ney = "F:/phd-thesis/code_surv/data/SampleOE/Neyman/" + digit + ".csv"
 
-    save_path_srs = "F:/phd-thesis/code_surv/simulations/SampleOE/SRS/sird/" + digit + ".parquet"
-    save_path_bal = "F:/phd-thesis/code_surv/simulations/SampleOE/Balance/sird/" + digit + ".parquet"
-    save_path_ney = "F:/phd-thesis/code_surv/simulations/SampleOE/Neyman/sird/" + digit + ".parquet"
+    save_path_srs = "F:/phd-thesis/code_surv/simulations/SampleOE/SRS/SIRD/" + digit + ".parquet"
+    save_path_bal = "F:/phd-thesis/code_surv/simulations/SampleOE/Balance/SIRD/" + digit + ".parquet"
+    save_path_ney = "F:/phd-thesis/code_surv/simulations/SampleOE/Neyman/SIRD/" + digit + ".parquet"
 
     sird_mod_srs = SIRD(config_srs, data_info_srs)
     sird_mod_srs.fit(file_path_srs)

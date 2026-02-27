@@ -3,13 +3,15 @@ import pandas as pd
 import numpy as np
 import copy
 from sklearn.model_selection import KFold, train_test_split
-from metric import Regularization, Loss
-from sicg import SICG
 import gc
 import torch
 import os
 import contextlib
-import json
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from metric import Regularization, Loss
+from SIRD import SIRD
+
 
 class BivariateTuner:
     def __init__(self, data, base_config, param_grid, data_info, reg_config, n_splits=1):
@@ -35,51 +37,44 @@ class BivariateTuner:
             self.fold_histories = {}
         self.trial_history = []
 
-    def enforce_wgan_rules(self, config, p):
-        # 1. Enforce pack limit (modifies 'p' so the correct batch_size is logged in history)
-        if "pack" in p:
-            p["batch_size"] -= p["batch_size"] % p["pack"]
-        config["train"]["batch_size"] = p["batch_size"]
-        # 2. Apply Generator scaling overrides
-        config["model"]["generator"]["hidden_dim"] = p["hidden_dim"] * p["scale_hidden_dim"]
-        config["model"]["generator"]["layers"] = p["layers"] * p["scale_layer"]
-
-        # 3. Apply Learning Rate rules (maps the flat 'lr' to the specific YAML targets)
-        lr_g = p["lr"] / p["scale_lr"]
-        for optimizer in ["Adam", "SGD"]:
-            config["train"][optimizer]["lr_d"] = p["lr"]
-            config["train"][optimizer]["lr_g"] = lr_g
-
-        return config
-
-    def _smart_update(self, config_node, p):
-        for key, value in config_node.items():
-            if isinstance(value, dict):
-                self._smart_update(value, p)
-            elif key in p:
-                config_node[key] = p[key]
-
     def _get_trial_config(self, trial):
         config = copy.deepcopy(self.base_config)
         flat_params = {}
 
-        for key, params in self.param_grid.items():
-            p_type = params[0]
-            if p_type == "cat":
-                flat_params[key] = trial.suggest_categorical(key, params[1])
-            elif p_type == "int":
-                flat_params[key] = trial.suggest_int(key, params[1], params[2])
-            elif p_type == "float":
-                flat_params[key] = trial.suggest_float(key, params[1], params[2])
-            elif p_type == "log_float":
-                flat_params[key] = trial.suggest_float(key, params[1], params[2], log=True)
+        for param_name, params in self.param_grid.items():
+            param_type = params[0]
+            if param_type == "cat":
+                choices = params[1]
+                chosen_value = trial.suggest_categorical(param_name, choices)
+            elif param_type == "int":
+                low, high = params[1], params[2]
+                chosen_value = trial.suggest_int(param_name, low, high)
+            elif param_type == "float":
+                low, high = params[1], params[2]
+                chosen_value = trial.suggest_float(param_name, low, high)
+            elif param_type == "log_float":
+                low, high = params[1], params[2]
+                chosen_value = trial.suggest_float(param_name, low, high, log=True)
+            else:
+                raise ValueError(f"Unknown parameter type: {param_type} for {param_name}")
 
-        p = flat_params
+            flat_params[param_name] = chosen_value
 
-        self._smart_update(config, p)
-        config = self.enforce_wgan_rules(config, p)
+            found = self._update(config, param_name, chosen_value)
+            if not found:
+                print(f"[Warning] Parameter '{param_name}' not found in base_config. It was skipped.")
 
         return config, flat_params
+
+    def _update(self, d, target_key, target_val):
+        for k, v in d.items():
+            if k == target_key:
+                d[k] = target_val
+                return True
+            elif isinstance(v, dict):
+                if self._update(v, target_key, target_val):
+                    return True
+        return False
 
     def objective(self, trial):
         trial_config, flat_params = self._get_trial_config(trial)
@@ -95,7 +90,7 @@ class BivariateTuner:
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
             with open(os.devnull, 'w') as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-                model = SICG(trial_config, self.data_info)
+                model = SIRD(trial_config, self.data_info)
                 model.fit(provided_data=masked_data)
                 imputed_data = model.impute()
 
@@ -186,13 +181,3 @@ class BivariateTuner:
             print(f"Parameter importance successfully saved to {importance_csv}")
         except Exception as e:
             print(f"[Warning] Could not calculate parameter importance. Error: {e}")
-
-
-
-
-
-
-
-
-
-

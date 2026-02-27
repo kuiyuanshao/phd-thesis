@@ -56,7 +56,7 @@ retrieveEst <- function(method){
           resultStdError <- rbind(resultStdError, c(sqrt(diag(vcov(cox.mod))), toupper(j), toupper(method), digit))
           resultCI <- rbind(resultCI, c(exp(confint(cox.mod))[, 1], exp(confint(cox.mod))[, 2], toupper(j), toupper(method), digit))
         }else{
-          if (!(method %in% c("sicg", "sird"))){
+          if (!(method %in% c("../SICG", "../SIRD"))){
             temp_env <- new.env()
             load(paste0("./simulations/SampleOE/", j, "/", method, "/", digit, ".RData"), envir = temp_env)
             multi_impset <- temp_env[[ls(temp_env)[1]]]
@@ -66,7 +66,7 @@ retrieveEst <- function(method){
             multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
           }
           
-          if (method %in% c("sicg", "sird", "mixgb")){
+          if (method %in% c("../SICG", "../SIRD", "mixgb")){
             multi_impset <- lapply(multi_impset, function(dat){
               match_types(dat, data)
             })
@@ -110,13 +110,13 @@ retrieveEst <- function(method){
 }
 
 #methods <- c("true", "me", "complete_case", "raking",
-#             "mice", "mixgb", "sicg", "sird")
-#methods <- c("true", "me", "complete_case", "sicg")
-methods <- c("true", "me", "complete_case", "sicg")
+#             "mice", "mixgb", "SICG", "SIRD")
+#methods <- c("true", "me", "complete_case", "SICG")
+methods <- c("true", "me", "complete_case", "../SICG")
 for (method in methods){
   retrieveEst(method)
 }
-methods <- c("true", "me", "complete_case", "sicg")
+methods <- c("true", "me", "complete_case", "../SICG")
 combine <- function(){
   filenames <- paste0("./simulations/results_", toupper(methods), ".RData")
   list_coeff <- list()

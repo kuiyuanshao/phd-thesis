@@ -23,7 +23,7 @@
 /.Rproj.user/
 /simulations/
 /my_venv/
-/sird/__pycache__/
+/SIRD/__pycache__/
 /VCCC/.ipynb_checkpoints/
 
 # Ignore temporary files

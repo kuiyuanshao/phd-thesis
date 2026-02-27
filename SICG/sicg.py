@@ -17,7 +17,7 @@ from pathlib import Path
 def setup_project_paths():
     current_path = Path(__file__).resolve()
     for parent in current_path.parents:
-        if parent.name == 'sicg':
+        if parent.name == 'SICG':
             project_root = parent
             if str(project_root) not in sys.path:
                 sys.path.insert(0, str(project_root))

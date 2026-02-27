@@ -1,5 +1,5 @@
 import yaml
-from sicg.sicg import SICG
+from SICG.sicg import SICG
 import os
 
 if not os.path.exists("./simulations/SampleOE/SRS/sicg"):
@@ -99,9 +99,9 @@ for i in range(1, 100):
     file_path_bal = "./data/SampleOE/Balance/" + digit + ".csv"
     file_path_ney = "./data/SampleOE/Neyman/" + digit + ".csv"
 
-    save_path_srs = "./simulations/SampleOE/SRS/sicg/" + digit + ".parquet"
-    save_path_bal = "./simulations/SampleOE/Balance/sicg/" + digit + ".parquet"
-    save_path_ney = "./simulations/SampleOE/Neyman/sicg/" + digit + ".parquet"
+    save_path_srs = "./simulations/SampleOE/SRS/SICG/" + digit + ".parquet"
+    save_path_bal = "./simulations/SampleOE/Balance/SICG/" + digit + ".parquet"
+    save_path_ney = "./simulations/SampleOE/Neyman/SICG/" + digit + ".parquet"
 
     sicg_mod_srs = SICG(config_srs, data_info_srs)
     sicg_mod_srs.fit(file_path_srs)

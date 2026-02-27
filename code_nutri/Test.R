@@ -15,6 +15,7 @@ multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){
   match_types(dat, data)
 })
+multi_impset[[2]] <- multi_impset[[1]]
 imp.mids <- imputationList(multi_impset)
 cox.mod <- with(data = imp.mids,
                 exp = glm(sbp ~ ln_na_true + c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr +

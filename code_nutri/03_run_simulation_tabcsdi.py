@@ -1,5 +1,5 @@
 import yaml
-from benchmarks.tabcsdi.tabcsdi import TabCSDI
+from benchmarks.TabCSDI.tabcsdi import TabCSDI
 import os
 
 base_dir = "./simulations"
@@ -15,7 +15,7 @@ strategies = [
 
 # Create the directories for each strategy
 for strategy in strategies:
-    path = os.path.join(base_dir, strategy, "tabcsdi")
+    path = os.path.join(base_dir, strategy, "TabCSDI")
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Created: {path}")

@@ -1,10 +1,10 @@
 train:
-  epochs: 200
+  epochs: 1500
   batch_size: 64
   lr: 0.0005
 
 diffusion:
-  layers: 1
+  layers: 2
   channels: 128
   nheads: 4
   diffusion_embedding_dim: 128
@@ -12,7 +12,7 @@ diffusion:
   beta_end: 0.5
   num_steps: 100
   schedule: "quad"
-  mixed: True
+  mixed: False
   token_emb_dim: 1 # refers to tokenizer
 
 model:
@@ -21,7 +21,7 @@ model:
   timeemb: 128
   featureemb: 8
   target_strategy: "random"
-  mixed: True
+  mixed: False
   token_emb_dim: 1 # refers to tokenizer
 
 sample:

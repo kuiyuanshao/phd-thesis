@@ -1,5 +1,5 @@
 import yaml
-from sird.sird import SIRD
+from SIRD.sird import SIRD
 import os
 
 base_dir = "./simulations"
@@ -15,7 +15,7 @@ strategies = [
 
 # Create the directories for each strategy
 for strategy in strategies:
-    path = os.path.join(base_dir, strategy, "sird")
+    path = os.path.join(base_dir, strategy, "SIRD")
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Created: {path}")

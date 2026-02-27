@@ -1,5 +1,5 @@
 import yaml
-from benchmarks.gain.gain import GAIN
+from benchmarks.GAIN.gain import GAIN
 import os
 
 if not os.path.exists("./simulations/SampleOE/SRS/gain"):
@@ -68,9 +68,9 @@ for i in range(1, 100):
     file_path_bal = "./data/SampleOE/Balance/" + digit + ".csv"
     file_path_ney = "./data/SampleOE/Neyman/" + digit + ".csv"
 
-    save_path_srs = "./simulations/SampleOE/SRS/gain/" + digit + ".parquet"
-    save_path_bal = "./simulations/SampleOE/Balance/gain/" + digit + ".parquet"
-    save_path_ney = "./simulations/SampleOE/Neyman/gain/" + digit + ".parquet"
+    save_path_srs = "./simulations/SampleOE/SRS/GAIN/" + digit + ".parquet"
+    save_path_bal = "./simulations/SampleOE/Balance/GAIN/" + digit + ".parquet"
+    save_path_ney = "./simulations/SampleOE/Neyman/GAIN/" + digit + ".parquet"
 
     gain_mod_srs = GAIN(config_srs, data_info_srs)
     gain_mod_srs.fit(file_path_srs)

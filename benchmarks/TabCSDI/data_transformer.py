@@ -72,7 +72,7 @@ class DataTransformer:
                 max_val = self.maxs[col]
                 out_df[col] = out_df[col].astype(float)
                 out_df.loc[mask, col] = (vals[mask] - (min_val - 1.0)) / (max_val - min_val + 1.0)
-                out_df[col] = out_df[col].fillna(0.0)
+                # out_df[col] = out_df[col].fillna(0.0)
 
         out_df = out_df[self.transformed_columns]
 

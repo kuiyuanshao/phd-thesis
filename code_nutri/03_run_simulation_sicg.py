@@ -1,5 +1,5 @@
 import yaml
-from sicg.sicg import SICG
+from SICG.sicg import SICG
 import os
 
 base_dir = "./simulations"
@@ -15,7 +15,7 @@ strategies = [
 
 # Create the directories for each strategy
 for strategy in strategies:
-    path = os.path.join(base_dir, strategy, "sicg")
+    path = os.path.join(base_dir, strategy, "SICG")
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Created: {path}")

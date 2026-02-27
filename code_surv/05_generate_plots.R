@@ -4,7 +4,7 @@ source("00_utils_functions.R")
 # loadfonts(device="win") 
 load("./simulations/results_COMBINED.RData")
 methods <- c("true", "me", "complete_case", "raking",
-             "mice", "mixgb", "sicg", "sird")
+             "mice", "mixgb", "../SICG", "../SIRD")
 vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "Age",
               "eGFR", "Insulin", "BMI", "Sex TRUE", "Insurance TRUE",
               "Race AFR", "Race AMR", "Race SAS", "Race EAS", "Smoke 2", "Smoke 3",

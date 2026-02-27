@@ -4,7 +4,7 @@ import sys
 import os
 import yaml
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../")))
-from sird.tuner import BivariateTuner
+from SIRD.tuner import BivariateTuner
 
 data_info_srs = {
     "weight_var": "W",

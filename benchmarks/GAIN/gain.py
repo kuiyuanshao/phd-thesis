@@ -17,7 +17,7 @@ warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as tru
 def setup_project_paths():
     current_path = Path(__file__).resolve()
     for parent in current_path.parents:
-        if parent.name == 'gain':
+        if parent.name == 'GAIN':
             project_root = parent
             if str(project_root) not in sys.path:
                 sys.path.insert(0, str(project_root))
@@ -216,7 +216,7 @@ class GAIN:
         batch_size = self.config['train']['batch_size']
         iterations = self.config['train']['epochs']
         total_samples_needed = iterations * batch_size
-        sampler = RandomSampler(self.dataset, replacement=True, num_samples=total_samples_needed)
+        sampler = RandomSampler(self.dataset, replacement=False, num_samples=total_samples_needed)
 
         return DataLoader(self.dataset, batch_size=batch_size,
                           sampler=sampler, drop_last=True, num_workers=0, pin_memory=True)

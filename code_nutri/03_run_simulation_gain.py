@@ -1,5 +1,5 @@
 import yaml
-from benchmarks.gain.gain import GAIN
+from benchmarks.GAIN.gain import GAIN
 import os
 
 base_dir = "./simulations"
@@ -15,7 +15,7 @@ strategies = [
 
 # Create the directories for each strategy
 for strategy in strategies:
-    path = os.path.join(base_dir, strategy, "gain")
+    path = os.path.join(base_dir, strategy, "GAIN")
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Created: {path}")
