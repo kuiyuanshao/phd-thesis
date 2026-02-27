@@ -86,11 +86,11 @@ data_info_neyman = {
     "phase1_vars": data_info_srs["phase1_vars"]
 }
 
-with open("./data/Config/best_config_rddm_srs.yaml", "r") as f:
+with open("data/Config/best_config_sird_srs.yaml", "r") as f:
     config_srs = yaml.safe_load(f)
-with open("./data/Config/best_config_rddm_bal.yaml", "r") as f:
+with open("data/Config/best_config_sird_bal.yaml", "r") as f:
     config_bal = yaml.safe_load(f)
-with open("./data/Config/best_config_rddm_ney.yaml", "r") as f:
+with open("data/Config/best_config_sird_ney.yaml", "r") as f:
     config_ney = yaml.safe_load(f)
 
 for i in range(1, 2):

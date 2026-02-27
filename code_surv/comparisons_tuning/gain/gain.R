@@ -111,10 +111,10 @@ gain <- function(data, m = 20, data_info, device = "cpu", batch_size = 128, hint
 
     mse_loss <- torch_mean((M[, num_inds, drop = F] * X[, num_inds, drop = F] - 
                              M[, num_inds, drop = F] * G_sample[, num_inds, drop = F]) ^ 2) / torch_mean(M[, num_inds, drop = F])
-    # cross_entropy <- -torch_mean(X[, cat_inds, drop = F] * M[, cat_inds, drop = F] *
-    #                                torch_log(torch_clip(G_sample[, cat_inds, drop = F], 1e-8, 1)) +
-    #                                (1 - X[, cat_inds, drop = F]) * M[, cat_inds, drop = F] *
-    #                                torch_log(torch_clip(1 - G_sample[, cat_inds, drop = F], 1e-8, 1.)))
+    cross_entropy <- -torch_mean(X[, cat_inds, drop = F] * M[, cat_inds, drop = F] *
+                                   torch_log(torch_clip(G_sample[, cat_inds, drop = F], 1e-8, 1)) +
+                                   (1 - X[, cat_inds, drop = F]) * M[, cat_inds, drop = F] *
+                                   torch_log(torch_clip(1 - G_sample[, cat_inds, drop = F], 1e-8, 1.)))
     cross_entropy <- masked_ce_categorical_fast(X, G_sample, M, data_encode$binary_indices, eps = 1e-8)
     return (G_loss1 + alpha * mse_loss + beta * cross_entropy)
   }

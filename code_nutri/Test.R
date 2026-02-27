@@ -9,7 +9,7 @@ cox.fit <- glm(sbp ~ ln_na_true + c_age + c_bmi + high_chol + usborn + female + 
                  ln_na_true:c_age, data = data)
 cox.star <- glm(sbp ~ ln_k_avg + c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr +
                   ln_na_true:c_age, data = data)
-multi_impset <- read_parquet(paste0("./simulations/SRS/sicg/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SRS/tabcsdi/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){
@@ -23,10 +23,7 @@ pooled <- MIcombine(cox.mod)
 round(coef(cox.fit) - pooled$coefficients, 4)
 
 R <- multi_impset[[1]]$R == 0
-mse <- 0
-for (i in 1:5){
-  mse <- mse + mean((multi_impset[[i]]$ln_na_true[R] - data$ln_na_true[R])^2)
-}
+mse <- mean((multi_impset[[1]]$ln_na_true[R] - data$ln_na_true[R])^2)
 mse
 
 ggplot(data) +
@@ -34,7 +31,19 @@ ggplot(data) +
   geom_density(aes(x = ln_na_avg), colour = "black") +
   geom_density(data = multi_impset[[1]], aes(x = ln_na_true), colour = "blue")
 ggplot(data) + 
-  geom_point(aes(x = ln_na_true, y = multi_impset[[1]]$ln_na_true)) + 
-  geom_abline() +
-  geom_point(aes(x = ln_na_true, y = ln_na_avg), alpha = 0.2, colour = "red")
+  geom_point(aes(x = multi_impset[[1]]$ln_na_true, y = sbp)) +
+  geom_point(aes(x = ln_na_true, y = sbp), alpha = 0.2, colour = "red")
 
+
+
+i <- 1
+digit <- stringr::str_pad(i, 4, pad = 0)
+cat("Current:", digit, "\n")
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- glm(sbp ~ ln_na_true + c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr +
+                 ln_na_true:c_age, data = data)
+multi_impset <- read_parquet(paste0("./simulations/SRS/gain/", digit, ".parquet"))
+multi_impset <- match_types(multi_impset, data)
+cox.mod <- glm(sbp ~ ln_na_true + c_age + c_bmi + high_chol + usborn + female + bkg_o + bkg_pr +
+                 ln_na_true:c_age, data = multi_impset)
+round(coef(cox.fit) - coef(cox.mod), 4)

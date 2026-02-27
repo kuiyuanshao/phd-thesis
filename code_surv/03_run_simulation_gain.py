@@ -1,18 +1,17 @@
 import yaml
-from sicg.sicg import SICG
+from benchmarks.gain.gain import GAIN
 import os
 
-if not os.path.exists("./simulations/SampleOE/SRS/sicg"):
-    os.makedirs("./simulations/SampleOE/SRS/sicg")
+if not os.path.exists("./simulations/SampleOE/SRS/gain"):
+    os.makedirs("./simulations/SampleOE/SRS/gain")
 
-if not os.path.exists("./simulations/SampleOE/Balance/sicg"):
-    os.makedirs("./simulations/SampleOE/Balance/sicg")
+if not os.path.exists("./simulations/SampleOE/Balance/gain"):
+    os.makedirs("./simulations/SampleOE/Balance/gain")
 
-if not os.path.exists("./simulations/SampleOE/Neyman/sicg"):
-    os.makedirs("./simulations/SampleOE/Neyman/sicg")
+if not os.path.exists("./simulations/SampleOE/Neyman/gain"):
+    os.makedirs("./simulations/SampleOE/Neyman/gain")
 
 data_info_srs = {
-    "weight_var": "W",
     "cat_vars": [
         "SEX", "RACE", "SMOKE", "EXER", "ALC", "INSURANCE", "REGION",
         "URBAN", "INCOME", "MARRIAGE", "HYPERTENSION", "EVENT", "EVENT_STAR",
@@ -41,56 +40,26 @@ data_info_srs = {
         "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR",
         "Na_INTAKE_STAR", "K_INTAKE_STAR", "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR",
         "W"
-    ],
-    "phase2_vars": [
-        "rs10811661", "rs7756992", "rs11708067",
-        "rs17036101", "rs17584499", "rs1111875",
-        "rs4402960", "rs4607103", "rs7754840",
-        "rs9300039", "rs5015480", "rs9465871",
-        "rs4506565", "rs5219", "rs358806",
-        "HbA1c", "Creatinine", "eGFR", "WEIGHT", "BMI",
-        "SMOKE", "INCOME", "ALC", "EXER", "EDU",
-        "Glucose", "F_Glucose", "Insulin", "Na_INTAKE", "K_INTAKE",
-        "KCAL_INTAKE", "PROTEIN_INTAKE",
-        "C", "EVENT", "T_I"
-    ],
-    "phase1_vars": [
-        "rs10811661_STAR", "rs7756992_STAR", "rs11708067_STAR",
-        "rs17036101_STAR", "rs17584499_STAR", "rs1111875_STAR",
-        "rs4402960_STAR", "rs4607103_STAR", "rs7754840_STAR",
-        "rs9300039_STAR", "rs5015480_STAR", "rs9465871_STAR",
-        "rs4506565_STAR", "rs5219_STAR", "rs358806_STAR",
-        "HbA1c_STAR", "Creatinine_STAR", "eGFR_STAR", "WEIGHT_STAR", "BMI_STAR",
-        "SMOKE_STAR", "INCOME_STAR", "ALC_STAR", "EXER_STAR", "EDU_STAR",
-        "Glucose_STAR", "F_Glucose_STAR", "Insulin_STAR", "Na_INTAKE_STAR", "K_INTAKE_STAR",
-        "KCAL_INTAKE_STAR", "PROTEIN_INTAKE_STAR",
-        "C_STAR", "EVENT_STAR", "T_I_STAR"
     ]
 }
 
 # 2. Balanced Sampling Dictionary (Includes STRATA)
 data_info_balance = {
-    "weight_var": "W",
     "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
-    "num_vars": data_info_srs["num_vars"],
-    "phase2_vars": data_info_srs["phase2_vars"],
-    "phase1_vars": data_info_srs["phase1_vars"]
+    "num_vars": data_info_srs["num_vars"]
 }
 
 # 3. Neyman Allocation Dictionary (Identical structure to Balance)
 data_info_neyman = {
-    "weight_var": "W",
     "cat_vars": data_info_srs["cat_vars"] + ["STRATA"],
-    "num_vars": data_info_srs["num_vars"] + ["inf"],
-    "phase2_vars": data_info_srs["phase2_vars"],
-    "phase1_vars": data_info_srs["phase1_vars"]
+    "num_vars": data_info_srs["num_vars"] + ["inf"]
 }
 
-with open("data/Config/best_config_sicg_srs.yaml", "r") as f:
+with open("data/Config/best_config_gain_srs.yaml", "r") as f:
     config_srs = yaml.safe_load(f)
-# with open("./data/Config/best_config_gans_bal.yaml", "r") as f:
+# with open("./data/Config/best_config_gain_bal.yaml", "r") as f:
 #     config_bal = yaml.safe_load(f)
-# with open("./data/Config/best_config_gans_ney.yaml", "r") as f:
+# with open("./data/Config/best_config_gain_ney.yaml", "r") as f:
 #     config_ney = yaml.safe_load(f)
 
 for i in range(1, 100):
@@ -99,38 +68,38 @@ for i in range(1, 100):
     file_path_bal = "./data/SampleOE/Balance/" + digit + ".csv"
     file_path_ney = "./data/SampleOE/Neyman/" + digit + ".csv"
 
-    save_path_srs = "./simulations/SampleOE/SRS/sicg/" + digit + ".parquet"
-    save_path_bal = "./simulations/SampleOE/Balance/sicg/" + digit + ".parquet"
-    save_path_ney = "./simulations/SampleOE/Neyman/sicg/" + digit + ".parquet"
+    save_path_srs = "./simulations/SampleOE/SRS/gain/" + digit + ".parquet"
+    save_path_bal = "./simulations/SampleOE/Balance/gain/" + digit + ".parquet"
+    save_path_ney = "./simulations/SampleOE/Neyman/gain/" + digit + ".parquet"
 
-    sicg_mod_srs = SICG(config_srs, data_info_srs)
-    sicg_mod_srs.fit(file_path_srs)
-    sicg_mod_srs.impute(save_path=save_path_srs)
+    gain_mod_srs = GAIN(config_srs, data_info_srs)
+    gain_mod_srs.fit(file_path_srs)
+    gain_mod_srs.impute(save_path=save_path_srs)
 
     # # --- 1. Simple Random Sampling ---
     # if not os.path.exists(save_path_srs):
     #     print(f"[SRS] Result not found at {save_path_srs}. Starting training and imputation...")
-    #     sicg_mod_srs = SICG(config, data_info_srs)
-    #     sicg_mod_srs.fit(file_path_srs)
-    #     sicg_mod_srs.impute(save_path=save_path_srs)
+    #     gain_mod_srs = GAIN(config, data_info_srs)
+    #     gain_mod_srs.fit(file_path_srs)
+    #     gain_mod_srs.impute(save_path=save_path_srs)
     # else:
     #     print(f"[SRS] Result exists at {save_path_srs}. Skipping.")
     #
     # # --- 2. Balanced Sampling ---
     # if not os.path.exists(save_path_bal):
     #     print(f"[Balance] Result not found at {save_path_bal}. Starting training and imputation...")
-    #     sicg_mod_bal = SICG(config, data_info_balance)
-    #     sicg_mod_bal.fit(file_path_bal)
-    #     sicg_mod_bal.impute(save_path=save_path_bal)
+    #     gain_mod_bal = GAIN(config, data_info_balance)
+    #     gain_mod_bal.fit(file_path_bal)
+    #     gain_mod_bal.impute(save_path=save_path_bal)
     # else:
     #     print(f"[Balance] Result exists at {save_path_bal}. Skipping.")
     #
     # # --- 3. Neyman Allocation ---
     # if not os.path.exists(save_path_ney):
     #     print(f"[Neyman] Result not found at {save_path_ney}. Starting training and imputation...")
-    #     sicg_mod_ney = SICG(config, data_info_neyman)
-    #     sicg_mod_ney.fit(file_path_ney)
-    #     sicg_mod_ney.impute(save_path=save_path_ney)
+    #     gain_mod_ney = GAIN(config, data_info_neyman)
+    #     gain_mod_ney.fit(file_path_ney)
+    #     gain_mod_ney.impute(save_path=save_path_ney)
     # else:
     #     print(f"[Neyman] Result exists at {save_path_ney}. Skipping.")
 

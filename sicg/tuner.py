@@ -9,6 +9,7 @@ import gc
 import torch
 import os
 import contextlib
+import json
 
 class BivariateTuner:
     def __init__(self, data, base_config, param_grid, data_info, reg_config, n_splits=1):
@@ -25,19 +26,20 @@ class BivariateTuner:
         if self.n_splits > 1:
             self.kf = KFold(n_splits=self.n_splits, shuffle=True, random_state=42)
             self.splits = list(self.kf.split(self.data))
+            self.fold_histories = {i: [] for i in range(self.n_splits - 1)}
         else:
             self.kf = None
             indices = np.arange(len(self.data))
             self.train_idx, self.val_idx = train_test_split(indices, test_size=0.20, random_state=42)
             self.splits = [(self.train_idx, self.val_idx)]
+            self.fold_histories = {}
         self.trial_history = []
 
     def enforce_wgan_rules(self, config, p):
         # 1. Enforce pack limit (modifies 'p' so the correct batch_size is logged in history)
-        if "pac" in p:
-            p["batch_size"] -= p["batch_size"] % p["pac"]
+        if "pack" in p:
+            p["batch_size"] -= p["batch_size"] % p["pack"]
         config["train"]["batch_size"] = p["batch_size"]
-
         # 2. Apply Generator scaling overrides
         config["model"]["generator"]["hidden_dim"] = p["hidden_dim"] * p["scale_hidden_dim"]
         config["model"]["generator"]["layers"] = p["layers"] * p["scale_layer"]
@@ -88,7 +90,7 @@ class BivariateTuner:
         fold_ce_losses = []
         fold_ed_losses = []
 
-        for train_idx, val_idx in self.splits:
+        for fold_idx, (train_idx, val_idx) in enumerate(self.splits):
             masked_data = self.data.copy()
             masked_data.loc[val_idx, self.phase2_vars] = np.nan
 
@@ -116,6 +118,19 @@ class BivariateTuner:
             fold_mse_losses.append(m_mse)
             fold_ce_losses.append(m_ce)
             fold_ed_losses.append(m_ed)
+
+            current_fold_loss = float(np.mean(fold_total_losses))
+            if self.n_splits > 1 and fold_idx < (self.n_splits - 1):
+                self.fold_histories[fold_idx].append(current_fold_loss)
+                if len(self.fold_histories[fold_idx]) >= max(5, int(self.n_trials * 0.15)):
+                    threshold = np.nanpercentile(self.fold_histories[fold_idx], 75)
+                    if current_fold_loss > threshold:
+                        logger = optuna.logging.get_logger("optuna")
+                        logger.info(
+                            f"Trial {trial.number} pruned at fold {fold_idx}. "
+                            f"Loss {current_fold_loss:.4f} is in the worst 25% (Threshold: {threshold:.4f})."
+                        )
+                        raise optuna.exceptions.TrialPruned()
 
         arr_total = np.array(fold_total_losses)
         arr_mse = np.array(fold_mse_losses)
@@ -154,10 +169,30 @@ class BivariateTuner:
 
     def tune(self, n_trials=50, output_csv='optuna_tuning_results.csv'):
         print(f"Starting Bivariate Tuning for {n_trials} trials...")
+        self.n_trials = n_trials
         study = optuna.create_study(directions=['minimize', 'maximize'])
         study.optimize(self.objective, n_trials=n_trials)
         history_df = pd.DataFrame(self.trial_history)
         history_df.to_csv(output_csv, index=False)
         print(f"Tuning complete. Results saved to {output_csv}")
 
-        return study, history_df
+        try:
+            print("Calculating parameter importance for Data Loss...")
+            importance_dict = optuna.importance.get_param_importances(
+                study, target=lambda t: t.values[0]
+            )
+            importance_csv = output_csv.replace('.csv', '_importance.csv')
+            pd.Series(importance_dict, name='importance').to_csv(importance_csv, index_label='parameter')
+            print(f"Parameter importance successfully saved to {importance_csv}")
+        except Exception as e:
+            print(f"[Warning] Could not calculate parameter importance. Error: {e}")
+
+
+
+
+
+
+
+
+
+

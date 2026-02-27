@@ -17,7 +17,7 @@ source /home/ksha712/00_nesi_projects/uoa03789_nobackup/venv/bin/activate
 
 echo "Job Started. Array Task ID: $SLURM_ARRAY_TASK_ID"
 
-PROFILES=("kl", "kl_cfg")
+PROFILES=("kl" "kl_cfg")
 CURRENT_TASK=${PROFILES[$SLURM_ARRAY_TASK_ID]}
 
 echo "Running Python Tuning for: $CURRENT_TASK"

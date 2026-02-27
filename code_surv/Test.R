@@ -9,7 +9,7 @@ cox.fit <- coxph(Surv(T_I, EVENT) ~
                    I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
                    I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
                    SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
-multi_impset <- read_parquet(paste0("./simulations/SampleOE/SRS/sird/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SampleOE/SRS/gain/", digit, ".parquet"))
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
 multi_impset <- lapply(multi_impset, function(dat){
@@ -24,43 +24,61 @@ cox.mod <- with(data = imp.mids,
 pooled <- MIcombine(cox.mod)
 round(exp(coef(cox.fit)) - exp(pooled$coefficients), 4)
 
-proportions(table(data$EVENT, multi_impset[[1]]$EVENT))
-proportions(table(data$SMOKE, multi_impset[[1]]$SMOKE))
+proportions(table(data$EVENT, multi_impset$EVENT))
+proportions(table(data$SMOKE, multi_impset$SMOKE))
 table(data$SMOKE)
-table(multi_impset[[1]]$SMOKE)
+table(multi_impset$SMOKE)
 ggplot(data %>% filter(EVENT == 1)) +
   geom_density(aes(x = HbA1c), colour = "red") +
   geom_density(aes(x = HbA1c_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]] %>% filter(EVENT == 1),
+  geom_density(data = multi_impset %>% filter(EVENT == 1),
                aes(x = HbA1c), colour = "blue")
 
 ggplot(data) +
   geom_density(aes(x = T_I), colour = "red") +
   geom_density(aes(x = T_I_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = T_I), colour = "blue")
+  geom_density(data = multi_impset, aes(x = T_I), colour = "blue")
 
 
 ggplot(data) +
   geom_density(aes(x = HbA1c), colour = "red") +
   geom_density(aes(x = HbA1c_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = HbA1c), colour = "blue")
+  geom_density(data = multi_impset, aes(x = HbA1c), colour = "blue")
 
 ggplot(data) +
   geom_density(aes(x = eGFR), colour = "red") +
   geom_density(aes(x = eGFR_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = eGFR), colour = "blue")
+  geom_density(data = multi_impset, aes(x = eGFR), colour = "blue")
 
 ggplot(data) +
   geom_density(aes(x = BMI), colour = "red") +
   geom_density(aes(x = BMI_STAR), colour = "black") +
-  geom_density(data = multi_impset[[1]], aes(x = BMI), colour = "blue")
+  geom_density(data = multi_impset, aes(x = BMI), colour = "blue")
 
 ggplot(data) + 
-  geom_point(aes(x = HbA1c, y = multi_impset[[1]]$HbA1c)) + 
+  geom_point(aes(x = HbA1c, y = multi_impset$HbA1c)) + 
   geom_abline()
 ggplot(data) + 
-  geom_point(aes(x = T_I, y = multi_impset[[1]]$T_I)) + 
+  geom_point(aes(x = T_I, y = multi_impset$T_I)) + 
   geom_abline() + ylim(0, 25)
+
+
+
+i <- 1
+digit <- stringr::str_pad(i, 4, pad = 0)
+cat("Current:", digit, "\n")
+load(paste0("./data/True/", digit, ".RData"))
+cox.fit <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                   I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                   SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
+multi_impset <- read_parquet(paste0("./simulations/SampleOE/SRS/gain/", digit, ".parquet"))
+multi_impset <- match_types(multi_impset, data)
+cox.mod <- coxph(Surv(T_I, EVENT) ~
+                   I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
+                   I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
+                   SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = multi_impset)
+round(exp(coef(cox.fit)) - exp(coef(cox.mod)), 4)
 # log_param <- read.csv("./comparisons_tuning/mice/mice_tuning_log_srs.csv")
 # log_param_fd <- read.csv("./comparisons_tuning/mice/mice_tuning_log_fd_srs.csv")
 # pairs(log_param_fd[, 2:4])
@@ -117,7 +135,7 @@ ggplot(data) +
 # # 1. Fit the Model with the exact transformation
 # # We use '*' to include main effects + interaction. 
 # # If you ONLY want the interaction term, use ':' instead.
-# fit <- coxph(Surv(T_I, EVENT) ~ I(Insulin - 14):I((AGE - 60) / 5), data = multi_impset[[1]])
+# fit <- coxph(Surv(T_I, EVENT) ~ I(Insulin - 14):I((AGE - 60) / 5), data = multi_impset)
 # 
 # # 2. Create a Grid of the SCALED variables
 # # We define the range for the Scaled values (e.g., -4 to +4 sigmas)
