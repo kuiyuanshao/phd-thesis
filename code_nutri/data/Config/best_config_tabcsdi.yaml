@@ -1,0 +1,28 @@
+train:
+  epochs: 1
+  batch_size: 512
+  lr: 0.0005
+
+diffusion:
+  layers: 2
+  channels: 128
+  nheads: 4
+  diffusion_embedding_dim: 128
+  beta_start: 0.0001
+  beta_end: 0.5
+  num_steps: 100
+  schedule: "quad"
+  mixed: True
+  token_emb_dim: 8 # refers to tokenizer
+
+model:
+  task: ft
+  is_unconditional: 0
+  timeemb: 128
+  featureemb: 8
+  target_strategy: "random"
+  mixed: True
+  token_emb_dim: 8 # refers to tokenizer
+
+sample:
+  m: 1

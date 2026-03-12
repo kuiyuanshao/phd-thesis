@@ -1,0 +1,39 @@
+processing:
+  normalization: 'zscore'
+  log: true
+  anchor: false
+diffusion:
+  task: "Res-N"
+  discrete: "Multinomial"
+  diffusion_embedding_dim: 128
+  num_steps: 30
+  sum_scale: 0.02
+sample:
+  m: 5
+  mi_approx: "None"
+  pmm: false
+  donors: 5
+  cfg_scale_num: 2
+  cfg_scale_cat: 1.4
+model:
+  net: "ResNet"
+  channels: 256
+  dropout: 0.5
+  layers: 5
+  nheads: 8
+  loss_num: 1
+  loss_cat: 1
+train:
+  patience: 2000
+  cond_drop_prob: 0.05
+  valid: 0
+  batch_size: 128
+  epochs: 5000
+  eval_batch_size: 1024
+  Adam:
+    lr: 2.0e-4
+    weight_decay: 1.0e-06
+  SGD:
+    lr: 1.0e-2
+    momentum: 0.9
+    weight_decay: 1.0e-4

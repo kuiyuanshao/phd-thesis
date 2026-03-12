@@ -1,0 +1,45 @@
+# Ignore data files
+*.csv
+*.rds
+*.RData
+*.xlsx
+*.pk
+*.xml
+*.iml
+*.pyc
+
+# Ignore log files
+*.log
+*.json
+*.pth
+*.out
+*.DS_Store
+*.Rhistory
+
+# Ignore specific directories
+/save/
+/.ipynb_checkpoints/
+/__pycache__/
+/.Rproj.user/
+/simulations/
+/my_venv/
+/sird/__pycache__/
+/VCCC/.ipynb_checkpoints/
+
+# Ignore temporary files
+*.tmp
+*.bak
+*.parquet
+
+!results_*
+!covarInfo.RData
+!data_generation_seed.RData
+!data_sampling_seed.RData
+!genoCorr.RData
+!genoFreq.RData
+!genoTrait.RData
+!labtest_parameters.RData
+!mixgb_balanceParams.RData
+!mixgb_neymanParams.RData
+!mixgb_srsParams.RData
+
