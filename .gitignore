@@ -1,6 +1,5 @@
 # Ignore data files
 *.csv
-*.rds
 *.RData
 *.xlsx
 *.pk
@@ -17,19 +16,19 @@
 *.Rhistory
 
 # Ignore specific directories
-/save/
-/.ipynb_checkpoints/
-/__pycache__/
-/.Rproj.user/
-/simulations/
-/my_venv/
-/sird/__pycache__/
-/VCCC/.ipynb_checkpoints/
+save/
+.ipynb_checkpoints/
+__pycache__/
+.Rproj.user/
+simulations/
+my_venv/
 
 # Ignore temporary files
 *.tmp
 *.bak
 *.parquet
+.*
+
 
 !results_*
 !covarInfo.RData
