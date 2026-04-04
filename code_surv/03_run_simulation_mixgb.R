@@ -61,7 +61,7 @@ configs <- readRDS("./data/Config/best_config_mixgb.rds")
 
 do_mixgb <- function(samp, params, nm, digit, complete_data) {
   tm <- system.time({
-    mixgb_imp <- mixgb(samp, m = 5, xgb.params = params$params,
+    mixgb_imp <- mixgb(samp, m = 20, xgb.params = params$params,
                        initial.fac = "sample", nrounds = params$nrounds)
   })
   mixgb_imp <- lapply(mixgb_imp, function(dat){
@@ -83,7 +83,7 @@ process_design <- function(design_name, digit, complete_data) {
     samp <- read.csv(file.path("./data", type, design_name, paste0(digit, ".csv"))) %>%
       match_types(complete_data) %>%
       mutate(across(all_of(data_info$cat_vars), as.factor, .names = "{.col}"),
-             across(all_of(data_info$num_vars), safenumeric, .names = "{.col}"))
+             across(all_of(data_info$num_vars), safe_numeric, .names = "{.col}"))
 
     elapsed_time <- do_mixgb(samp, configs, design_name, digit, complete_data)
     return(data.frame(Design = design_name, Replicate = as.integer(digit), Time_Seconds = elapsed_time, stringsAsFactors = FALSE))

@@ -133,7 +133,7 @@ generateSamples <- function(data, n_phase2, seed, digit){
     if (!file.exists(file_inf)) {
       data_inf_exactAlloc <- data
       infl <- dfbeta(lm(as.formula(paste0(model_formula, " + VL_COUNT_BSL_LOG_nv + AGE_AT_MED_START_nv")),
-                       data = data))[, 2]
+                       data = data))[, 4]
       data_inf_exactAlloc$outcome_strata <- as.numeric(outcome)
       data_inf_exactAlloc$inf <- infl
       neyman_alloc <- exactAllocation(data_inf_exactAlloc, stratum_variable = "outcome_strata",
@@ -182,7 +182,7 @@ generateSamples <- function(data, n_phase2, seed, digit){
     if (!file.exists(file_inf_unval)) {
       data_inf_unval <- data
       infl <- dfbeta(lm(as.formula(paste0(model_formula, " + VL_COUNT_BSL_LOG_nv + AGE_AT_MED_START_nv")),
-                       data = data))[, 2]
+                       data = data))[, 4]
       data_inf_unval$outcome_strata <- as.numeric(outcome_unval)
       data_inf_unval$inf <- infl
       neyman_alloc_unval <- exactAllocation(data_inf_unval, stratum_variable = "outcome_strata",

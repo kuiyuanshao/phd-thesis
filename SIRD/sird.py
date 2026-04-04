@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import os, sys, numpy as np, pandas as pd
 from torch.optim import SGD, AdamW
-from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader, TensorDataset, WeightedRandomSampler
 from tqdm import tqdm
 from scipy.linalg import block_diag
@@ -15,7 +15,6 @@ from data_transformer import DataTransformer
 
 import warnings
 from sklearn.exceptions import ConvergenceWarning
-
 warnings.filterwarnings("ignore", message=".*Attempting to run cuBLAS.*")
 warnings.filterwarnings("ignore", category=ConvergenceWarning)
 warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as true but not supported on MPS.*")
@@ -23,7 +22,7 @@ warnings.filterwarnings("ignore", message=".*'pin_memory' argument is set as tru
 
 class SIRD:
     def __init__(self, config, data_info, device=None):
-        self.config = config
+        self.config = config or {}
         self.data_info = data_info
         if device:
             self.device = device
@@ -34,23 +33,37 @@ class SIRD:
 
         print(f"Active Device: {self.device}")
 
-        self.num_steps = config["diffusion"]["num_steps"]
-        self.sum_scale = torch.tensor(config["diffusion"]["sum_scale"]).to(self.device)
-        self.task = config["diffusion"]["task"]
-        self.discrete = config["diffusion"]["discrete"]
+        diffusion_cfg = self.config.get("diffusion", {})
+        sample_cfg = self.config.get("sample", {})
+        train_cfg = self.config.get("train", {})
+
+        self.num_steps = diffusion_cfg.get("num_steps", 30)
+        self.sum_scale = torch.tensor(diffusion_cfg.get("sum_scale", 0.01)).to(self.device)
+        self.task = diffusion_cfg.get("task", "Res-N")
+        self.discrete = diffusion_cfg.get("discrete", "Multinomial")
+
+        self.mi_approx = sample_cfg.get("mi_approx", None)
+        self.m = sample_cfg.get("m", 5)
+        self.num_train_mods = self.m if self.mi_approx == "BOOTSTRAP" else 1
+        self.pmm = sample_cfg.get("pmm", False)
+        self.donors = sample_cfg.get("donors", 5)
+        self.eval_bs = sample_cfg.get("eval_batch_size", 1024)
+
+        self.epochs = train_cfg.get("epochs", 5000)
+        self.bs = train_cfg.get("batch_size", 128)
+        self.valid_ratio = train_cfg.get("valid", 0.0)
+        self.loss_num = train_cfg.get("loss_num", 1.0)
+        self.loss_cat = train_cfg.get("loss_cat", 1.0)
 
         b = torch.linspace(0, 1, self.num_steps).to(self.device) ** 3
         betas = b / b.sum() * self.sum_scale
         betas_cumsum = betas.cumsum(dim=0).clip(0, 1)
 
-        alpha_schedule = self.config['diffusion'].get('alpha_schedule', 'exp')
         a = torch.flip(torch.linspace(0, 1, self.num_steps).to(self.device), dims=[0])
         alphas = a / a.sum()
         self.alpha_bars = alphas.cumsum(dim=0).clip(0, 1)
 
-        alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0),
-                                    value=self.alpha_bars[1])  # Padding logic from original
-
+        alphas_cumsum_prev = F.pad(self.alpha_bars[:-1], (1, 0), value=self.alpha_bars[1])
         betas_cumsum_prev = F.pad(betas_cumsum[:-1], (1, 0), value=betas_cumsum[1])
         self.beta_bars = torch.sqrt(betas_cumsum)
 
@@ -76,16 +89,18 @@ class SIRD:
         self.swag_model = None
         self.transformer = None
 
-        self.X_num = None;
+        self.X_num = None
         self.X_cat = None
-        self.Cond = None;
+        self.A_num = None
+        self.A_cat = None
+        self.Covariates = None
         self.Q_block = None
-        self.dim_info = {};
-        self.cat_sizes = [];
+        self.dim_info = {}
+        self.dim_dict = {}
+        self.cat_sizes = []
         self.has_partner_mask = []
         self.num_names = data_info["num_vars"]
         self.p2_vars = data_info["phase2_vars"]
-        self.Q_t = None
 
     def fit(self, file_path=None, provided_data=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
@@ -101,7 +116,6 @@ class SIRD:
                 except (ValueError, TypeError):
                     df_raw[c] = pd.factorize(df_raw[c])[0]
 
-
         self.transformer = DataTransformer(self.data_info, self.config).fit(df_raw)
         df_proc = self.transformer.transform()
 
@@ -114,7 +128,7 @@ class SIRD:
                 if not p1: continue
                 n_p1 = len([c for c in df_proc.columns if c.startswith(f"{p1}_mode_")])
                 n_p2 = len([c for c in df_proc.columns if c.startswith(f"{p2}_mode_")])
-                if n_p1 != n_p2: print(f"!!! MODE MISMATCH: {p1} ({n_p1} modes) vs {p2} ({n_p2} modes)")
+                if n_p1 != n_p2: print(f"Mode Mismatch Identified: {p1} ({n_p1} modes) vs {p2} ({n_p2} modes)")
 
         self.raw_df = df_raw
         schema = self.transformer.get_sird_schema()
@@ -122,83 +136,89 @@ class SIRD:
 
         w_col = self.data_info.get('weight_var')
         self._global_weights = torch.from_numpy(
-            df_raw[w_col].fillna(0).values if w_col in df_raw else np.ones(len(df_raw))).double().to(self.device)
+            df_raw[w_col].fillna(0).values if w_col in df_raw else np.ones(len(df_raw))).float().to(self.device)
         p2_check = next((v['name'] for v in schema if 'p2' in v['type'] and '_mode' not in v['name']), None)
         if p2_check and p2_check in df_raw:
             self.valid_rows = np.where(df_raw[p2_check].notna().values)[0]
         else:
             self.valid_rows = np.arange(len(df_raw))
 
-        print(f"[Fit] Global Valid Rows (Observed Phase 2): {len(self.valid_rows)}")
-        valid_ratio = self.config.get("train", {}).get("valid", 0.0)
-        do_validation = valid_ratio > 0.0
+        print(f"Global Valid Rows: {len(self.valid_rows)}")
+        do_validation = self.valid_ratio > 0.0
         if do_validation:
-            num_val = int(len(self.valid_rows) * valid_ratio)
+            num_val = int(len(self.valid_rows) * self.valid_ratio)
             shuffled_rows = np.random.permutation(self.valid_rows)
             val_rows = shuffled_rows[:num_val]
             train_rows = shuffled_rows[num_val:]
-            print(f"[Fit] Validation enabled: {len(train_rows)} train rows, {len(val_rows)} val rows.")
+            print(f"Validation enabled: {len(train_rows)} train rows, {len(val_rows)} val rows.")
         else:
             train_rows = self.valid_rows
             val_rows = []
 
-        epochs = self.config["train"]["epochs"]
-        bs = self.config["train"]["batch_size"]
-        mi_approx = self.config["sample"]["mi_approx"]
-        num_train_mods = self.config["sample"]["m"] if mi_approx == "BOOTSTRAP" else 1
-
-        for k in range(num_train_mods):
-            print(f"\n[SIRD] Training Model {k + 1}/{num_train_mods}...")
+        for k in range(self.num_train_mods):
+            print(f"\nTraining Model {k + 1}/{self.num_train_mods}...")
 
             idx = np.random.choice(train_rows, len(train_rows),
-                                   replace=True) if mi_approx == "BOOTSTRAP" else train_rows
+                                   replace=True) if self.mi_approx == "BOOTSTRAP" else train_rows
             t_idx = torch.from_numpy(idx).long().to(self.device)
 
-            loader = DataLoader(TensorDataset(t_idx), batch_size=bs,
+            loader = DataLoader(TensorDataset(t_idx), batch_size=self.bs,
                                 sampler=WeightedRandomSampler(self._global_weights[t_idx], len(t_idx) * 4, True),
                                 drop_last=False)
+
             if do_validation:
                 v_idx = torch.from_numpy(val_rows).long().to(self.device)
-                val_loader = DataLoader(TensorDataset(v_idx), batch_size=bs, shuffle=False)
+                val_loader = DataLoader(TensorDataset(v_idx), batch_size=self.bs, shuffle=False)
 
             self.model = SIRD_NET(self.config, self.device, self.dim_info).to(self.device)
             self.model.train()
 
-            if mi_approx == "SWAG":
-                swa_start_iter = int(epochs * 0.50)
-                optim = SGD(self.model.parameters(), lr=self.config['train']['SGD']['lr'], momentum=self.config['train']['SGD']['momentum'])
-                scheduler = CosineAnnealingLR(optim, T_max=swa_start_iter, eta_min=self.config['train']['SGD']['lr'] * 0.25)
+            if self.mi_approx == "SWAG":
+                swa_start_iter = int(self.epochs * 0.50)
+                sgd_cfg = self.config.get('train', {}).get('SGD', {})
+                sgd_lr = sgd_cfg.get('lr', 1.0e-2)
+                optim = SGD(
+                    self.model.parameters(),
+                    lr=sgd_lr,
+                    momentum=sgd_cfg.get('momentum', 0.9),
+                    weight_decay=sgd_cfg.get('weight_decay', 1.0e-6)
+                )
+                scheduler = CosineAnnealingLR(optim, T_max=swa_start_iter, eta_min=sgd_lr * 0.25)
                 self.swag_model = SWAG(self.model, max_num_models=50).to(self.device)
             else:
-                optim = AdamW(self.model.parameters(), lr=self.config['train']['Adam']['lr'],
-                             weight_decay=self.config['train']['Adam']["weight_decay"])
-                p0, p1, p2, p3 = int(0.25 * epochs), int(0.5 * epochs), int(0.75 * epochs), int(0.9 * epochs)
+                adam_cfg = self.config.get('train', {}).get('Adam', {})
+                optim = AdamW(
+                    self.model.parameters(),
+                    lr=adam_cfg.get('lr', 2.0e-4),
+                    weight_decay=adam_cfg.get('weight_decay', 1.0e-6)
+                )
 
-            pbar = tqdm(range(epochs), desc=f"Training M{k + 1}", leave=False)
+            pbar = tqdm(range(self.epochs), desc=f"Training M{k + 1}", leave=False)
             iter_loader = iter(loader)
 
             best_loss = float('inf')
             steps_no_improve = 0
-            patience = self.config['train']['patience']
+            patience = self.config.get('train', {}).get('patience', 2000)
             running_train_loss = 0.0
 
             for step in pbar:
                 try:
                     batch_idx = next(iter_loader)[0]
-                except:
-                    iter_loader = iter(loader); batch_idx = next(iter_loader)[0]
+                except StopIteration:
+                    iter_loader = iter(loader)
+                    batch_idx = next(iter_loader)[0]
 
                 optim.zero_grad()
                 loss, n_loss, c_loss = self.calc_loss(batch_idx)
                 loss.backward()
 
                 running_train_loss += loss.item()
-                if mi_approx == "SWAG":
+                if self.mi_approx == "SWAG":
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 optim.step()
 
-                if step % 50 == 0:
-                    avg_train_loss = running_train_loss / (50 if step > 0 else 1)
+                if (step + 1) % 50 == 0:
+                    avg_train_loss = running_train_loss / 50
                     running_train_loss = 0.0
 
                     postfix_dict = {
@@ -212,9 +232,9 @@ class SIRD:
                         with torch.no_grad():
                             for v_batch in val_loader:
                                 v_batch_idx = v_batch[0]
-                                _, mse_loss, cat_loss = self.calc_loss(v_batch_idx)
-                                mse_loss += mse_loss.item()
-                                cat_loss += cat_loss.item()
+                                _, mse_loss_val, cat_loss_val = self.calc_loss(v_batch_idx)
+                                mse_loss += mse_loss_val.item()
+                                cat_loss += cat_loss_val.item()
 
                         avg_mse = mse_loss / len(val_loader)
                         avg_cat = cat_loss / len(val_loader)
@@ -234,31 +254,33 @@ class SIRD:
 
                     if steps_no_improve >= patience:
                         target_name = "Validation" if do_validation else "Training"
-                        print(f"\nEarly stopping triggered! {target_name} loss hasn't improved for {patience} steps.")
+                        print(f"\nEarly stopping triggered. {target_name} loss hasn't improved for {patience} steps.")
                         break
 
-                if mi_approx == "SWAG":
+                if self.mi_approx == "SWAG":
                     if step < swa_start_iter:
                         scheduler.step()
                     else:
-                        for param_group in optim.param_groups: param_group['lr'] = self.config['train']['SGD']['lr'] * 0.25
+                        if step == swa_start_iter:
+                            for param_group in optim.param_groups:
+                                param_group['lr'] = sgd_lr * 0.25
                         if (step - swa_start_iter) % 50 == 0:
                             self.swag_model.collect_model(self.model)
             self.model_list.append(self.model)
         return self
 
     def _tensorize_data(self, df, schema):
-        from torch_frame.data.stats import StatType
+        is_bits = self.discrete == 'AnalogBits'
+
+        p2_nums = [v for v in schema if 'numeric_p2' in v['type']]
+        p2_cats = [v for v in schema if 'categorical_p2' in v['type']]
+
         x_num_list, x_cat_list = [], []
-        p1_num_list, aux_num_list = [], []
-        p1_cat_list, aux_cat_list = [], []
+        p1_num_list, p1_cat_list = [], []
         self.cat_sizes = []
-        self.cond_cat_sizes = []
         self.has_partner_mask = []
         q_blocks = []
 
-        is_bits = self.config['diffusion'].get('discrete') == 'AnalogBits'
-        p2_nums = [v for v in schema if 'numeric_p2' in v['type']]
         for v in p2_nums:
             x_num_list.append(df[v['name']].values.reshape(-1, 1))
             partner = v['pair_partner']
@@ -266,9 +288,6 @@ class SIRD:
                 p1_num_list.append(df[partner].values.reshape(-1, 1))
             else:
                 p1_num_list.append(np.zeros((len(df), 1)))
-
-        p2_cats = [v for v in schema if 'categorical_p2' in v['type']]
-        p1_cat_widths = []
 
         for v in p2_cats:
             k = v['num_classes']
@@ -283,133 +302,85 @@ class SIRD:
             else:
                 self.cat_sizes.append(k)
                 x_cat_list.append(df[df.columns[v['start_idx']:v['end_idx']]].values)
-
                 partner = v['pair_partner']
                 if partner:
                     p1_cols = [c for c in df.columns if c.startswith(partner + "_")]
-                    val = df[p1_cols].values
-                    p1_cat_list.append(val)
-                    p1_cat_widths.append(val.shape[1])
+                    p1_cat_list.append(df[p1_cols].values)
                     self.has_partner_mask.append(True)
-
                     if v['name'] in self.transformer.Q_matrices:
                         q_blocks.append(self.transformer.Q_matrices[v['name']].numpy())
                     else:
                         q_blocks.append(np.eye(k))
                 else:
-                    val = np.zeros((len(df), k))
-                    p1_cat_list.append(val)
-                    p1_cat_widths.append(k)
+                    p1_cat_list.append(np.zeros((len(df), k)))
                     self.has_partner_mask.append(False)
                     q_blocks.append(np.eye(k))
 
+        np_x_num = np.hstack(x_num_list) if x_num_list else np.empty((len(df), 0))
+        np_x_cat = np.hstack(x_cat_list) if x_cat_list else np.empty((len(df), 0))
+        np_p1_num = np.hstack(p1_num_list) if p1_num_list else np.empty((len(df), 0))
+        np_p1_cat = np.hstack(p1_cat_list) if p1_cat_list else np.empty((len(df), 0))
+
+        aux_num_list, aux_cat_list = [], []
         for v in schema:
             if 'aux' in v['type']:
                 if 'numeric' in v['type']:
                     aux_num_list.append(df[v['name']].values.reshape(-1, 1))
                 else:
-                    k = v['num_classes']
                     if is_bits:
                         aux_num_list.append(df[df.columns[v['start_idx']:v['end_idx']]].values)
                     else:
                         aux_cat_list.append(df[df.columns[v['start_idx']:v['end_idx']]].values)
-                        self.cond_cat_sizes.append(k)
 
-        self.X_num = torch.tensor(np.hstack(x_num_list) if x_num_list else np.empty((len(df), 0)),
-                                  dtype=torch.float32).to(self.device)
-        self.X_cat = torch.tensor(np.hstack(x_cat_list) if x_cat_list else np.empty((len(df), 0)),
-                                  dtype=torch.float32).to(self.device)
-
-        np_p1_num = np.hstack(p1_num_list) if p1_num_list else np.empty((len(df), 0))
         np_aux_num = np.hstack(aux_num_list) if aux_num_list else np.empty((len(df), 0))
-        np_p1_cat = np.hstack(p1_cat_list) if p1_cat_list else np.empty((len(df), 0))
         np_aux_cat = np.hstack(aux_cat_list) if aux_cat_list else np.empty((len(df), 0))
 
-        self.Cond_Num = np_aux_num
-        self.Cond_Cat = np_aux_cat
-        self.Cond = torch.tensor(np.hstack([self.Cond_Num, self.Cond_Cat]), dtype=torch.float32).to(self.device)
-        self.P1_Cond = torch.tensor(np.hstack([np_p1_num, np_p1_cat]), dtype=torch.float32).to(self.device)
+        cov_list = []
+        if np_aux_num.shape[1] > 0: cov_list.append(np_aux_num)
+        if np_aux_cat.shape[1] > 0: cov_list.append(np_aux_cat)
 
-        p1_num_dim = np_p1_num.shape[1]
-        p1_cat_start_idx = p1_num_dim
-        p1_cat_dim = np_p1_cat.shape[1]
+        np_cov = np.hstack(cov_list) if cov_list else np.empty((len(df), 0))
+
+        self.X_num = torch.tensor(np_x_num, dtype=torch.float32).to(self.device)
+        self.X_cat = torch.tensor(np_x_cat, dtype=torch.float32).to(self.device)
+        self.A_num = torch.tensor(np_p1_num, dtype=torch.float32).to(self.device)
+        self.A_cat = torch.tensor(np_p1_cat, dtype=torch.float32).to(self.device)
+        self.Covariates = torch.tensor(np_cov, dtype=torch.float32).to(self.device)
+
+        self.dim_dict = {
+            'p1_n': np_p1_num.shape[1],
+            'aux_n': np_aux_num.shape[1],
+            'p1_c': np_p1_cat.shape[1],
+        }
 
         self.dim_info = {
             'input_dim': self.X_num.shape[1] + self.X_cat.shape[1],
-            'cond_dim': self.Cond.shape[1],
-            'p1_dim': self.P1_Cond.shape[1],
+            'cond_dim': self.Covariates.shape[1],
             'out_num_dim': self.X_num.shape[1],
             'out_cat_dim': self.X_cat.shape[1],
-            # Tokenizer Slicing Info
-            'x_num_count': self.X_num.shape[1],
-            'cond_num_count': self.Cond_Num.shape[1],
-            # Residual Slicing Info (For Reverse Diffusion)
-            'p1_num_idx': (0, p1_num_dim),
-            'p1_cat_idx': (p1_cat_start_idx, p1_cat_start_idx + p1_cat_dim)
         }
-        x_num_stats = [
-            {StatType.MEAN: m.item(), StatType.STD: s.item()}
-            for m, s in zip(self.X_num.mean(0), self.X_num.std(0))
-        ]
-        x_cat_stats = [
-            {StatType.COUNT: [[None] * int(k)]}
-            for k in self.cat_sizes
-        ]
-        cond_num_t = torch.tensor(self.Cond_Num, dtype=torch.float32)
-        cond_num_stats = [
-            {StatType.MEAN: m.item(), StatType.STD: s.item()}
-            for m, s in zip(cond_num_t.mean(0), cond_num_t.std(0))
-        ] if cond_num_t.shape[1] > 0 else []
-        cond_cat_stats = [
-            {StatType.COUNT: [[None] * int(k)]}
-            for k in self.cond_cat_sizes
-        ]
-        self.dim_info['pt_frame_stats'] = {
-            'x_num': x_num_stats,
-            'x_cat': x_cat_stats,
-            'cond_num': cond_num_stats,
-            'cond_cat': cond_cat_stats
-        }
-        self.dim_info['x_cat_sizes'] = self.cat_sizes
-        self.dim_info['cond_cat_sizes'] = self.cond_cat_sizes
 
-        self.P1_num = torch.tensor(np_p1_num, dtype=torch.float32).to(self.device)
-        self.P1_cat_full = torch.tensor(np_p1_cat, dtype=torch.float32).to(self.device)
         self.Q_block = torch.tensor(block_diag(*q_blocks), dtype=torch.float32).to(
             self.device) if q_blocks else torch.empty(0).to(self.device)
 
-        resid = self.P1_num - self.X_num
-        res_mean = resid.mean(dim=0, keepdim=True)
-        res_std = resid.std(dim=0, keepdim=True)
-        std_res = (resid - res_mean) / (res_std + 1e-8)
-        shuffle_indices = torch.randperm(std_res.size(0), device=std_res.device)
-        self.std_res = std_res[shuffle_indices]
-
     def calc_loss(self, batch_idx):
+        B = len(batch_idx)
         b_x_num = self.X_num[batch_idx]
         b_x_cat = self.X_cat[batch_idx]
-        b_cond = self.Cond[batch_idx]
-        b_p1_num = self.P1_num[batch_idx]
-        b_p1_cat = self.P1_cat_full[batch_idx]
-        b_p1_cond = self.P1_Cond[batch_idx]
-        B = len(batch_idx)
-
-        cond_drop_prob = self.config.get("train", {}).get("cond_drop_prob", 0.2)
-        if cond_drop_prob > 0.0 and self.model.training:
-            drop_mask = (torch.rand(B, 1, device=self.device) > cond_drop_prob).float()
-            b_cond = b_cond * drop_mask
-            b_p1_cond = b_p1_cond * drop_mask
+        b_a_num = self.A_num[batch_idx]
+        b_a_cat = self.A_cat[batch_idx]
+        b_cond = self.Covariates[batch_idx]
 
         t = torch.randint(0, self.num_steps, (B,), device=self.device).long()
         a_bar = self.alpha_bars[t].view(B, 1)
         b_bar = self.beta_bars[t].view(B, 1)
-        eps_num = torch.randn_like(b_x_num)
-        true_res = b_p1_num - b_x_num
-        #eps_num = self.std_res[batch_idx]
-        x_t_num = b_x_num + a_bar * true_res + b_bar * eps_num
+
+        eps_num_p2 = torch.randn_like(b_x_num)
+        true_res_p2 = b_a_num - b_x_num
+        x_t_num = b_x_num + a_bar * true_res_p2 + b_bar * eps_num_p2
 
         if self.Q_block.numel() > 0:
-            pi_prior_raw = b_p1_cat @ self.Q_block
+            pi_prior_raw = b_a_cat @ self.Q_block
         else:
             pi_prior_raw = torch.ones_like(b_x_cat)
 
@@ -435,6 +406,7 @@ class SIRD:
             curr_idx += k
 
         x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
+
         x_curr = torch.cat([x_t_num, x_t_cat], dim=1)
         out_num, out_cat = self.model(x_curr, b_cond, t)
 
@@ -442,96 +414,66 @@ class SIRD:
         loss_c = torch.tensor(0.0, device=self.device)
 
         if out_num is not None:
-            gamma = self.config["model"]["loss_num"]
-            if self.task == "Res-N":
-                dim = out_num.shape[1] // 2
-                p_res, p_eps = out_num[:, :dim], out_num[:, dim:]
-                loss_n = gamma * F.mse_loss(p_res, true_res) + F.mse_loss(p_eps, eps_num)
-            elif self.task == "Res":
-                loss_n = gamma * F.mse_loss(out_num, true_res)
-            elif self.task == "N":
-                loss_n = F.mse_loss(out_num, eps_num)
+            dim_total = out_num.shape[1] // 2 if self.task == "Res-N" else out_num.shape[1]
+            p2_n_dim = self.X_num.shape[1]
 
-        if out_cat is not None:
-            logits_list = torch.split(out_cat, self.cat_sizes, dim=1)
-            xt_list = torch.split(x_t_cat, self.cat_sizes, dim=1)
-            x0_list = torch.split(b_x_cat, self.cat_sizes, dim=1)
-            prior_list = torch.split(pi_prior, self.cat_sizes, dim=1)
-            if self.discrete == "Multinomial":
-                for i, (logits, xt, x0, prior) in enumerate(zip(logits_list, xt_list, x0_list, prior_list)):
-                    p = prior if self.has_partner_mask[i] else torch.ones_like(prior) / prior.shape[1]
-                    pred_probs = F.softmax(logits, dim=-1)
-                    log_true_post = self._compute_posterior_vec(xt, x0, p, t)
-                    log_model_post = self._compute_posterior_vec(xt, pred_probs, p, t)
-                    loss_c += (self.config["model"]["loss_cat"] *
-                               F.kl_div(log_model_post, log_true_post, reduction='batchmean', log_target=True))
+            if self.task == "Res-N":
+                p_res_p2 = out_num[:, :p2_n_dim]
+                p_eps_p2 = out_num[:, dim_total: dim_total + p2_n_dim]
+                loss_n += self.loss_num * F.mse_loss(p_res_p2, true_res_p2) + F.mse_loss(p_eps_p2, eps_num_p2)
+            elif self.task == "Res":
+                loss_n += self.loss_num * F.mse_loss(out_num[:, :p2_n_dim], true_res_p2)
+            else:
+                loss_n += self.loss_num * F.mse_loss(out_num[:, :p2_n_dim], eps_num_p2)
+
+        if out_cat is not None and self.discrete == "Multinomial":
+            for logits, xt, x0, p in zip(
+                torch.split(out_cat, self.cat_sizes, dim=1),
+                torch.split(x_t_cat, self.cat_sizes, dim=1),
+                torch.split(b_x_cat, self.cat_sizes, dim=1),
+                torch.split(pi_prior, self.cat_sizes, dim=1),
+            ):
+                pred_probs = F.softmax(logits, dim=-1)
+                log_true_post = self._compute_posterior_vec(xt, x0, p, t)
+                log_model_post = self._compute_posterior_vec(xt, pred_probs, p, t)
+                loss_c += self.loss_cat * F.kl_div(log_model_post, log_true_post, reduction='batchmean',
+                                                   log_target=True)
 
         total_loss = loss_n + loss_c
         return total_loss, loss_n, loss_c
 
-    def _compute_posterior_vec(self, x_t, x_start, x_proxy, t):
-        log_w_s = self.log_post_w_s[t].unsqueeze(1)
-        log_w_p = self.log_post_w_p[t].unsqueeze(1)
-        beta_t = self.post_beta_t[t].unsqueeze(1)
-        log_prior = torch.logaddexp(
-            log_w_s + torch.log(x_start + 1e-30),
-            log_w_p + torch.log(x_proxy + 1e-30)
-        )
-        p_proxy_at_xt = (x_t * x_proxy).sum(dim=1, keepdim=True)
-
-        log_lik_noise = torch.log(beta_t * p_proxy_at_xt + 1e-30)
-        log_lik_stay = torch.log((1.0 - beta_t) + beta_t * p_proxy_at_xt + 1e-30)
-        log_likelihood = x_t * log_lik_stay + (1.0 - x_t) * log_lik_noise
-
-        log_unnorm = log_prior + log_likelihood
-        return log_unnorm - torch.logsumexp(log_unnorm, dim=1, keepdim=True)
-
-    def _reverse_diffusion(self, Cond, P1_Cond, model_to_use, batch_size=2048):
-        N = Cond.shape[0]
+    def _reverse_diffusion(self, model_to_use, batch_size=2048):
+        N = self.X_num.shape[0]
         collected_outputs = {'num': [], 'cat': []}
-        p1_n_start, p1_n_end = self.dim_info['p1_num_idx']
-        p1_c_start, p1_c_end = self.dim_info['p1_cat_idx']
+        p2_n_dim = self.X_num.shape[1]
 
-        cfg_scale_num = self.config.get("sample", {}).get("cfg_scale_num", 1.0)
-        cfg_scale_cat = self.config.get("sample", {}).get("cfg_scale_cat", 1.0)
-        use_cfg = (self.config['train']['cond_drop_prob'] > 0) and ((cfg_scale_num != 1.0) or (cfg_scale_cat != 1.0))
         with torch.no_grad():
             for start in range(0, N, batch_size):
                 end = min(start + batch_size, N)
                 B = end - start
-                full_cond = Cond[start:end]
-                p1_cond = P1_Cond[start:end]
 
-                p1_num = p1_cond[:, p1_n_start:p1_n_end]
-                p1_cat_chunk = p1_cond[:, p1_c_start:p1_c_end]
+                b_cond = self.Covariates[start:end]
+                b_a_num = self.A_num[start:end]
+                b_a_cat_chunk = self.A_cat[start:end]
 
-                x_t_num = p1_num + torch.sqrt(self.sum_scale) * torch.randn_like(p1_num)
-                loop_range = reversed(range(self.num_steps))
+                x_t_num = b_a_num + torch.sqrt(self.sum_scale) * torch.randn_like(b_a_num)
 
                 if self.Q_block.numel() > 0:
-                    pi_prior_raw = p1_cat_chunk @ self.Q_block
+                    pi_prior_p2_raw = b_a_cat_chunk @ self.Q_block
                 else:
-                    pi_prior_raw = torch.ones((B, self.X_cat.shape[1]), device=self.device)
+                    pi_prior_p2_raw = torch.ones((B, sum(self.cat_sizes)), device=self.device)
 
                 pi_prior_list = []
-                for i, p in enumerate(torch.split(pi_prior_raw, self.cat_sizes, dim=1)):
-                    if self.has_partner_mask[i]:
+                for idx, p in enumerate(torch.split(pi_prior_p2_raw, self.cat_sizes, dim=1)):
+                    if self.has_partner_mask[idx]:
                         pi_prior_list.append(p)
                     else:
                         pi_prior_list.append(torch.ones_like(p) / p.shape[1])
-                pi_prior = torch.cat(pi_prior_list, dim=1) if pi_prior_list else torch.empty_like(pi_prior_raw)
-                #
-                # x_t_cat_list = []
-                # prior_list = torch.split(pi_prior, self.cat_sizes, dim=1)
-                # for k, p in zip(self.cat_sizes, prior_list):
-                #     log_p = torch.log(p + 1e-30)
-                #     g = -torch.log(-torch.log(torch.rand_like(log_p) + 1e-30) + 1e-30)
-                #     x_t_cat_list.append(F.one_hot((log_p + g).argmax(dim=1), k).float())
-                # x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
+                pi_prior = torch.cat(pi_prior_list, dim=1) if pi_prior_list else torch.empty_like(pi_prior_p2_raw)
 
                 x_t_cat_list = []
-                prior_list = torch.split(pi_prior, self.cat_sizes, dim=1)
-                for j, (k, p) in enumerate(zip(self.cat_sizes, prior_list)):
+                prior_split = torch.split(pi_prior, self.cat_sizes, dim=1)
+                for j, (k, p) in enumerate(zip(self.cat_sizes, prior_split)):
                     if self.has_partner_mask[j]:
                         x_t_cat_list.append(F.one_hot(p.argmax(dim=1), k).float())
                     else:
@@ -540,58 +482,52 @@ class SIRD:
                         x_t_cat_list.append(F.one_hot((log_p + g).argmax(dim=1), k).float())
                 x_t_cat = torch.cat(x_t_cat_list, dim=1) if x_t_cat_list else torch.empty((B, 0), device=self.device)
 
-                null_cond = torch.zeros_like(full_cond)
-                for i in loop_range:
-                    t = torch.full((B,), i, device=self.device).long()
+                for i in reversed(range(self.num_steps)):
+                    tt = torch.full((B,), i, device=self.device).long()
                     x_curr = torch.cat([x_t_num, x_t_cat], dim=1)
-
-                    if use_cfg:
-                        x_curr_double = torch.cat([x_curr, x_curr], dim=0)
-                        cond_double = torch.cat([full_cond, null_cond], dim=0)
-                        t_double = torch.cat([t, t], dim=0)
-                        out_num_double, out_cat_double = model_to_use(x_curr_double, cond_double, t_double)
-                        out_num = None
-                        if out_num_double is not None:
-                            out_num_cond, out_num_uncond = out_num_double.chunk(2, dim=0)
-                            out_num = out_num_uncond + cfg_scale_num * (out_num_cond - out_num_uncond)
-                        out_cat = None
-                        if out_cat_double is not None:
-                            out_cat_cond, out_cat_uncond = out_cat_double.chunk(2, dim=0)
-                            out_cat = out_cat_uncond + cfg_scale_cat * (out_cat_cond - out_cat_uncond)
-                    else:
-                        out_num, out_cat = model_to_use(x_curr, full_cond, t)
+                    out_num, out_cat = model_to_use(x_curr, b_cond, tt)
 
                     if out_num is not None:
                         if self.task == "Res-N":
-                            dim = out_num.shape[1] // 2
-                            res, eps = out_num[:, :dim], out_num[:, dim:]
-                            x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
+                            dim_total = out_num.shape[1] // 2
+                            res, eps = out_num[:, :dim_total], out_num[:, dim_total:]
                         elif self.task == "Res":
-                            res = out_num
-                            eps = (x_t_num - p1_num - (self.alpha_bars[i] - 1) * res) / (self.beta_bars[i] + 1e-8)
-                            x_start = x_t_num - self.alpha_bars[i] * res - self.beta_bars[i] * eps
+                            res, eps = out_num, torch.zeros_like(out_num)
                         else:
-                            eps = out_num
-                            x_start = (x_t_num - self.alpha_bars[i] * p1_num - self.beta_bars[i] * eps) / (
-                                    1 - self.alpha_bars[i] + 1e-8)
-                            x_start = x_start.clamp(-4, 4)
-                            res = p1_num - x_start
+                            res, eps = torch.zeros_like(out_num), out_num
 
-                        x_start = x_start.clamp(-4, 4)
-                        post_mean = self.posterior_mean_coef1[i] * x_t_num + \
-                                    self.posterior_mean_coef2[i] * res + \
-                                    self.posterior_mean_coef3[i] * x_start
-                        noise = torch.randn_like(x_t_num) if i > 0 else 0
-                        x_t_num = (post_mean + (0.5 * self.posterior_log_variance[i]).exp() * noise).clamp(-4, 4)
+                        res_p2, eps_p2 = res[:, :p2_n_dim], eps[:, :p2_n_dim]
+                        x_t_p2 = x_t_num[:, :p2_n_dim]
+
+                        if self.task == "Res-N":
+                            x_start_p2 = x_t_p2 - self.alpha_bars[i] * res_p2 - self.beta_bars[i] * eps_p2
+                            res_use_p2 = res_p2
+                        elif self.task == "Res":
+                            eps_p2 = (x_t_p2 - b_a_num - (self.alpha_bars[i] - 1.0) * res_p2) / (
+                                        self.beta_bars[i] + 1e-8)
+                            x_start_p2 = x_t_p2 - self.alpha_bars[i] * res_p2 - self.beta_bars[i] * eps_p2
+                            res_use_p2 = res_p2
+                        else:
+                            x_start_p2 = (x_t_p2 - self.alpha_bars[i] * b_a_num - self.beta_bars[i] * eps_p2) / (
+                                        1.0 - self.alpha_bars[i] + 1e-8)
+                            x_start_p2 = x_start_p2.clamp(-5, 5)
+                            res_use_p2 = b_a_num - x_start_p2
+
+                        x_start_p2 = x_start_p2.clamp(-5, 5)
+                        post_mean_p2 = (self.posterior_mean_coef1[i] * x_t_p2 +
+                                        self.posterior_mean_coef2[i] * res_use_p2 +
+                                        self.posterior_mean_coef3[i] * x_start_p2)
+                        noise_p2 = torch.randn_like(x_t_p2) if i > 0 else 0.0
+                        x_t_num = post_mean_p2 + (0.5 * self.posterior_log_variance[i]).exp() * noise_p2
 
                     if out_cat is not None:
                         logits_list = torch.split(out_cat, self.cat_sizes, dim=1)
                         xt_list = torch.split(x_t_cat, self.cat_sizes, dim=1)
                         new_cat_list = []
-                        for j, (logits, xt, prior) in enumerate(zip(logits_list, xt_list, prior_list)):
-                            p = prior if self.has_partner_mask[j] else torch.ones_like(prior) / prior.shape[1]
+                        for j in range(len(self.cat_sizes)):
+                            logits, xt, p = logits_list[j], xt_list[j], prior_split[j]
                             pred_probs = F.softmax(logits, dim=-1)
-                            log_post = self._compute_posterior_vec(xt, pred_probs, p, t)
+                            log_post = self._compute_posterior_vec(xt, pred_probs, p, tt)
                             if i > 0:
                                 g = -torch.log(-torch.log(torch.rand_like(log_post) + 1e-30) + 1e-30)
                                 sample = log_post + g
@@ -599,8 +535,16 @@ class SIRD:
                                 sample = log_post
                             new_cat_list.append(F.one_hot(sample.argmax(dim=1), self.cat_sizes[j]).float())
                         x_t_cat = torch.cat(new_cat_list, dim=1)
-                collected_outputs['num'].append(x_t_num.cpu())
-                collected_outputs['cat'].append(x_t_cat.cpu())
+
+                collected_outputs['num'].append(x_t_num[:, :p2_n_dim].cpu())
+
+                curr_c = 0
+                p2_cat_chunks = []
+                for k in self.cat_sizes:
+                    p2_cat_chunks.append(x_t_cat[:, curr_c: curr_c + k])
+                    curr_c += k
+                if p2_cat_chunks:
+                    collected_outputs['cat'].append(torch.cat(p2_cat_chunks, dim=1).cpu())
 
         final_dict = {}
         full_num = torch.cat(collected_outputs['num'], dim=0).to(self.device) if collected_outputs['num'] else None
@@ -610,7 +554,7 @@ class SIRD:
         curr_n, curr_c = 0, 0
         p2_nums = [v for v in schema if 'numeric_p2' in v['type']]
         p2_cats = [v for v in schema if 'categorical_p2' in v['type']]
-        is_bits = self.config['diffusion'].get('discrete') == 'AnalogBits'
+        is_bits = self.discrete == 'AnalogBits'
 
         if full_num is not None:
             for v in p2_nums:
@@ -633,10 +577,10 @@ class SIRD:
     def impute(self, m=None, save_path=None):
         if torch.cuda.is_available(): torch.cuda.empty_cache()
         pd.set_option('future.no_silent_downcasting', True)
-        m_s = m if m else self.config["sample"]["m"]
-        eval_bs = self.config["train"].get("eval_batch_size", 2048)
+        m_s = m if m else self.m
+        eval_bs = self.eval_bs
 
-        if self.config["sample"]["mi_approx"] == "SWAG":
+        if self.mi_approx == "SWAG":
             if self.swag_model is None or self.swag_model.n_models.item() == 0:
                 print("Warning: No SWAG collected. Using base model.")
             else:
@@ -646,21 +590,22 @@ class SIRD:
         pbar = tqdm(total=m_s, desc="Imputation Rounds", file=sys.stdout)
 
         for samp_i in range(1, m_s + 1):
-            if self.config["sample"]["mi_approx"] == "SWAG" and self.swag_model.n_models.item() > 1:
+            if self.mi_approx == "SWAG" and self.swag_model.n_models.item() > 1:
                 model_to_use = self.swag_model.sample(scale=1, cov=True)
                 model_to_use.eval()
-            elif self.config["sample"]["mi_approx"] == "DROPOUT":
-                model_to_use = self.model_list[0];
+            elif self.mi_approx == "DROPOUT":
+                model_to_use = self.model_list[0]
                 model_to_use.eval()
                 for modu in model_to_use.modules():
                     if modu.__class__.__name__.startswith('Dropout'): modu.train()
-            elif self.config["sample"]["mi_approx"] == "BOOTSTRAP":
-                model_to_use = self.model_list[samp_i - 1];
+            elif self.mi_approx == "BOOTSTRAP":
+                model_to_use = self.model_list[samp_i - 1]
                 model_to_use.eval()
             else:
-                model_to_use = self.model_list[0]; model_to_use.eval()
+                model_to_use = self.model_list[0]
+                model_to_use.eval()
 
-            x_0_dict = self._reverse_diffusion(self.Cond, self.P1_Cond, model_to_use, eval_bs)
+            x_0_dict = self._reverse_diffusion(model_to_use, eval_bs)
             gen_df_dict = {}
             for v in self.transformer.get_sird_schema():
                 if 'p2' in v['type']:
@@ -682,15 +627,15 @@ class SIRD:
                     df_denorm[col] = df_denorm[col].astype(df_f[col].dtype)
 
             for c in self.p2_vars:
-                if self.config["sample"]["pmm"]:
-                    obs_idx = df_f[df_f[c].notna()].index;
+                if self.pmm:
+                    obs_idx = df_f[df_f[c].notna()].index
                     miss_idx = df_f[df_f[c].isna()].index
                     if c in self.num_names:
                         y_obs = df_f.loc[obs_idx, c].values
                         yhat_obs = df_denorm.loc[obs_idx, c].values
                         yhat_miss = df_denorm.loc[miss_idx, c].values
                         imputed_series = pd.Series(
-                            self.pmm(yhat_obs, yhat_miss, y_obs, k=self.config["sample"]["donors"]).flatten(),
+                            self.pmm(yhat_obs, yhat_miss, y_obs, k=self.donors).flatten(),
                             index=miss_idx)
                         df_f.loc[miss_idx, c] = imputed_series
                     else:
@@ -707,6 +652,23 @@ class SIRD:
             pd.concat(all_imputed_dfs, ignore_index=True).to_parquet(save_path, index=False)
             print(f"Saved stacked imputations to: {save_path}")
         return all_imputed_dfs
+
+    def _compute_posterior_vec(self, x_t, x_start, x_proxy, t):
+        log_w_s = self.log_post_w_s[t].unsqueeze(1)
+        log_w_p = self.log_post_w_p[t].unsqueeze(1)
+        beta_t = self.post_beta_t[t].unsqueeze(1)
+        log_prior = torch.logaddexp(
+            log_w_s + torch.log(x_start + 1e-30),
+            log_w_p + torch.log(x_proxy + 1e-30)
+        )
+        p_proxy_at_xt = (x_t * x_proxy).sum(dim=1, keepdim=True)
+
+        log_lik_noise = torch.log(beta_t * p_proxy_at_xt + 1e-30)
+        log_lik_stay = torch.log((1.0 - beta_t) + beta_t * p_proxy_at_xt + 1e-30)
+        log_likelihood = x_t * log_lik_stay + (1.0 - x_t) * log_lik_noise
+
+        log_unnorm = log_prior + log_likelihood
+        return log_unnorm - torch.logsumexp(log_unnorm, dim=1, keepdim=True)
 
     def pmm(self, yhat_obs, yhat_miss, y_obs, k=5):
         d = np.array(yhat_obs).reshape(-1, 1)

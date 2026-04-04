@@ -1,11 +1,10 @@
 import pandas as pd
-import numpy as np
 import torch
-from sklearn.mixture import GaussianMixture
 from sklearn.preprocessing import OneHotEncoder
-from scipy.stats import median_abs_deviation
 from sklearn.preprocessing import QuantileTransformer
-
+from scipy.interpolate import PchipInterpolator
+from scipy.stats import norm, gaussian_kde
+import numpy as np
 
 class DataTransformer:
     def __init__(self, data_info, config):
@@ -25,8 +24,12 @@ class DataTransformer:
 
         self.pair_map = None
         self.generated_columns = None
-        self.norm_type = config['processing'].get('normalization')
 
+        processing_cfg = self.config.get("processing", {})
+        self.norm_type = processing_cfg.get('normalization', "zscore")
+        self.log = processing_cfg.get('log', True)
+        self.anchor = processing_cfg.get('anchor', False)
+        self.discrete = self.config.get("diffusion", {}).get("discrete", "Multinomial")
         # Metadata for tensorization
         self.q_block_matrix = None
 
@@ -36,7 +39,7 @@ class DataTransformer:
         self._clean_categorical_strings(self.df_raw)
         self.df_transformed = self.df_raw.copy()
 
-        if self.config['processing']['log']:
+        if self.log:
             self._fit_apply_log()
         self._fit_numeric()
         self._fit_categorical()
@@ -58,7 +61,7 @@ class DataTransformer:
         out_df = df.copy()
         out_df = self._inverse_categorical(out_df)
         out_df = self._inverse_numeric(out_df)
-        if self.config['processing']['log']:
+        if self.log:
             out_df = self._inverse_log(out_df)
 
         return out_df
@@ -109,11 +112,7 @@ class DataTransformer:
     def _inverse_log(self, df):
         for col, shift in self.mins.items():
             if col in df.columns:
-                if col in set(self.data_info["phase1_vars"] + self.data_info['phase2_vars']):
-                    unlogged = np.expm1(df[col]) - shift
-                else:
-                    unlogged = np.expm1(df[col]) - shift
-                df[col] = unlogged
+                df[col] = np.expm1(df[col]) - shift
         return df
 
     def _fit_numeric(self):
@@ -121,23 +120,14 @@ class DataTransformer:
         p2_vars = self.data_info.get('phase2_vars', [])
         self.pair_map = {p2: p1 for p1, p2 in
                          zip(self.data_info.get('phase1_vars', []), self.data_info.get('phase2_vars', []))}
-        if self.config['processing']['anchor']:
-            for p1, p2 in zip(p1_vars, p2_vars):
-                if p1 in self.data_info['num_vars']:
-                    vals1 = pd.to_numeric(self.df_transformed[p1], errors='coerce')
-                    vals2 = pd.to_numeric(self.df_transformed[p2], errors='coerce')
-                    self.shift[p1] = 0
-                    self.shift[p2] = np.nanmean(vals1) - np.nanmean(vals2)
-                    self.df_transformed[p1] = (vals1 + self.shift[p1])
-                    self.df_transformed[p2] = (vals2 + self.shift[p2])
-
-        val_mask = self.df_transformed[p2_vars].notna().all(axis=1)
-        df_val = self.df_transformed[val_mask].copy()
-        n_quant = max(10, min(len(df_val) // 5, 1000))
 
         for col in self.data_info['num_vars']:
-            if col not in self.df_transformed.columns: continue
-            data = df_val[col].dropna().values.reshape(-1, 1)
+            if col not in self.df_transformed.columns:
+                continue
+
+            data = self.df_transformed[col].dropna().values.reshape(-1, 1)
+            n_quant = min(len(data), 1000)
+
             if col in p1_vars or (col not in p1_vars and col not in p2_vars):
                 if self.norm_type == "quantile":
                     qt = QuantileTransformer(output_distribution='normal', n_quantiles=n_quant,
@@ -147,14 +137,20 @@ class DataTransformer:
                         'type': 'quantile',
                         'model': qt
                     }
+                elif self.norm_type == "minmax":
+                    self.num_models[col] = self._fit_minmax(data)
+
+                elif self.norm_type == "spline":
+                    self.num_models[col] = self._fit_spline(data)
                 else:
                     self.num_models[col] = self._fit_zscore(data)
 
-        # Handle phase 2 variables mapping back to their phase 1 anchors if configured
         for col in self.data_info['num_vars']:
             if col in p2_vars:
-                data_p2 = df_val[col].dropna().values.reshape(-1, 1)
-                if self.config['processing']['anchor']:
+                data_p2 = self.df_transformed[col].dropna().values.reshape(-1, 1)
+                n_quant_p2 = min(len(data_p2), 1000)
+
+                if self.anchor:
                     anchor_col = self.pair_map.get(col)
                     if anchor_col and anchor_col in self.num_models:
                         anchor_model = self.num_models[anchor_col]
@@ -163,18 +159,78 @@ class DataTransformer:
                         self.num_models[col] = self._fit_zscore(data_p2)
                 else:
                     if self.norm_type == "quantile":
-                        qt = QuantileTransformer(output_distribution='normal', n_quantiles=n_quant,
+                        qt = QuantileTransformer(output_distribution='normal', n_quantiles=n_quant_p2,
                                                  random_state=42)
                         qt.fit(data_p2)
                         self.num_models[col] = {
                             'type': 'quantile',
                             'model': qt
                         }
+                    elif self.norm_type == "kde_spline":
+                        self.num_models[col] = self._fit_kde_spline(data_p2)
+                    elif self.norm_type == "minmax":
+                        self.num_models[col] = self._fit_minmax(data_p2)
+                    elif self.norm_type == "spline":
+                        self.num_models[col] = self._fit_spline(data_p2)
                     else:
                         self.num_models[col] = self._fit_zscore(data_p2)
 
     def _fit_zscore(self, data):
         return {'type': 'zscore', 'mean': float(np.mean(data)), 'std': float(np.std(data))}
+
+    def _fit_spline(self, data):
+        data = data.flatten()
+        x_unique, indices = np.unique(data, return_inverse=True)
+        if len(x_unique) < 2:
+            return {'type': 'zscore', 'mean': float(np.mean(data)), 'std': float(1e-6)}
+        counts = np.bincount(indices)
+        u_unique = (np.cumsum(counts) - 0.5 * counts) / data.size
+        forward_spline = PchipInterpolator(x_unique, u_unique)
+        inverse_spline = PchipInterpolator(u_unique, x_unique)
+
+        return {
+            'type': 'spline',
+            'forward': forward_spline,
+            'inverse': inverse_spline,
+            'u_min': float(u_unique.min()),
+            'u_max': float(u_unique.max())
+        }
+
+    def _fit_kde_spline(self, data):
+        data = data.flatten()
+        x_unique = np.unique(data)
+
+        if len(x_unique) < 2 or np.std(data) < 1e-6:
+            return {'type': 'zscore', 'mean': float(np.mean(data)), 'std': float(1e-6)}
+
+        try:
+            kde = gaussian_kde(data)
+        except np.linalg.LinAlgError:
+            return {'type': 'zscore', 'mean': float(np.mean(data)), 'std': float(np.std(data) + 1e-6)}
+
+        data_min, data_max = np.min(data), np.max(data)
+        margin = (data_max - data_min) * 0.1
+        margin = margin if margin > 0 else 1.0
+
+        x_grid = np.linspace(data_min - margin, data_max + margin, 1000)
+        pdf_grid = kde(x_grid)
+        pdf_grid = np.maximum(pdf_grid, 1e-10)
+
+        cdf_grid = np.cumsum(pdf_grid)
+        cdf_grid = cdf_grid / cdf_grid[-1]
+        forward_spline = PchipInterpolator(x_grid, cdf_grid)
+        inverse_spline = PchipInterpolator(cdf_grid, x_grid)
+
+        return {
+            'type': 'kde_spline',
+            'forward': forward_spline,
+            'inverse': inverse_spline,
+            'u_min': float(cdf_grid[0]),
+            'u_max': float(cdf_grid[-1])
+        }
+
+    def _fit_minmax(self, data):
+        return {'type': 'minmax', 'min': float(np.min(data)), 'max': float(np.max(data))}
 
     def _transform_numeric(self, df):
         collected = {}
@@ -202,33 +258,61 @@ class DataTransformer:
                     res_val[mask] = model['model'].transform(valid_data).flatten()
                 res_val[~mask] = 0.0
                 collected[col] = res_val
+            elif model['type'] == 'minmax':
+                if mask.sum() > 0:
+                    res_val[mask] = (vals[mask] - model['min']) / (model['max'] - model['min'] + epsilon)
+                collected[col] = res_val
+            elif model['type'] == 'spline':
+                if mask.sum() > 0:
+                    valid_x = vals[mask]
+                    u = model['forward'](valid_x)
+                    u_clamped = np.clip(u, epsilon, 1.0 - epsilon)
+                    res_val[mask] = norm.ppf(u_clamped).astype(np.float32)
+                res_val[~mask] = 0.0
+                collected[col] = res_val
+            elif model['type'] == 'kde_spline':
+                if mask.sum() > 0:
+                    valid_x = vals[mask]
+                    # Map x -> u via the smoothed spline
+                    u = model['forward'](valid_x)
+                    # Clamp probabilities to prevent Probit explosion (NaNs)
+                    u_clamped = np.clip(u, epsilon, 1.0 - epsilon)
+                    # Map u -> N(0,1)
+                    res_val[mask] = norm.ppf(u_clamped).astype(np.float32)
+
+                res_val[~mask] = 0.0  # Standard missing mask
+                collected[col] = res_val
         return collected
 
     def _inverse_numeric(self, df):
         epsilon = 1e-6
-        p1_vars = self.data_info.get('phase1_vars', [])
-        p2_vars = self.data_info.get('phase2_vars', [])
         for col in self.data_info['num_vars']:
             if col not in df.columns: continue
-            anchor = self.pair_map.get(col)
             model = self.num_models.get(col)
-            model_anchor = self.num_models.get(anchor)
             if not model: continue
-
             if model['type'] == 'zscore':
                 df[col] = df[col] * (model['std'] + epsilon) + model['mean']
             elif model['type'] == 'quantile':
                 data = df[col].values.reshape(-1, 1)
                 df[col] = model['model'].inverse_transform(data).flatten()
-            if self.config['processing']['anchor']:
-                if col in p2_vars:
-                    df[col] = df[col] - self.shift[col]
+            elif model['type'] == 'minmax':
+                df[col] = df[col] * (model['max'] - model['min'] + epsilon) + model['min']
+            elif model['type'] == 'spline':
+                z = df[col].values
+                u = norm.cdf(z)
+                u_clamped = np.clip(u, model['u_min'], model['u_max'])
+                df[col] = model['inverse'](u_clamped).astype(np.float32)
+            elif model['type'] == 'kde_spline':
+                z = df[col].values
+                u = norm.cdf(z)
+                u_clamped = np.clip(u, model['u_min'], model['u_max'])
+                df[col] = model['inverse'](u_clamped).astype(np.float32)
         return df
 
     def _fit_categorical(self):
         p1_vars = self.data_info.get('phase1_vars', [])
         p2_vars = self.data_info.get('phase2_vars', [])
-        is_bits = self.config['diffusion'].get('discrete') == 'AnalogBits'
+        is_bits = self.discrete == 'AnalogBits'
 
         pair_unions = {}
         # Pre-calculate category unions for pairs

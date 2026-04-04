@@ -60,6 +60,11 @@ cat(sprintf("Task %d handling replicates %d to %d for type: %s, design: %s\n",
 configs <- readRDS("./data/Config/best_config_mice.rds")
 
 do_mice <- function(dat, nm, digit, best_config) {
+  if (type == "SampleOE") {
+    dat$AGE_INS <- as.numeric(dat$AGE) * as.numeric(dat$Insulin)
+  }
+  dat$AGE_TI <- as.numeric(dat$AGE) * as.numeric(dat$T_I)
+  dat$AGE_EVENT <- as.numeric(dat$AGE) * as.numeric(as.character(dat$EVENT))
   mincor <- best_config$mincor
   repeat {
     cat(sprintf("Trying mincor = %.2f\n", mincor))
@@ -67,13 +72,13 @@ do_mice <- function(dat, nm, digit, best_config) {
 
     if (type == "SampleOE") {
       if ("Insulin" %in% rownames(qp)) {
-        qp["Insulin", c("AGE_TI_STAR", "AGE_EVENT_STAR")] <- 1
+        qp["Insulin", c("AGE_TI", "AGE_EVENT")] <- 1
       }
       if ("T_I" %in% rownames(qp)) {
-        qp["T_I", "AGE_INS_STAR"] <- 1
+        qp["T_I", "AGE_INS"] <- 1
       }
       if ("EVENT" %in% rownames(qp)) {
-        qp["EVENT", "AGE_INS_STAR"] <- 1
+        qp["EVENT", "AGE_INS"] <- 1
       }
     } else {
       if ("Insulin" %in% rownames(qp)) {
@@ -114,7 +119,7 @@ process_design <- function(design_name, digit, data) {
     samp <- read.csv(file.path("./data", type, design_name, paste0(digit, ".csv"))) %>%
       match_types(data) %>%
       mutate(across(all_of(data_info$cat_vars), as.factor),
-             across(all_of(data_info$num_vars), safenumeric))
+             across(all_of(data_info$num_vars), safe_numeric))
 
     elapsed_time <- do_mice(samp, design_name, digit, configs)
     return(data.frame(Design = design_name, Replicate = as.integer(digit), Time_Seconds = elapsed_time, stringsAsFactors = FALSE))

@@ -71,11 +71,8 @@ CONFIG_PROFILES = {
             "layers": ("int", 2, 7),
             "weight_decay": ("log_float", 1e-6, 1e-3),
             "sum_scale": ("float", 0.01, 0.25),
-            "dropout": ("float", 0, 0.5),
             "batch_size": ("int_exp2", 5, 8),
-            "loss_num": ("int", 1, 50),
-            "loss_cat": ("int", 1, 50),
-            "num_steps": ("int", 20, 75),
+            "num_steps": ("int", 20, 100),
             "diffusion_embedding_dim": ("int_exp2", 6, 8),
         }
     },
@@ -102,19 +99,20 @@ CONFIG_PROFILES = {
             "cfg_scale_cat": ("float", 1, 2),
         }
     },
-    "attn": {
-        "yaml_file": "./tuning_configs/base_config_attn.yaml",
-        "output_csv": "./tuning_results/attn_tuning_results.csv",
+    "multinomial_swag": {
+        "yaml_file": "./tuning_configs/base_config_multinomial_swag.yaml",
+        "output_csv": "./tuning_results/multinomial_swag_tuning_results.csv",
         "tuning_grid": {
-            "lr": ("log_float", 1e-4, 1e-2),
-            "channels": ("int_exp2", 6, 9),
-            "layers": ("int", 2, 7),
-            "sum_scale": ("float", 0.01, 0.25),
-            "dropout": ("float", 0, 0.5),
-            "batch_size": ("int_exp2", 5, 8),
-            "nheads": ("cat", [2, 4, 8, 16]),
+            "lr": ("log_float", 1e-3, 1e-1),
         }
     },
+    "multinomial_swag_epochs": {
+        "yaml_file": "./tuning_configs/base_config_multinomial_swag_epochs.yaml",
+        "output_csv": "./tuning_results/multinomial_swag_epochs_tuning_results.csv",
+        "tuning_grid": {
+            "epochs": ("cat", [2500, 5000, 10000, 15000, 20000])
+        }
+    }
 }
 
 
@@ -123,7 +121,7 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        default="multinomial_cfg",
+        default="multinomial_joint",
         choices=list(CONFIG_PROFILES.keys()),
         help="Choose the tuning profile to run."
     )

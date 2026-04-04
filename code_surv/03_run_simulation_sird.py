@@ -136,7 +136,7 @@ def main():
     parser.add_argument(
         "--type",
         type=str,
-        default="SampleE",
+        default="SampleOE",
         choices=["SampleOE", "SampleE"]
     )
     parser.add_argument(

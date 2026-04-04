@@ -15,7 +15,7 @@ def setup_directories():
     # else:
     #     base_path = Path("./simulations")
     base_path = Path("./simulations")
-    sub_dirs = ["Multinomial", "Multinomial_CFG", "AnalogBits"]
+    sub_dirs = ["Multinomial", "Multinomial_CFG", "AnalogBits", "SWAG", "Bootstrap", "Dropout"]
     for folder in sub_dirs:
         target = base_path / folder
         target.mkdir(parents=True, exist_ok=True)
@@ -89,6 +89,18 @@ CONFIG_PROFILES = {
     "analogbits": {
         "yaml_file": "./result_configs/config_analogbits.yaml",
         "output_dir": "AnalogBits"
+    },
+    "swag": {
+        "yaml_file": "./result_configs/config_swag.yaml",
+        "output_dir": "SWAG"
+    },
+    "dropout": {
+        "yaml_file": "./result_configs/config_dropout.yaml",
+        "output_dir": "Dropout"
+    },
+    "bootstrap": {
+        "yaml_file": "./result_configs/config_bootstrap.yaml",
+        "output_dir": "Bootstrap"
     }
 }
 
@@ -97,7 +109,7 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        default="multinomial_cfg",
+        default="multinomial_conddrop",
         choices=list(CONFIG_PROFILES.keys()),
         help="Choose the tuning profile to run."
     )

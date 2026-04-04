@@ -1,6 +1,7 @@
-pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mice, fields)
+pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mice, fields, parallel)
 source("../../00_utils_functions.R") 
-
+# plan(multisession, workers = parallel::detectCores() - 1)
+options(ranger.num.threads = 8)
 create_loss_calculator <- function(data_info) {
   target_num <- intersect(data_info$num_vars, data_info$phase2_vars)
   target_cat <- intersect(data_info$cat_vars, data_info$phase2_vars)
@@ -153,11 +154,12 @@ tune_rf <- function(data, data_info, search_space,
           method = "rf",
           ntree = xs$ntree,
           mtry = xs$mtry,
-          nodesize = xs$nodesize,
-          sampsize = current_sampsize,
+          min.node.size = xs$nodesize,
+          sample.fraction = xs$sampsize_ratio,
           maxit = 10,
-          printFlag = FALSE,
-          remove.collinear = FALSE
+          printFlag = TRUE,
+          remove.collinear = FALSE,
+          remove.constant = TRUE
         )
       }, error = function(e) return(NULL))
 
@@ -254,19 +256,6 @@ load(paste0("../../data/True/0001.RData"))
 samp_srs <- read.csv(paste0("../../data/SampleOE/SRS/0001.csv"))
 samp_srs <- match_types(samp_srs, data)
 samp_srs <- samp_srs[samp_srs$R == 1,]
-
-samp_srs$H0_STAR <- nelsonaalen(samp_srs, T_I_STAR, EVENT_STAR)
-samp_srs$H0_TRUE <- nelsonaalen(samp_srs, T_I, EVENT)
-samp_srs$H0_STAR[is.na(samp_srs$H0_STAR)] <- 0
-samp_srs$H0_TRUE[is.na(samp_srs$H0_TRUE)] <- 0
-
-samp_srs$EVENT_STAR_NUM <- as.numeric(as.character(samp_srs$EVENT_STAR))
-samp_srs$H0_STAR <- nelsonaalen(samp_srs, T_I_STAR, EVENT_STAR_NUM)
-
-samp_srs$EVENT_STAR_NUM <- NULL
-samp_srs$EVENT_NUM <- as.numeric(as.character(samp_srs$EVENT))
-samp_srs$H0_TRUE <- nelsonaalen(samp_srs, T_I, EVENT_NUM)
-samp_srs$EVENT_NUM <- NULL
 
 safe_numeric <- function(x) {
   num_x <- suppressWarnings(as.numeric(as.character(x)))

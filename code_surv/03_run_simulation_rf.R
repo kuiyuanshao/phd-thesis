@@ -1,4 +1,4 @@
-lapply(c("mice", "dplyr", "stringr"), require, character.only = TRUE)
+lapply(c("mice", "dplyr", "stringr", "parallel"), require, character.only = TRUE)
 source("00_utils_functions.R")
 
 is_nesi <- grepl("nesi.org.nz", Sys.info()["nodename"]) || dir.exists("/opt/nesi")
@@ -60,7 +60,6 @@ cat(sprintf("Task %d handling replicates %d to %d for type: %s, design: %s\n",
 configs <- readRDS("./data/Config/best_config_rf.rds")
 
 do_mice <- function(dat, nm, digit, best_config) {
-  current_sampsize <- ceiling(best_config$sampsize_ratio * nrow(dat))
   tm <- system.time({
     mice_imp <- tryCatch(
         mice(
@@ -69,8 +68,9 @@ do_mice <- function(dat, nm, digit, best_config) {
           method = "rf",
           ntree = best_config$ntree,
           mtry = best_config$mtry,
-          nodesize = best_config$nodesize,
-          sampsize = current_sampsize,
+          min.node.size = best_config$nodesize,
+          sample.fraction = best_config$sampsize_ratio,
+          num.threads = 8,
           maxit = 10,
           printFlag = TRUE,
           remove.collinear = FALSE
@@ -82,7 +82,7 @@ do_mice <- function(dat, nm, digit, best_config) {
                   tm[["user.self"]], tm[["sys.self"]], tm[["elapsed"]]))
 
   save_file <- file.path(sim_root, type, nm, "rf", paste0(digit, ".RData"))
-  save(mice_imp, file = save_file, compress = "xz", compression_level = 6)
+  # save(mice_imp, file = save_file, compress = "xz", compression_level = 6)
   return(tm[["elapsed"]])
 }
 
@@ -96,7 +96,7 @@ process_design <- function(design_name, digit, data) {
     samp <- read.csv(file.path("./data", type, design_name, paste0(digit, ".csv"))) %>%
       match_types(data) %>%
       mutate(across(all_of(data_info$cat_vars), as.factor),
-             across(all_of(data_info$num_vars), safenumeric))
+             across(all_of(data_info$num_vars), safe_numeric))
 
     elapsed_time <- do_mice(samp, design_name, digit, configs)
     return(data.frame(Design = design_name, Replicate = as.integer(digit), Time_Seconds = elapsed_time, stringsAsFactors = FALSE))

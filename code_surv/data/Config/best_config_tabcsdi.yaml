@@ -1,6 +1,7 @@
 train:
-  epochs: 10
+  epochs: 1
   batch_size: 512
+  eval_batch_size: 512
   lr: 0.0005
 
 diffusion:
@@ -13,16 +14,16 @@ diffusion:
   num_steps: 10
   schedule: "quad"
   mixed: True
-  token_emb_dim: 8 # refers to tokenizer
+  token_emb_dim: 1 # refers to tokenizer
 
 model:
-  task: ft
+  task: onehot
   is_unconditional: 0
   timeemb: 128
   featureemb: 8
   target_strategy: "random"
   mixed: True
-  token_emb_dim: 8 # refers to tokenizer
+  token_emb_dim: 1 # refers to tokenizer
 
 sample:
   m: 1

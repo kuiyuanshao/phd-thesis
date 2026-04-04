@@ -2,8 +2,8 @@
 #SBATCH --job-name=sird_ablation
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
-#SBATCH --array=1-25
-#SBATCH --time=24:00:00
+#SBATCH --array=1-50
+#SBATCH --time=4:00:00
 #SBATCH --partition=milan
 # #SBATCH --partition=gpu
 # #SBATCH --gpus-per-node=A100:1

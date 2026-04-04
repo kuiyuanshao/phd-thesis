@@ -1,7 +1,7 @@
 # Data Processing Hyperparameters
 processing:
   normalization: 'zscore'
-  log: false
+  log: true
   gmm:
     max_components: 1
     epsilon: 1.0e-06
@@ -27,7 +27,7 @@ sample:
   donors: 5
 
 train:
-  epochs: 5000
+  epochs: 10000
   batch_size: 500
   Adam:
     lr_g: 0.0002
@@ -44,7 +44,7 @@ train:
   loss:
     lambda_gp: 10
     loss_mse: 0
-    loss_ce: 0
+    loss_ce: 1
     loss_mml: 1
     loss_info: 0
     tau: 0.2

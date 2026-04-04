@@ -249,60 +249,72 @@ class SICG:
                 X_p2 = batch_p2['X'].to(self.device, non_blocking=True)
                 C_p2 = batch_p2['C'].to(self.device, non_blocking=True)
 
-                z_p2 = torch.randn(A_p2.size(0), noise_dim, device=self.device)
-                fake_p2 = G(z_p2, A_p2, C_p2)
+                is_semi = self.config['model']['semi_supervised']
+
+                if is_semi:
+                    batch_p1, iter_p1 = self._get_batch(iter_p1, dl_p1)
+                    half_size = A_p2.size(0) // 2
+
+                    A_p2 = A_p2[:half_size]
+                    X_p2 = X_p2[:half_size]
+                    C_p2 = C_p2[:half_size]
+
+                    A_p1 = batch_p1['A'][:half_size].to(self.device, non_blocking=True)
+                    C_p1 = batch_p1['C'][:half_size].to(self.device, non_blocking=True)
+
+                    A_gen = torch.cat([A_p2, A_p1], dim=0)
+                    C_gen = torch.cat([C_p2, C_p1], dim=0)
+                else:
+                    half_size = A_p2.size(0)
+                    A_gen = A_p2
+                    C_gen = C_p2
+
+                z_gen = torch.randn(A_gen.size(0), noise_dim, device=self.device)
+                fake_all = G(z_gen, A_gen, C_gen)
+
+                fake_p2 = fake_all[:half_size]
                 loss_p2 = recon_loss(fake_p2, X_p2, mode='p2', layout=self.layout,
                                      alpha=loss_cfg['loss_mse'], beta=loss_cfg['loss_ce'])
 
-                fake_p2_act = gumbel_activation(fake_p2, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
-                fake_d = torch.cat([fake_p2_act, A_p2, C_p2], dim=1)
+                if is_semi:
+                    fake_p1 = fake_all[half_size:]
+                    loss_p1 = recon_loss(fake_p1, A_p1, mode='p1', proj_groups=self.proj_groups,
+                                         alpha=loss_cfg['loss_mse'], beta=loss_cfg['loss_ce'])
+                    g_loss_recon = 0.5 * (loss_p2 + loss_p1)
+                else:
+                    g_loss_recon = loss_p2
 
-                g_adv2, info_fake = D(fake_d)
-                g_adv2 = -g_adv2.mean()
-                g_loss = g_adv2 + loss_p2
+                fake_all_act = gumbel_activation(fake_all, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
+                fake_d = torch.cat([fake_all_act, A_gen, C_gen], dim=1)
+
+                g_adv, info_fake = D(fake_d)
+                g_adv = -g_adv.mean()
+                g_loss = g_adv + g_loss_recon
+
+                fake_d2 = fake_d[:half_size]
 
                 if loss_cfg['loss_mml'] > 0:
-                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(self._pca(torch.cat([X_p2, A_p2, C_p2], dim=1)),
-                                                                            self._pca(fake_d))
+                    loss_marg = loss_cfg['loss_mml'] * moment_matching_loss(
+                        self._pca(torch.cat([X_p2, A_p2, C_p2], dim=1)),
+                        self._pca(fake_d2))
                     g_loss += loss_marg
+
                 if loss_cfg['loss_info'] > 0:
-                    true_d = torch.cat([X_p2, A_p2, C_p2], dim=1)
-                    _, info_true = D(true_d)
-                    loss_info = loss_cfg['loss_info'] * moment_matching_loss(info_true, info_fake)
+                    true_d2 = torch.cat([X_p2, A_p2, C_p2], dim=1)
+                    _, info_true2 = D(true_d2)
+                    if is_semi:
+                        _, info_fake2 = D(fake_d2)
+                    else:
+                        info_fake2 = info_fake
+                    loss_info = loss_cfg['loss_info'] * moment_matching_loss(info_true2, info_fake2)
                     g_loss += loss_info
 
                 g_loss.backward()
                 if mi_approx == 'SWAG': torch.nn.utils.clip_grad_norm_(G.parameters(), 1.0)
                 opt_G.step()
-                if self.config['model']['semi_supervised']:
-                    for p in D.parameters():
-                        p.requires_grad = False
-                    opt_G.zero_grad()
-                    batch_p1, iter_p1 = self._get_batch(iter_p1, dl_p1)
-
-                    A_p1 = batch_p1['A'].to(self.device, non_blocking=True)
-                    C_p1 = batch_p1['C'].to(self.device, non_blocking=True)
-
-                    z_p1 = torch.randn(A_p1.size(0), noise_dim, device=self.device)
-                    fake_p1 = G(z_p1, A_p1, C_p1)
-                    loss_p1 = recon_loss(fake_p1, A_p1, mode='p1', proj_groups=self.proj_groups,
-                                         alpha=loss_cfg['loss_mse'], beta=loss_cfg['loss_ce'])
-                    fake_p1_act = gumbel_activation(fake_p1, self.layout, loss_cfg['tau'], loss_cfg['hard_gumbel'])
-                    fake_d1 = torch.cat([fake_p1_act, A_p1, C_p1], dim=1)
-                    g_adv1, info_fake = D(fake_d1)
-                    g_adv1 = -g_adv1.mean()
-                    g_loss = g_adv1 + loss_p1
-                    g_loss.backward()
-
-                    if mi_approx == 'SWAG':
-                        torch.nn.utils.clip_grad_norm_(G.parameters(), 1.0)
-                    opt_G.step()
-
-                    for p in D.parameters():
-                        p.requires_grad = True
                 logs = {
                     'D_Loss': f"{d_loss.item():.4f}",
-                    'G_Adv': f"{g_adv2.item():.4f}",
+                    'G_Adv': f"{g_adv.item():.4f}",
                     'Recon': f"{loss_p2.item():.4f}"
                 }
                 if loss_cfg['loss_mml'] > 0:

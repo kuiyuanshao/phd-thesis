@@ -1,24 +1,24 @@
 # Data Processing Hyperparameters
 processing:
   normalization: 'zscore'
-  log: true
+  log: True
   gmm:
     max_components: 1
     epsilon: 1.0e-06
 
 model:
   residual_modeling: false
-  semi_supervised: false
+  semi_supervised: True
   generator:
     noise_dim: 64
-    hidden_dim: 512
+    hidden_dim: 256
     layers: 2
     dropout: 0.5
 
   discriminator:
-    hidden_dim: 512
+    hidden_dim: 256
     layers: 2
-    pack: 1
+    pack: 10
 
 sample:
   m: 5
@@ -28,10 +28,10 @@ sample:
 
 train:
   epochs: 10000
-  batch_size: 400
+  batch_size: 500
   Adam:
-    lr_g: 0.0004
-    lr_d: 0.0004
+    lr_g: 0.0002
+    lr_d: 0.0002
     betas_g: [0.5, 0.9]
     betas_d: [0.5, 0.9]
     weight_decay: 1.0e-06
@@ -45,8 +45,8 @@ train:
     lambda_gp: 10
     loss_mse: 0
     loss_ce: 0
-    loss_mml: 0
-    loss_info: 1
+    loss_mml: 1
+    loss_info: 0
     tau: 0.2
     hard_gumbel: false
-    discriminator_steps: 3
+    discriminator_steps: 1

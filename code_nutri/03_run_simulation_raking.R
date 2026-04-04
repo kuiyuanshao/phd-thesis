@@ -104,12 +104,20 @@ for (i in first_rep:last_rep) {
     res <- process_design("ODS_TAIL", digit, data)
     if (!is.null(res)) timing_records[[length(timing_records) + 1]] <- res
   }
-  if (sampling_design %in% c("Neyman_ODS_UNVAL", "All")) {
+  if (sampling_design %in% c("Neyman_ODS", "All")) {
     res <- process_design("Neyman_ODS", digit, data)
     if (!is.null(res)) timing_records[[length(timing_records) + 1]] <- res
   }
-  if (sampling_design %in% c("Neyman_INF_UNVAL", "All")) {
+  if (sampling_design %in% c("Neyman_INF", "All")) {
     res <- process_design("Neyman_INF", digit, data)
+    if (!is.null(res)) timing_records[[length(timing_records) + 1]] <- res
+  }
+  if (sampling_design %in% c("Neyman_ODS_UNVAL", "All")) {
+    res <- process_design("Neyman_ODS_UNVAL", digit, data)
+    if (!is.null(res)) timing_records[[length(timing_records) + 1]] <- res
+  }
+  if (sampling_design %in% c("Neyman_INF_UNVAL", "All")) {
+    res <- process_design("Neyman_INF_UNVAL", digit, data)
     if (!is.null(res)) timing_records[[length(timing_records) + 1]] <- res
   }
 }

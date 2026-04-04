@@ -1,6 +1,6 @@
 pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mice, fields)
 source("../../00_utils_functions.R") 
-
+options(ranger.num.threads = 8)
 create_loss_calculator <- function(data_info) {
   target_num <- intersect(data_info$num_vars, data_info$phase2_vars)
   target_cat <- intersect(data_info$cat_vars, data_info$phase2_vars)
@@ -153,8 +153,9 @@ tune_rf <- function(data, data_info, search_space,
           method = "rf",
           ntree = xs$ntree,
           mtry = xs$mtry,
-          nodesize = xs$nodesize,
-          sampsize = current_sampsize,
+          min.node.size = xs$nodesize,
+          sample.fraction = xs$sampsize_ratio,
+          num.threads = 8,
           remove.collinear = FALSE,
           maxit = 10,
           printFlag = FALSE

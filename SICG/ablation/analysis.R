@@ -223,6 +223,9 @@ retrieveEst <- function(method){
         resultCI <- rbind(resultCI, c(exp(confint(cox.mod)[, 1]), 
                                       exp(confint(cox.mod)[, 2]), toupper(method), digit))
       }else{
+        if (!file.exists(paste0("./simulations/", method, "/", digit, ".parquet"))){
+          next
+        }
         multi_impset <- read_parquet(paste0("./simulations/", method, "/", digit, ".parquet"))
         multi_impset <- multi_impset %>% group_split(imp_id)
         multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
@@ -261,11 +264,12 @@ retrieveEst <- function(method){
        file = paste0("./simulations/results_", toupper(method),".RData"))
 }
 
-methods <- c("Pack", "Pack_mml")#c("VAL", "UNVAL", "CC", "Pack", "Unpack", "Pack_mml", "Unpack_info")
+methods <- c("Pack_mml_semisupervised")#c("VAL", "UNVAL", "CC", "Pack", "Unpack", "Pack_mml", "Unpack_info"，"Pack_mml_ce")
 for (method in methods){
   retrieveEst(method)
 }
-methods <- c("VAL", "UNVAL", "CC", "Pack", "Unpack", "Pack_mml", "Unpack_info")
+methods <- c("VAL", "UNVAL", "CC", "Pack", "Unpack", "Pack_mml", "Unpack_info",
+             "Pack_mml_ce", "Pack_mml_semisupervised")
 
 combine <- function(){
   filenames <- paste0("./simulations/results_", toupper(methods), ".RData")
@@ -299,7 +303,6 @@ source("../../code_surv/00_utils_functions.R")
 # loadfonts(device="win") 
 
 load("./simulations/results_COMBINED.RData")
-methods <- c("VAL", "UNVAL", "CC", "Pack", "Unpack", "Pack_mml", "Unpack_info")
 vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "Age",
               "eGFR", "Insulin", "BMI", "Sex TRUE", "Insurance TRUE",
               "Race AFR", "Race AMR", "Race SAS", "Race EAS", "Smoke 2", "Smoke 3",

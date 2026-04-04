@@ -15,7 +15,7 @@ def setup_directories():
     # else:
     #     base_path = Path("./simulations")
     base_path = Path("./simulations")
-    sub_dirs = ["Unpack", "Pack", "Unpack_info", "Pack_mml"]
+    sub_dirs = ["Unpack", "Pack", "Unpack_info", "Pack_mml", "Pack_mml_ce", "Pack_mml_semisupervised"]
     for folder in sub_dirs:
         target = base_path / folder
         target.mkdir(parents=True, exist_ok=True)
@@ -95,9 +95,13 @@ CONFIG_PROFILES = {
         "yaml_file": "./result_configs/config_pack_mml.yaml",
         "output_dir": "Pack_mml"
     },
-    "unpack_residual": {
-        "yaml_file": "./result_configs/config_unpack_residual.yaml",
-        "output_dir": "Unpack_residual"
+    "pack_mml_ce": {
+        "yaml_file": "./result_configs/config_pack_mml_ce.yaml",
+        "output_dir": "Pack_mml_ce"
+    },
+    "pack_mml_semisupervised": {
+        "yaml_file": "./result_configs/config_pack_mml_semisupervised.yaml",
+        "output_dir": "Pack_mml_semisupervised"
     }
 }
 
@@ -106,7 +110,7 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        default="unpack",
+        default="pack_mml_semisupervised",
         choices=list(CONFIG_PROFILES.keys())
     )
     parser.add_argument(

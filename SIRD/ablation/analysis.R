@@ -129,6 +129,27 @@ results_cfg <- analyze_tuning(
   cont_params = cfg_continuous
 )
 
+swag_continuous <- c("lr")
+results_swag <- analyze_tuning(
+  file_prefix = "./tuning_results/multinomial_swag", 
+  cat_params = NULL, 
+  cont_params = swag_continuous
+)
+
+swag_cat <- c("epochs")
+results_swag <- analyze_tuning(
+  file_prefix = "./tuning_results/multinomial_swag_epochs", 
+  cat_params = swag_cat, 
+  cont_params = NULL
+)
+
+multinomial_joint_categorical <- c("batch_size", "layers", "channels", "diffusion_embedding_dim")
+multinomial_joint_continuous <- c("lr", "num_steps", "sum_scale", "weight_decay")
+results_multinomial_joint <- analyze_tuning(
+  file_prefix = "./tuning_results/multinomial_joint", 
+  cat_params = multinomial_joint_categorical, 
+  cont_params = multinomial_joint_continuous
+)
 
 ggplot(results_cfg$clean_data, aes(x = cfg_scale_num, y = cfg_scale_cat)) +
   geom_point(aes(size = total_combined_loss, color = cond_drop_prob), alpha = 0.8) +
@@ -176,6 +197,9 @@ retrieveEst <- function(method){
         resultCI <- rbind(resultCI, c(exp(confint(cox.mod)[, 1]), 
                                       exp(confint(cox.mod)[, 2]), toupper(method), digit))
       }else{
+        if (!file.exists(paste0("./simulations/", method, "/", digit, ".parquet"))){
+          next
+        }
         multi_impset <- read_parquet(paste0("./simulations/", method, "/", digit, ".parquet"))
         multi_impset <- multi_impset %>% group_split(imp_id)
         multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
@@ -214,14 +238,13 @@ retrieveEst <- function(method){
        file = paste0("./simulations/results_", toupper(method),".RData"))
 }
 
-#c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "Multinomial_Cond_Drop", "Multinomial_Cond_Drop_Epochs", "AnalogBits_Cond_Drop")
-methods <- c("Multinomial_Cond_Drop_Epochs", "AnalogBits_Cond_Drop")
+#c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "AnalogBits")
+methods <- c("Dropout", "SWAG")
 for (method in methods){
   retrieveEst(method)
 }
-#c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "Multinomial_Cond_Drop", "Multinomial_Cond_Drop_Epochs", "AnalogBits_Cond_Drop")
-
-methods <- c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "Multinomial_Cond_Drop", "Multinomial_Cond_Drop_Epochs", "AnalogBits_Cond_Drop")
+#c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "AnalogBits")
+methods <- c("VAL", "UNVAL", "CC", "Multinomial", "Bootstrap", "Dropout", "SWAG")
 
 combine <- function(){
   filenames <- paste0("./simulations/results_", toupper(methods), ".RData")
@@ -243,7 +266,7 @@ combine <- function(){
   rownames(combined_resultStdError) <- NULL
   
   save(combined_resultCoeff, combined_resultCI, combined_resultStdError,
-       file = "./simulations/results_COMBINED.RData")
+       file = "./simulations/results_MI_APPROX_COMBINED.RData")
 }
 
 combine()
@@ -253,9 +276,8 @@ lapply(c("ggplot2", "dplyr", "tidyr", "RColorBrewer", "ggh4x", "extrafont", "pat
 source("../../code_surv/00_utils_functions.R")
 # font_import()
 # loadfonts(device="win") 
-
-load("./simulations/results_COMBINED.RData")
-# methods <- c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "Multinomial_Cond_Drop")
+methods <- c("VAL", "UNVAL", "CC", "Multinomial", "Multinomial_CFG", "AnalogBits")
+load("./simulations/results_MI_APPROX_COMBINED.RData")
 vars_vec <- c("HbA1c", "rs4506565 1", "rs4506565 2", "Age",
               "eGFR", "Insulin", "BMI", "Sex TRUE", "Insurance TRUE",
               "Race AFR", "Race AMR", "Race SAS", "Race EAS", "Smoke 2", "Smoke 3",
@@ -511,6 +533,16 @@ ggplot(combined_resultCoeff_long) +
 
 ggsave("./simulations/Imputation_Bias_Violinplot.png", width = 18, height = 18, limitsize = FALSE)
 
+
+ggplot(combined_resultStdError_long) + 
+  geom_boxplot(aes(x = factor(Method, levels = toupper(methods)), 
+                   y = StdError)) + 
+  theme_minimal() + 
+  labs(x = "Methods", y = "Standard Errors") + 
+  theme(text = element_text(family = "Times New Roman")) + 
+  facet_wrap(~ Covariate, scales = "free")
+
+ggsave("./simulations/Imputation_StdError_Boxplot.png", width = 30, height = 10, limitsize = F)
 
 
 

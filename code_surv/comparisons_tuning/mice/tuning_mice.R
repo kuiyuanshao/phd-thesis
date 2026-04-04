@@ -153,13 +153,8 @@ tune_mice <- function(data, data_info, search_space,
       }, error = function(e) return(NULL))
 
       if ("Insulin" %in% rownames(pred_matrix)) {
-        pred_matrix["Insulin", c("AGE_TI_STAR", "AGE_EVENT_STAR")] <- 1
-      }
-      if ("T_I" %in% rownames(pred_matrix)) {
-        pred_matrix["T_I", "AGE_INS_STAR"] <- 1
-      }
-      if ("EVENT" %in% rownames(pred_matrix)) {
-        pred_matrix["EVENT", "AGE_INS_STAR"] <- 1
+        pred_matrix["Insulin", c("AGE_TI", "AGE_EVENT")] <- 1
+        #pred_matrix["Insulin", c("AGE_TI_STAR", "AGE_EVENT_STAR")] <- 1
       }
 
       imputed_mids <- tryCatch({
@@ -280,7 +275,8 @@ safe_numeric <- function(x) {
 samp <- samp_srs %>%
   mutate(across(all_of(data_info_srs_oe$cat_vars), as.factor),
          across(all_of(data_info_srs_oe$num_vars), safe_numeric))
-
+samp$AGE_TI <- as.numeric(samp$AGE) * as.numeric(samp$T_I)
+samp$AGE_EVENT <- as.numeric(samp$AGE) * as.numeric(as.character(samp$EVENT))
 search_space = ps(
   mincor = p_dbl(lower = 0.05, upper = 0.6),
   ridge = p_dbl(lower = 1e-5, upper = 0.75)

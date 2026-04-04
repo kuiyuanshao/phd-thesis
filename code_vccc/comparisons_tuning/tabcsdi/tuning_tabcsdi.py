@@ -46,7 +46,7 @@ CONFIG_PROFILES = {
         "yaml_file": "base_config_tabcsdi.yaml",
         "output_csv": "tabcsdi_tuning_results.csv",
         "tuning_grid": {
-            "lr": ("log_float", 1e-4, 1e-2),
+            "lr": ("log_float", 1e-4, 4e-3),
             "channels": ("int_exp2", 6, 9),
             "nheads": ("cat", [2, 4, 8]),
             "layers": ("int", 2, 5),
@@ -71,7 +71,7 @@ def main():
     parser.add_argument(
         "--profile",
         type=str,
-        default="tabcsdi",
+        default="tabcsdi_epoch",
         choices=list(CONFIG_PROFILES.keys()),
         help="Choose the tuning profile to run."
     )

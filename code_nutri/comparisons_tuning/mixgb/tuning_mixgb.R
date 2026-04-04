@@ -258,8 +258,8 @@ safe_numeric <- function(x) {
 }
 
 samp <- samp_srs %>%
-  mutate(across(all_of(data_info_srs_oe$cat_vars), as.factor),
-         across(all_of(data_info_srs_oe$num_vars), safe_numeric))
+  mutate(across(all_of(data_info_srs$cat_vars), as.factor),
+         across(all_of(data_info_srs$num_vars), safe_numeric))
 
 search_space = ps(
   gamma             = p_dbl(lower = 0, upper = 1),
@@ -273,7 +273,7 @@ search_space = ps(
 tm <- system.time({
   tune_srs <- tune_mixgb(
     data = samp,
-    data_info = data_info_srs_oe,
+    data_info = data_info_srs,
     search_space = search_space,
     log_path = "mixgb_tuning_results.csv",
     n_evals = 42, m = 5, folds = 3
@@ -305,8 +305,8 @@ for (i in 1:length(vals)){
   }
 }
 samp_srs_full <-  samp_srs_full %>%
-  mutate(across(all_of(data_info_srs_oe$cat_vars), as.factor),
-         across(all_of(data_info_srs_oe$num_vars), safe_numeric))
+  mutate(across(all_of(data_info_srs$cat_vars), as.factor),
+         across(all_of(data_info_srs$num_vars), safe_numeric))
 
 nrounds <- c()
 

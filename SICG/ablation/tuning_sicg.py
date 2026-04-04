@@ -97,48 +97,7 @@ CONFIG_PROFILES = {
             "discriminator_steps": ("int", 1, 5),
         }
     },
-    "unpack_info": {
-        "yaml_file": "./tuning_configs/base_config_unpack_info.yaml",
-        "output_csv": "./tuning_results/unpack_info_tuning_results.csv",
-        "tuning_grid": {
-            "loss_info": ("int", 1, 10)
-        }
-    },
-    "pack_mml": {
-        "yaml_file": "./tuning_configs/base_config_pack_mml.yaml",
-        "output_csv": "./tuning_results/pack_mml_tuning_results.csv",
-        "tuning_grid": {
-            "loss_mml": ("int", 1, 10),
-        }
-    },
-    "pack_epochs": {
-        "yaml_file": "./tuning_configs/base_config_pack_epochs.yaml",
-        "output_csv": "./tuning_results/pack_epochs_tuning_results.csv",
-        "tuning_grid": {
-            "epochs": ("int", 2000, 20000),
-        }
-    },
-    "unpack_epochs": {
-        "yaml_file": "./tuning_configs/base_config_unpack_epochs.yaml",
-        "output_csv": "./tuning_results/unpack_epochs_tuning_results.csv",
-        "tuning_grid": {
-            "epochs": ("int", 2000, 20000),
-        }
-    },
-    "pack_mml_epochs": {
-        "yaml_file": "./tuning_configs/base_config_pack_mml_epochs.yaml",
-        "output_csv": "./tuning_results/pack_mml_epochs_tuning_results.csv",
-        "tuning_grid": {
-            "epochs": ("int", 2000, 20000),
-        }
-    },
-    "unpack_info_epochs": {
-        "yaml_file": "./tuning_configs/base_config_unpack_info_epochs.yaml",
-        "output_csv": "./tuning_results/unpack_info_epochs_tuning_results.csv",
-        "tuning_grid": {
-            "epochs": ("int", 2000, 20000),
-        }
-    }
+
 }
 def main():
     parser = argparse.ArgumentParser(description="Run tuner with selected configuration profile.")

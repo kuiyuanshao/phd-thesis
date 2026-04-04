@@ -101,7 +101,7 @@ process_design <- function(design_name, digit, complete_data) {
     samp <- read.csv(file.path("./data/Sample", design_name, paste0(digit, ".csv"))) %>%
       match_types(complete_data) %>%
       mutate(across(all_of(data_info$cat_vars), as.factor),
-             across(all_of(data_info$num_vars), safenumeric))
+             across(all_of(data_info$num_vars), safe_numeric))
 
     elapsed_time <- do_oracle(samp, design_name, digit)
     return(data.frame(Design = design_name, Replicate = as.integer(digit), Time_Seconds = elapsed_time, stringsAsFactors = FALSE))

@@ -1,7 +1,7 @@
 lapply(c("survival", "dplyr", "stringr", "survey", "mice", "arrow", "mitools", 'ggplot2'), require, character.only = T)
 source("00_utils_functions.R")
 
-i <- 5
+i <- 2
 digit <- stringr::str_pad(i, 4, pad = 0)
 cat("Current:", digit, "\n")
 load(paste0("./data/True/", digit, ".RData"))
@@ -15,8 +15,8 @@ temp_env <- new.env()
 # multi_impset <- temp_env[[ls(temp_env)[1]]]
 # multi_impset <- mice::complete(multi_impset, "all")
 
-multi_impset <- read_parquet(paste0("./simulations/SampleE/SRS/sird/", digit, ".parquet"))
-# multi_impset <- read_parquet(paste0("../SIRD/ablation/simulations/Multinomial_Cond_Drop/", digit, ".parquet"))
+multi_impset <- read_parquet(paste0("./simulations/SampleOE/SRS/sird/", digit, ".parquet"))
+# multi_impset <- read_parquet(paste0("../SIRD/ablation/simulations/Multinomial/", digit, ".parquet"))
 
 multi_impset <- multi_impset %>% group_split(imp_id)
 multi_impset <- lapply(multi_impset, function(d) d %>% select(-imp_id))
@@ -25,8 +25,6 @@ multi_impset <- lapply(multi_impset, function(dat) {
   match_types(dat, data)
 })
 imp.mids <- imputationList(multi_impset)
-
-
 cox.mod <- with(data = imp.mids,
                 exp = coxph(Surv(T_I, EVENT) ~
                               I((HbA1c - 50) / 5) + rs4506565 + I((AGE - 60) / 5) + I((eGFR - 75) / 10) +
@@ -34,6 +32,9 @@ cox.mod <- with(data = imp.mids,
                               SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2)))
 pooled <- MIcombine(cox.mod)
 round(exp(coef(cox.fit)) - exp(pooled$coefficients), 4)
+
+
+
 
 
 k <- 4
@@ -49,7 +50,7 @@ for (i in 1:k) {
                      I((Insulin - 15) / 2) + I((BMI - 28) / 2) + SEX + INSURANCE + RACE + 
                      SMOKE + I((AGE - 60) / 5):I((Insulin - 15) / 2), data = data)
   
-  file_path <- paste0("./simulations/SampleE/SRS/sird/", digit, ".parquet")
+  file_path <- paste0("./simulations/SampleOE/SRS/sird/", digit, ".parquet")
   
   if (!file.exists(file_path)) {
     cat("File not found, skipping:", file_path, "\n")
@@ -79,11 +80,15 @@ for (i in 1:k) {
 
 diff_matrix <- do.call(rbind, diff_list)
 rmse_diffs <- sqrt(apply(diff_matrix^2, 2, mean, na.rm = TRUE))
+median_diffs <- apply(diff_matrix, 2, median, na.rm = TRUE)
+round(rmse_diffs, 4)
+abs(round(median_diffs, 4))
 
-cat("\nMedian Differences:\n")
-print(round(rmse_diffs, 4))
+mean(round(rmse_diffs, 4) < abs(round(sqrt(apply(diffCoeff[diffCoeff$Method == "MULTINOMIAL", 2:17]^2, 2, mean)), 4)))
+round(rmse_diffs, 4) - abs(round(sqrt(apply(diffCoeff[diffCoeff$Method == "MULTINOMIAL", 2:17]^2, 2, mean)), 4))
 
-
+mean(abs(round(median_diffs, 4)) < abs(round(apply(diffCoeff[diffCoeff$Method == "MULTINOMIAL", 2:17], 2, median), 4)))
+abs(round(median_diffs, 4)) - abs(round(apply(diffCoeff[diffCoeff$Method == "MULTINOMIAL", 2:17], 2, median), 4))
 
 proportions(table(data$EVENT, multi_impset[[1]]$EVENT))
 proportions(table(data$SMOKE, multi_impset[[1]]$SMOKE))
@@ -92,6 +97,7 @@ sum(diag(proportions(table(data$SMOKE, data$SMOKE_STAR))))
 sum(diag(proportions(table(data$SMOKE, multi_impset[[1]]$SMOKE))))
 table(data$SMOKE)
 table(multi_impset[[1]]$SMOKE)
+
 ggplot(data %>% filter(EVENT == 1)) +
   geom_density(aes(x = HbA1c), colour = "red") +
   geom_density(aes(x = HbA1c_STAR), colour = "black") +
@@ -108,7 +114,6 @@ ggplot(data) +
   geom_density(aes(x = HbA1c), colour = "red") +
   geom_density(aes(x = HbA1c_STAR), colour = "black") +
   geom_density(data = multi_impset[[1]], aes(x = HbA1c), colour = "blue")
-
 
 ggplot(data) +
   geom_density(aes(x = log(HbA1c)), colour = "red") +

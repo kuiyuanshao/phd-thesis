@@ -1,6 +1,6 @@
-pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mice, fields)
+pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mice, fields, parallel)
 source("../../00_utils_functions.R") 
-
+options(ranger.num.threads = 8)
 create_loss_calculator <- function(data_info) {
   target_num <- intersect(data_info$num_vars, data_info$phase2_vars)
   target_cat <- intersect(data_info$cat_vars, data_info$phase2_vars)
@@ -144,8 +144,6 @@ tune_rf <- function(data, data_info, search_space,
       train_test_data <- data
       train_test_data[val_idx, data_info$phase2_vars] <- NA
 
-      current_sampsize <- ceiling(xs$sampsize_ratio * nrow(train_test_data))
-
       imputed_mids <- tryCatch({
         mice(
           data = train_test_data,
@@ -153,8 +151,9 @@ tune_rf <- function(data, data_info, search_space,
           method = "rf",
           ntree = xs$ntree,
           mtry = xs$mtry,
-          nodesize = xs$nodesize,
-          sampsize = current_sampsize,
+          min.node.size = xs$nodesize,
+          sample.fraction = xs$sampsize_ratio,
+          num.threads = 8,
           maxit = 10,
           printFlag = FALSE,
           remove.collinear = FALSE,

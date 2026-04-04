@@ -70,9 +70,9 @@ CONFIG_PROFILES = {
         "yaml_file": "base_config_tabcsdi.yaml",
         "output_csv": "tabcsdi_tuning_results.csv",
         "tuning_grid": {
-            "lr": ("log_float", 1e-4, 1e-2),
+            "lr": ("log_float", 1e-4, 4e-3),
             "batch_size": ("int_exp2", 4, 8),
-            "num_steps": ("int", 25, 100)
+            "featureemb": ("int", 2, 16)
         }
     },
     "tabcsdi_epoch": {
