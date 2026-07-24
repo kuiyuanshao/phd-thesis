@@ -1,0 +1,21 @@
+\begin{table}[!htbp]\centering
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214}\definecolor{rankthree}{RGB}{198,219,239}
+\caption{PASTE THE DEPLOYED CAPTION HERE.}
+\label{tab:sicg_rank_vccc}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\adjustbox{max width=\linewidth}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+ & \multicolumn{1}{c}{CC} & \multicolumn{1}{c}{UNVAL} & \multicolumn{1}{c}{MICE-PMM} & \multicolumn{1}{c}{MICE-RF} & \multicolumn{1}{c}{MIXGB} & \multicolumn{1}{c}{TabCSDI} & \multicolumn{1}{c}{GAIN} & \multicolumn{1}{c}{RAKING} & \multicolumn{1}{c}{\textbf{SICG}} \\
+\midrule
+\multicolumn{10}{l}{\textit{Continuous Phase-Two Covariates}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}6.2 & 7.6 & 13.0 & 9.7 & 22.2 & 11.0 & 7.4 & \cellcolor{rankone}1.7 & \cellcolor{ranktwo}3.9 \\
+\quad Rel.\ RMSE (\%) & 19.1 & \cellcolor{rankthree}7.6 & 18.9 & 12.9 & 24.4 & 14.9 & 19.8 & \cellcolor{rankone}7.0 & \cellcolor{ranktwo}7.1 \\
+\quad SE ratio & 2.80 & -- & \cellcolor{rankthree}2.08 & 3.00 & 2.18 & \cellcolor{rankone}1.06 & \cellcolor{ranktwo}0.53 & 4.25 & 2.12 \\
+\quad Nom.\ Cov. & 0.84 & 0.71 & 0.58 & \cellcolor{rankthree}0.85 & 0.69 & 0.56 & 0.62 & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.96 \\
+\quad Orc.\ Cov.\ (Emp) & 0.48 & -- & 0.35 & 0.30 & 0.22 & 0.47 & \cellcolor{rankone}0.91 & \cellcolor{rankthree}0.51 & \cellcolor{ranktwo}0.60 \\
+\quad Orc.\ Cov.\ (BC) & 0.99 & 1.00 & \cellcolor{rankthree}0.98 & 1.00 & 1.00 & \cellcolor{rankone}0.95 & 0.72 & 0.99 & \cellcolor{ranktwo}0.97 \\
+\bottomrule
+\end{tabular}}
+\end{table}

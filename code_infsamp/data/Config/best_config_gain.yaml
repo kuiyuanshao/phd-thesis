@@ -1,0 +1,20 @@
+## GAIN config tuned on the InfSamp design, 2026-07-14.
+## Source: comparisons_tuning/gain/gain_tuning_results.csv (26 completed trials; Pareto-median
+## convention of utils/tuning_analysis.R -- front was a single dominating trial) and
+## gain_epoch_tuning_results.csv (epoch grid; loss minimum at ~9.3k epochs, overtraining above ~15k).
+## Previous placeholder kept as best_config_gain.yaml.pre-tune-20260714.
+## Values rounded to the nearest 0/5 final digit per project convention (batch size exempt,
+## kept a multiple of 8).
+model:
+  hint_rate: 0.63
+train:
+  epochs: 9000
+  batch_size: 32
+  loss:
+    alpha: 330
+    beta: 30
+  Adam:
+    lr: 0.025
+    betas_g: [0.9, 0.999]
+    betas_d: [0.9, 0.999]
+    weight_decay: 0.0001

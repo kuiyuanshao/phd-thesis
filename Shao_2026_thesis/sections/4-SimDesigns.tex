@@ -1,0 +1,359 @@
+\chapter{Simulation Designs and Evaluation Strategy}
+\label{chap:SimDesigns}
+This chapter defines the simulation framework used to compare the methods in the thesis. It contains three simulation designs and the VCCC case study. Simulation Design~I is an informative-sampling design under a privacy constraint and supports Chapter~\ref{chap:SISL}. Simulation Design~II uses Gaussian and Binomial analysis models, and Simulation Design~III uses a high-dimensional Cox proportional hazards model \citep{therneau2000cox}; these two designs support Chapters~\ref{chap:SICG} and~\ref{chap:SIRD}.
+
+Across these settings, performance is evaluated through inferential criteria rather than purely predictive ones. The reporting block used in the results chapters consists of signed or absolute percentage bias, relative root mean squared estimation error, nominal $95\%$ confidence-interval coverage, and two oracle coverage diagnostics that separate displacement of the coefficient estimate from standard-error calibration. This choice reflects the inferential goals of two-phase studies, where the target is estimation of regression coefficients with calibrated uncertainty, not individual-level prediction accuracy. A full account of these metrics is given in Section~\ref{sec:eval_metrics}.
+
+The notation used in this chapter is defined locally within each simulation design and the case study. In particular, the coefficient vectors $\beta$, $\alpha$, $\theta$ and the variable labels $X_i^{(\cdot)}$, $Z_i^{(\cdot)}$, $Y_i$ are re-defined in each subsection to match the model under discussion, and should not be read as carrying over from one section to another.
+
+\section{Selection of Comparator Methods}
+\label{sec:comparators}
+The present study evaluates the proposed methods against six comparator approaches. Three of these, \texttt{mice.impute.pmm}, \texttt{mice.impute.rf}, and \texttt{mixgb}, represent widely used tabular multiple-imputation baselines. Two further comparators, GAIN and TabCSDI, are included because they are the early reference methods for GAN-based and diffusion-based imputation respectively, as reviewed in Chapter~\ref{chap:ImpReview}. The sixth comparator, generalised raking, provides a design-based reference for two-phase studies when the relevant phase-one auxiliary information is available.
+
+For fully conditional specification, the study uses two methods from the \texttt{mice} package in \texttt{R} \citep{vanBuuren2011}. The first is \texttt{mice.impute.pmm}, a regression-based donor method that keeps imputed values on the observed support \citep{vanBuuren2018}. The second is \texttt{mice.impute.rf} \citep{doove2014recursive}, which uses random forests to represent non-linear conditional relations and interactions. The two methods keep the chained-equation framework fixed while changing the conditional model.
+
+The third statistical comparator is \texttt{mixgb} \citep{deng2024multiple}, which uses XGBoost \citep{chen2016xgboost} inside the imputation procedure and is among the most competitive general-purpose imputation methods on high-dimensional tabular data; its inclusion reflects that standing. XGBoost learns default splitting directions for missing predictors during tree construction. In the current package, row subsampling contributes stochastic variation across completed datasets and there is no additional bootstrap \citep{deng2026mixgb}. The package default is also \texttt{pmm.type = NULL}, which is the setting used in the thesis.
+
+GAIN and TabCSDI provide neural comparators. GAIN is an early adversarial method designed for missing-data imputation \citep{yoon2018gain}. TabCSDI is an early diffusion method for mixed tabular data \citep{zheng2022diffusion}; diffusion is of interest here because its iterative denoising construction can give better mode coverage than adversarial training in some settings \citep{song2020score}. Their inclusion allows the later chapters to test adversarial and diffusion imputation by coefficient bias and interval coverage, rather than transferring conclusions from prediction and distributional metrics.
+
+Generalised raking provides the design-based comparator \citep{deville1992calibration, lumley2011connections}. It adjusts the phase-two design weights by minimising a smooth distance $g(w_i,d_i)$ from the original weights $d_i$, subject to calibration of weighted phase-two totals to phase-one totals. Raking has been used in two-phase studies \citep{lumley2011connections, breslow2009improved}, including a multinational HIV cohort analysis that combined error-prone and validated data \citep{slone2026analysis}. It is used here as a design-based reference rather than an imputation method. A correctly specified imputation model can be more efficient because it uses a fuller model, while raking retains its design-based role where the required calibration information is available.
+
+\section{Hyperparameter Tuning Protocol}
+\label{sec:tuning}
+Optimising the selected machine learning comparators requires a tuning protocol whose objective function is aligned with the inferential goals of multiple imputation rather than with standard predictive accuracy criteria. In the traditional machine learning literature, the performance of an imputation method is often evaluated by the root mean squared error (RMSE) or mean squared error (MSE) between the imputed and true masked values \citep{stekhoven2012missforest, yoon2018gain}. For multiple imputation, this criterion is incomplete. Either error can favour methods that approximate the conditional mean $\mathbb{E}[X_{\mathrm{mis}} \mid X_{\mathrm{obs}}]$. Such methods may achieve small pointwise error while understating the conditional spread of $X_{\mathrm{mis}}$, which can reduce the between-imputation component and produce confidence intervals that are too narrow \citep{vanBuuren2018, Rubin1987}. A small masked-value RMSE therefore does not by itself establish that $\hat{\beta}$ has calibrated uncertainty.
+
+\subsection{Evaluation Metric}
+As highlighted by \citet{muzellec2020missing}, point-to-point evaluation metrics fail to preserve the underlying geometry and joint distribution of the data. From a statistical perspective, \citet{naf2023imputation} demonstrated that RMSE systematically misranks imputation methods, assigning lower error to conditional-mean predictors than to methods that correctly draw from the conditional distribution. By formalising multiple imputation as intrinsically a distributional prediction task, \citet{naf2025mar} strongly advocate for the use of proper distributional metrics.
+
+For this reason, the present study adopts the energy distance (ED) \citep{szekely2003statistics} as the distributional component of the tuning objective. It is a metric between probability distributions that is estimable directly from samples via pairwise Euclidean distances. In population form, it equals zero if and only if the two distributions are identical, which is a property that pointwise metrics like RMSE are not designed to provide. \citet{naf2025mar} use energy distance rather than optimal transport alternatives, such as the sliced Wasserstein distance \citep{shadbahr2023}, because it is computationally simpler and requires no tuning parameters such as the number of random projections.
+
+For an observed data matrix $X$ of $n$ rows and an imputed data matrix $Y$ of $m$ rows, the empirical energy distance is defined as
+\begin{equation}
+    \mathrm{ED}(X, Y) \;=\; \frac{2}{nm} \sum_{i=1}^{n}\sum_{j=1}^{m}
+    \|X_i - Y_j\|_2
+    \;-\; \frac{1}{n^2} \sum_{i=1}^{n}\sum_{j=1}^{n} \|X_i - X_j\|_2
+    \;-\; \frac{1}{m^2} \sum_{i=1}^{m}\sum_{j=1}^{m} \|Y_i - Y_j\|_2,
+    \label{eq:energy_distance}
+\end{equation}
+where $\mathrm{ED}(X, Y) \geq 0$ and, in population form, equals zero if and only if $X$ and $Y$ follow the same distribution \citep{szekely2003statistics}. 
+
+The pointwise and distributional losses use different scaling. For MSE, each numeric phase-two target is standardised by its mean and standard deviation in the held-out true rows. For energy distance, the held-out true rows and their imputed versions are combined first, and each numeric column is then standardised in that combined matrix. Categorical variables are expanded by one-hot encoding. The relative scale of a categorical and a continuous variable remains dependent on these choices, so the resulting Euclidean distance is scale-dependent. The study uses it as a common mixed-data discrepancy \citep{naf2025mar}. Because the combined scaling is recomputed for each set of imputations, different trials can be evaluated under different numeric scales. Fixing the scale from the training data would remove this dependence, but it would define a different tuning objective and require the methods to be retuned. All reported configurations use the combined scaling stated here.
+
+The tuning calculation returns three terms. The weighted MSE is scaled by $w_{\mathrm{num}} = n_{\mathrm{num}}/(n_{\mathrm{num}}+n_{\mathrm{cat}})$. The categorical error, written $\mathrm{CatErr}$, is the mean misclassification rate over the categorical phase-two targets and is scaled by $w_{\mathrm{cat}} = n_{\mathrm{cat}}/(n_{\mathrm{num}}+n_{\mathrm{cat}})$. Energy distance is calculated on the full encoded feature space. These terms form two objectives:
+\[
+\mathcal{L}_{\mathrm{data}}
+=w_{\mathrm{num}}\mathrm{MSE}+w_{\mathrm{cat}}\mathrm{CatErr},
+\qquad
+\mathcal{L}_{\mathrm{dist}}=\mathrm{ED}(X,Y).
+\]
+The first measures held-out pointwise error and the second measures distributional discrepancy in the chosen representation. Keeping them separate allows the optimisation to retain configurations that trade one discrepancy against the other \citep{naf2023imputation}.
+
+\subsection{Optimisation Procedure}
+
+The R comparators, \texttt{mice.impute.pmm}, \texttt{mice.impute.rf} and \texttt{mixgb}, are tuned with \texttt{mlr3mbo} and ParEGO \citep{bischl2024hyperparameter, knowles2006parego}. GAIN and TabCSDI are tuned with multi-objective Optuna \citep{Akiba2019}. Each comparator is tuned once per setting on one phase-two sample from that setting's reference design: \texttt{InfSamp} for Simulation Design~I and \texttt{SRS} for the remaining settings. Three-fold cross-validation is constructed on the validated rows. Within each fold, the phase-two targets in the validation subset are masked, the method is fitted on the training rows, and both losses are evaluated against the held-out values. The R methods and GAIN use their stated search spaces. TabCSDI uses its full search space in the VCCC case study and the reduced higher-importance set in Simulation Designs~I--III, as described in Appendix~\ref{app:hyperparam}. SICG and SIRD follow the ablation and configuration procedures in their own chapters, and their retained configurations are reused across Simulation Designs~I--III and the VCCC case study.
+
+To reduce the computational cost of evaluating complex neural network architectures, an intermediate pruning strategy is incorporated into the cross-validation loop. After a burn-in period of $\max(10,\, \lfloor 0.25 \times N_{\mathrm{trials}} \rfloor)$ completed trials, any subsequent trial is terminated early if both $\mathcal{L}_{\mathrm{data}}$ and $\mathcal{L}_{\mathrm{dist}}$ simultaneously exceed the 75th percentile of the corresponding loss distributions across all previously completed trials. Under this joint condition, a trial is discarded only when it performs poorly on both objectives at once; trials that achieve a favourable trade-off by sacrificing one objective for the other are preserved.
+
+The completed trials are screened for non-dominance in $(\mathcal{L}_{\mathrm{data}},\mathcal{L}_{\mathrm{dist}})$. Most deployed configurations use the componentwise median of the hyperparameters among the non-dominated trials. The survival random-forest search uses a separate rule because its Pareto set collapsed at a boundary: it takes componentwise medians over the five trials with the lowest min--max-standardised combined loss. In Design~III, \texttt{ntree} and \texttt{mtry} were then reduced manually to control computation; Appendix~\ref{app:config_comparators} records this exception and the retained values. The remaining rules summarise the trial history rather than selecting the Pareto trial with the smallest raw sum of the two losses.
+
+\subsection{Why Inference Metrics Are Not Used as the Tuning Objective}
+
+Coefficient bias and confidence-interval coverage are not used as tuning losses because they are tied to a particular analysis model and require repeated samples to estimate. The completed datasets can support more than one analysis, provided that the imputation model includes the variables, transformations and relationships those analyses require \citep{Rubin1987, meng1994multiple}. Tuning directly to one coefficient would instead select the configuration for that coefficient and model.
+
+Hyperparameters can affect both the coefficient estimate and coverage. They change the fitted conditional distribution and can alter the spread of the completed-data estimates. They cannot, however, add variation across fitted models to a procedure that holds one fitted network fixed. The uncertainty mechanism and the tuning problem are therefore evaluated separately.
+
+The study tunes on $\mathcal{L}_{\mathrm{data}}$ and $\mathcal{L}_{\mathrm{dist}}$ to balance pointwise and distributional discrepancies without choosing one downstream coefficient. Energy distance can detect some forms of under-dispersion in the chosen representation, but it does not establish that the conditional draws are correct or that Rubin's variance is calibrated. Bias and coverage are evaluated later under repeated simulation samples.
+
+\section{Simulation Designs}
+\label{sec:simcontext}
+Unless otherwise stated, the synthetic simulation settings use $500$ independent population-generation seeds, and the phase-two samples are then drawn using a separate set of independent sampling seeds. The VCCC case study differs from these synthetic settings because the underlying cohort is fixed; there, the repeated experiments come from repeatedly drawing phase-two validation samples from the available validated cohort.
+
+\subsection{Simulation Design I: Informative Sampling under a Privacy Constraint}
+\label{sec:infsamp_context}
+Simulation Design~I represents a survey-release problem in which the data producer uses confidential stratifying variables and the observed outcome to draw the phase-two validation sample. The selection indicator and design weight are released, while the stratifying variables and joint-stratum label are suppressed. This can occur in public-use survey data when small-area identifiers or sensitive stratifiers are withheld for disclosure control. The analyst can observe unequal selection through $W_i = 1/\pi_i$ and can use the released outcome, but cannot condition directly on the hidden stratifying variables. The design is denoted \texttt{InfSamp} and is analysed in Chapter~\ref{chap:SISL}.
+
+In each synthetic replicate, a population of $N = 10{,}000$ independent individuals is generated. Two suppressed stratifying variables $S_1$ and $S_2$, each taking three equiprobable levels, define nine hidden combinations. The two variables shift both the location and the spread of the validated measurement $X$: the mean for combination $(S_1,S_2)$ is $m_{S_1 S_2} = a_{1,S_1} + a_{2,S_2}$, and the within-combination standard deviation of $X$ increases with this mean. Writing $Z = (Z_1, Z_2, Z_3)$ for three recorded covariates, the validated measurement, the error-prone surrogate and the outcome are generated as
+\begin{align}
+X_i &= m_{S_{1i} S_{2i}} + \gamma^\top Z_i + \sigma^X_{S_{1i} S_{2i}}\,\varepsilon^X_i, \label{eq:infsamp_X}\\
+\tilde{X}_i &= \alpha X_i + \delta^\top Z_i + \tilde{\sigma}\,\tilde{\varepsilon}_i, \label{eq:infsamp_surr}\\
+Y_i &= \beta_X X_i + \beta^\top Z_i + \sigma^Y_{S_{1i} S_{2i}}\,\varepsilon^Y_i, \label{eq:infsamp_Y}
+\end{align}
+with independent standard normal errors and $\beta_X = 0.48$ the estimand of interest in the analysis model $Y \mid X, Z$. The surrogate is non-classical and noisy: it depends on the recorded covariates as well as on $X$ and has residual variance $\tilde{\sigma}^2$. It contains no direct $S_1$ or $S_2$ term, but it remains indirectly associated with the hidden stratifying variables through $X$. The parameter values are listed in Appendix~\ref{app:infsamp}.
+
+The single sampling design of this setting, \texttt{InfSamp}, crosses the nine hidden $(S_1,S_2)$ combinations with three empirical tertiles of the observed outcome $Y$, producing 27 joint sampling strata. The allocation is
+\[
+n_h \propto N_h s^Y_h,
+\]
+where $s^Y_h$ is the within-stratum standard deviation of $Y$ in joint stratum $h$, under the total budget $n=500$. The continuous allocation is converted to integer stratum sizes by the exact algorithm of \citet{wright2017exact}. Within each joint stratum the selected units are drawn at random, so the inclusion probability is positive for every individual. For each individual the producer releases $(\tilde{X}_i, Z_i, Y_i)$, the selection indicator $R_i$, and the design weight $W_i = N_h / n_h$; the validated $X_i$ is supplied only for selected individuals. The joint-stratum label and the variables $S_1$ and $S_2$ are not released, while the outcome component of the stratification remains observed.
+
+The design is informative for imputation because phase-two selection depends on the 27 joint strata, while only $Y$ and the resulting design weight are released. The validated records are therefore not a random subset for learning $X\mid \tilde{X},Z,Y$. The released weight $W_i=1/\pi_i$ carries information about the suppressed part of the sampling stratum. Chapter~\ref{chap:SISL} studies whether that weight can be used inside the imputation model to recover the target analysis of $Y$ on $X$ and $Z$.
+
+\subsection{Simulation Design II: Generalised Linear Models}
+\label{sec:sim1context}
+The population-level dataset adapts the simulation of \citet{baldoni2021use}, which evaluated regression calibration under the three-stage stratified cluster design of the Hispanic Community Health Study \citep{Sorlie2010}. The present study changes its survey design, measurement-error target and outcome models as described below and in Appendix~\ref{app:sim1_data}.
+
+The most substantial structural departure is the removal of the complex survey design entirely. In \citet{baldoni2021use}, a target population of $N = 179{,}268$ individuals is organised into households, block groups, and strata, and phase-one samples of average size approximately $3{,}893$ are drawn via a three-stage stratified sampling scheme. In the present study, we instead simulate a fixed population of $N = 10{,}000$ independent individuals with no clustering or stratification, and the phase-two validation sample of $n = 500$ is drawn directly from this population, yielding a $5\%$ overall sampling fraction. This modification keeps the focus on phase-two missingness and imputation, rather than on additional variation from multistage survey sampling.
+
+The second departure concerns the measurement error structure. The original design involves three tiers: the self-reported naive intake $\tilde{X}_i$ (24-hour recall), the true intake $X_i$, and the biomarker $X^{**}_i$, where $X^{**}_i = X_i + \varepsilon_i$ with $\varepsilon_i \sim \mathcal{N}(0, \sigma^2_\varepsilon)$, and the scientific task is regression calibration from the biomarker. In the present study, the biomarker $X^{**}_i$ is generated but immediately discarded, because there is no direct analogue of a regression calibration task within the generative deep learning framework evaluated in later chapters. The true intake $X_i$ is instead treated directly as the phase-two target variable subject to missingness, and the self-reported intake $\tilde{X}_i$ serves as its phase-one auxiliary. The measurement error model runs in the calibration direction: the true value $X_i$ is generated as a linear function of the surrogate $\tilde{X}_i$ and the fully observed covariates $Z_i$. Taking log-sodium as the primary example, the model is
+\begin{equation}
+    X_i^{(\mathrm{Na})} \;=\; \gamma_0
+    + \gamma_1\, \tilde{X}_i^{(\mathrm{Na})}
+    + \gamma_2^{\top} Z_i
+    + \delta_i,
+    \qquad
+    \delta_i \sim \mathcal{N}(0,\, \sigma^2_{\delta}),
+    \label{eq:glm_me}
+\end{equation}
+with analogous models for log-potassium, log-kilocalories, and log-protein. The coefficients $\{\gamma_j\}$ and the error variance $\sigma^2_\delta$ are taken directly from the simulation parameters of \citet{baldoni2021use}, which incorporate the amplification factors applied to the naive intake coefficients and the attenuation of the biomarker error variance described in their Web Appendix~5; no further modification is made in the present study. Full values are given in Appendix~\ref{app:sim1_data}. In this formulation the truth $X_i$ is generated from the surrogate $\tilde{X}_i$. This is the standard calibration regression direction and is the key structural feature that distinguishes this measurement error model from the one used in Simulation Design~III, where the direction is reversed.
+
+The third departure concerns the outcome models. The original coefficients of \citet{baldoni2021use} are retained as the base specification, except that an interaction term $X_i^{(\mathrm{Na})} \cdot Z_i^{(\mathrm{AGE})}$ is added to both the SBP and hypertension models. The interaction supplies a non-additive target for the later imputation comparisons under a $95\%$ phase-two missingness rate.
+
+The first target model is a Gaussian model for systolic blood pressure,
+\begin{align}
+    Y_i^{(\mathrm{sbp})} \;=\; \beta_0
+    &+ \beta_1 Z_i^{(\mathrm{AGE})}
+    + \beta_2 Z_i^{(\mathrm{BMI})}
+    + \beta_3 X_i^{(\mathrm{Na})}
+    + \beta_4 Z_i^{(\mathrm{CHOL})}
+    + \beta_5 Z_i^{(\mathrm{BORN})}
+    + \beta_6 Z_i^{(\mathrm{SEX})} \nonumber \\
+    &+ \beta_7 Z_i^{(\mathrm{PR})}
+    + \beta_8 Z_i^{(\mathrm{OTH})}
+    + \beta_9 \bigl(X_i^{(\mathrm{Na})} \cdot Z_i^{(\mathrm{AGE})}\bigr)
+    + \varepsilon_i,
+    \label{eq:app_sbp_model}
+\end{align}
+with $\varepsilon_i \sim \mathcal{N}(0,\, \sigma^2)$, $\sigma^2 = 145.740$, and true interaction coefficient $\beta_9 = 0.15$. The remaining coefficients are given in Table~\ref{tab:app_outcome_coef}. The second target model is a Binomial model for hypertension status $Y_i^{(\mathrm{htn})} \in \{0,1\}$,
+\begin{align}
+    \log \frac{\Pr(Y_i^{(\mathrm{htn})} = 1)}{%
+              1 - \Pr(Y_i^{(\mathrm{htn})} = 1)}
+    \;=\; \alpha_0
+    &+ \alpha_1 Z_i^{(\mathrm{AGE})}
+    + \alpha_2 Z_i^{(\mathrm{BMI})}
+    + \alpha_3 X_i^{(\mathrm{Na})} \nonumber \\
+    & + \alpha_4 Z_i^{(\mathrm{CHOL})}
+    + \alpha_5 Z_i^{(\mathrm{BORN})}
+    + \alpha_6 Z_i^{(\mathrm{SEX})} \nonumber \\
+    & + \alpha_7 Z_i^{(\mathrm{PR})}
+    + \alpha_8 Z_i^{(\mathrm{OTH})}
+    + \alpha_9 \bigl(X_i^{(\mathrm{Na})} \cdot Z_i^{(\mathrm{AGE})}\bigr),
+    \label{eq:app_htn_model}
+\end{align}
+with true interaction coefficient $\alpha_9 = 0.005$.
+
+In total, seven sampling designs are applied to each simulated population to draw the phase-two validation sample: simple random sampling (\texttt{SRS}), residual sampling (\texttt{RS}), weighted residual sampling (\texttt{WRS}), score-function sampling (\texttt{SFS}), outcome-dependent tail sampling (\texttt{ODS-Tail}), outcome-dependent Neyman allocation (\texttt{Neyman-ODS}), and influence-function Neyman allocation (\texttt{Neyman-IF}). Full specifications are given in Appendix~\ref{app:sim1_sampling}. The privacy-constrained informative-sampling setting, \texttt{InfSamp}, is the separate design used in Chapter~\ref{chap:SISL}.
+
+\subsection{Simulation Design III: Complex Survival Data}
+\label{sec:sim2context}
+Simulation Design~III evaluates the methods in a high-dimensional survival problem that differs from Simulation Design~II. The dataset is constructed for a Cox proportional hazards model of the time from sodium-glucose cotransporter~2 (SGLT2) inhibitor treatment initiation to type~2 diabetes diagnosis. A population of $N = 20{,}000$ independent individuals is generated in each replicate. The construction is synthetic and does not make a clinical claim about SGLT2 inhibitor therapy or type~2 diabetes aetiology. Full technical details are given in Appendix~\ref{app:sim2}.
+
+\subsubsection{Empirical Parameter Derivation}
+
+The simulation parameters for clinical laboratory panels, vital signs, and lifestyle variables are derived from an electronic health record dataset collected at two New Zealand metropolitan hospitals, North Shore Hospital and Waitakere Hospital, covering $530{,}165$ emergency department presentations from July 2016 to June 2021. The dataset contains sociodemographic variables, emergency-department-specific variables, inpatient history, vital signs, laboratory test results from the seven days prior to triage, and dispensing records from the six months prior to triage. Race- and sex-stratified covariance matrices for each laboratory panel are estimated from this EHR dataset using pairwise complete observations. Regression coefficients linking each laboratory outcome to the fully observed demographic predictors are estimated by fitting generalised linear models to the EHR data and retaining only predictors significant at the $p < 0.05$ level. To protect data privacy, small independent Gaussian noise with standard deviation $0.05$ is added to the race-specific regression coefficients before they are used in the simulation. The allele frequencies and linkage disequilibrium (LD) matrices for 15 single-nucleotide polymorphisms (SNPs) are fetched dynamically from the LDlinkR database \citep{Machiela2015}. Together, these parameters give the simulated dataset a complex multivariate dependence structure without reproducing individual patient records.
+
+\subsubsection{Data Structure and Measurement Error Model}
+The full variable set spans approximately 120 variables before error-prone versions are added. Both outcome configurations contain phase-one proxies for the SNP genotypes, laboratory measurements and lifestyle indicators. Their validated counterparts form the shared phase-two covariate block. In \texttt{SampleE}, the true survival outcome remains observed for all individuals. In \texttt{SampleOE}, the phase-one data contain error-prone survival variables and their validated counterparts are added to the phase-two target block.
+
+The direction of the error model differs from Simulation Design~II. There, the true dietary intake $X_i$ is generated from the surrogate $\tilde{X}_i$ and the covariates $Z_i$ \citep{baldoni2021use}. In Simulation Design~III, the true clinical variables are generated first from the EHR-derived population model, after which error-prone versions are generated from them. For the continuous variables assigned the common log-scale error model,
+\begin{equation}
+    \log \tilde{X}_i^{(j)} \;=\; a_0^{(j)}
+    + a_1^{(j)} \Bigl(\log X_i^{(j)}
+      - \overline{\log X^{(j)}}\Bigr)
+    + \mathbf{a}_2^{(j)\top} \tilde{Z}_i^{(j)}
+    + e_i^{(j)},
+    \qquad
+    e_i^{(j)} \sim \mathcal{N}(0,\, \sigma^2_{e,j}),
+    \label{eq:surv_me_cont}
+\end{equation}
+where $a_1^{(j)}$ controls attenuation relative to the truth, $\mathbf{a}_2^{(j)}$ controls the covariate-dependent shift, and $\sigma^2_{e,j}$ is the residual noise \citep{carroll2006seemingly}. These error-model parameters are fixed across simulation replicates. The equation does not describe every continuous proxy. Creatinine receives additive error; error-prone eGFR is derived from error-prone creatinine; error-prone BMI is derived from error-prone weight; and the survival proxies are produced through the altered censoring construction.
+
+For binary and ordinal categorical variables, including smoking status, household income, alcohol use, and exercise level, the measurement error takes the form of a covariate-dependent misclassification model rather than an additive noise model. The probability that the observed surrogate agrees with the true category is
+\begin{equation}
+    \Pr\!\bigl(\tilde{X}_i^{(j)} = X_i^{(j)}\bigr)
+    \;=\; \mathrm{logit}^{-1}\!\bigl(
+        q_0 + \mathbf{q}^{\top} \mathbf{c}_i
+    \bigr),
+    \label{eq:surv_me_cat}
+\end{equation}
+where $\mathrm{logit}^{-1}(q_0) = p_{j}^{classify}$ is the base classification accuracy and $\mathbf{c}_i$ collects scaled demographic characteristics of individual~$i$. Fixed variable-specific coefficients $\mathbf{q}$ make the misclassification probability depend on the demographic profile. When misclassification occurs, an incorrect category is drawn uniformly from the remaining levels. For the 15 SNP genotypes, a uniform misclassification matrix is applied with diagonal entries $0.990$ and off-diagonal entries $0.005$.
+
+\subsubsection{Outcome Configurations and Sampling Designs}
+The present study generates two parallel datasets from each simulated population, referred to as \texttt{SampleE} and \texttt{SampleOE}, which differ in whether the survival outcome variables $(T_I, \Delta, C)$ are themselves included among the phase-two targets. They represent two two-phase data structures that arise in practice.
+
+\texttt{SampleE} corresponds to a common two-phase validation design, in which the outcome $Y$ and the inexpensive covariates $Z$ are fully observed for all phase-one individuals, and only the expensive or error-prone covariates $X$ are subject to validation in the phase-two subsample \citep{tao2017efficient, amorim2021two}. The inferential goal is to recover estimates of $\beta$ despite covariate missingness, while the outcome remains reliably observed for all $N$ individuals. In \texttt{SampleE}, the event time $T_I$, event indicator $\Delta$, and censoring time $C$ are therefore treated as fully observed at phase one, and only the 32 expensive covariate measurements are missing for individuals with $R_i = 0$. Because the survival outcome is fully observed at phase one in this configuration, using $(T_{I,i}, \Delta_i)$ to define the stratification variable for the sampling designs is standard practice in two-phase designs \citep{amorim2021two}.
+
+\texttt{SampleOE} corresponds to a more difficult joint-validation scenario, motivated by the VCCC dependent-error example studied by \citet{giganti2020accounting}. In that setting, error in the recorded treatment start date can propagate into derived covariates, event times and censoring times. In \texttt{SampleOE}, the present study mimics this structure by treating the event time $T_I$, event indicator $\Delta$, and censoring time $C$ as error-prone phase-two targets alongside the expensive covariates, so that for individuals with $R_i = 0$ the outcome variables are also unobserved. The stratification variables for sampling designs are therefore constructed from the surrogate outcome $(\tilde{T}_{I,i}^*, \tilde{\Delta}_i^*)$ rather than the true outcome, since the latter is unavailable at phase one.
+
+The true data-generating Cox model for $T_I$ is specified as
+\begin{equation}
+\begin{split}
+    \lambda(t \mid X_i, Z_i) = \lambda_0(t) \exp\Bigl(
+      & \beta_1 X_i^{(\mathrm{HbA1c})}
+      + \beta_2 X_i^{(\mathrm{SNP})}
+      + \beta_3 Z_i^{(\mathrm{AGE})}
+      + \beta_4 X_i^{(\mathrm{eGFR})}  \\
+      &+ \beta_5 X_i^{(\mathrm{Insulin})}
+      + \beta_6 X_i^{(\mathrm{BMI})}
+      + \beta_7 Z_i^{(\mathrm{SEX})}
+      + \beta_8 Z_i^{(\mathrm{INS})}  \\
+      &+ \beta_9 Z_i^{(\mathrm{RACE})}
+      + \beta_{10} X_i^{(\mathrm{SMOKE})}
+      + \beta_{11} Z_i^{(\mathrm{AGE})} \times X_i^{(\mathrm{Insulin})}
+    \Bigr),
+\end{split}
+    \label{eq:app_cox_true}
+\end{equation}
+where all continuous covariates are standardised by location and scale constants chosen to reflect clinically meaningful units (e.g., $(\mathrm{HbA1c} - 50)/5$, $(\mathrm{AGE} - 60)/5$, $(\mathrm{eGFR} - 75)/10$, $(\mathrm{Insulin} - 15)/2$, $(\mathrm{BMI} - 28)/2$). The true hazard ratios are given in Appendix~\ref{app:sim2}. This same model structure is used as the phase-one auxiliary model for the sampling designs described below, with error-prone surrogates $\tilde{X}_i$ replacing the unobserved $X_i$ and, in the \texttt{SampleOE} configuration, the surrogate survival outcome $(\tilde{T}_{I,i}^*, \tilde{\Delta}_i^*)$ replacing the true outcome.
+
+Three sampling designs are applied to each simulated population under each outcome configuration: simple random sampling (\texttt{SRS}), balanced sampling (\texttt{Balanced}), and influence-function Neyman allocation (\texttt{Neyman-IF}). The balanced and Neyman designs share the same joint stratum variable, constructed by crossing the event indicator, survival time interval, HbA1c category, and surrogate smoking status. For the Neyman design, the phase-one auxiliary Cox model is fitted on the surrogate covariates, and the \texttt{dfbeta} residuals for the HbA1c coefficient are extracted to form the individual influence scores used to determine the within-stratum allocation. Full model specifications and sampling design details are given in Appendix~\ref{app:sim2}.
+
+\section{VCCC Case Study}
+\label{sec:sim3context}
+The Vanderbilt Comprehensive Care Clinic (VCCC) is a large outpatient clinic providing primary and sub-specialty care for patients living with HIV. Its EHR contains demographics, laboratory values, medications and clinical outcomes. The cohort has been used in two-phase sampling and measurement-error research: \citet{amorim2021two} compared validation designs for a Gaussian model, and \citet{giganti2020accounting} developed a multiple-imputation analysis in which treatment-date errors induce dependent errors in covariates and time-to-event outcomes. The EHR-derived records are available with versions obtained through manual chart review, allowing repeated phase-two samples to be compared with a full validated-data benchmark.
+
+The VCCC case study evaluates the methods under Gaussian, Binomial and Cox models. The earlier VCCC analyses focused on one outcome type at a time.
+
+\subsubsection{Data Preprocessing and Variable Derivation}
+
+Following the general processing framework of \citet{amorim2021two}, we partition the available variables into error-free and error-prone categories. Demographic characteristics (sex, race/ethnicity, HIV transmission risk group), mortality status, year of enrolment, and the raw laboratory test results are treated as error-free variables $Z_i$, since these fields are either stable administrative records or objective test values that do not depend on the ART initiation date. The error-prone variables, which are only observed without error in the phase-two validation sample, include the dates of antiretroviral therapy (ART) initiation and cessation, the onset dates of opportunistic infections (OIs), the specific OI diagnosis text, and the ART drug name. These variables constitute the phase-two target vector $X_i$.
+
+The dependent error studied by \citet{giganti2020accounting} arises because laboratory records are mapped to windows anchored at ART initiation. Different reference and EHR-derived ART dates can select different laboratory records even when the laboratory result itself is recorded without error. The retained analysis contains reference and EHR-derived mappings for baseline viral load, so baseline viral load is a phase-two target. Baseline and one-year cluster of differentiation~4 (CD4) counts are mapped using the reference ART date and are treated as fully observed in the analysis models.
+
+We construct the analysis dataset as follows. For each patient, the first validated and unvalidated ART records are identified and linked to the demographic spine. The closest laboratory measurement within a window of $-180$ to $+30$ days relative to the respective ART start date is selected as the baseline value; the one-year CD4 count is mapped analogously with a target date shifted by one year. Patients missing any of the four required laboratory values (validated baseline CD4, validated one-year CD4, validated baseline viral load, unvalidated baseline viral load) after this mapping procedure are excluded, yielding the complete-case analysis cohort.
+
+For the opportunistic infection variables, we retain only the index (first) infection for each patient under both the validated and unvalidated records. A custom text-matching algorithm is applied to the raw diagnosis strings to categorise each OI into clinically meaningful groups. Historical or latent conditions, recorded by phrases such as ``H/O Tuberculosis'' (a documented \emph{history of} tuberculosis) and ``LTBI'' (latent tuberculosis infection), denote past or dormant infection rather than an active opportunistic-infection event. These are neutralised before diagnostic classification so that they do not inflate the opportunistic-infection indicator $D_i$ (Appendix~\ref{app:vccc_preprocessing}). The remaining diagnoses are classified hierarchically. Acquired immunodeficiency syndrome (AIDS)-defining events (ADEs), including \textit{Pneumocystis} pneumonia (PCP), active tuberculosis, \textit{Mycobacterium avium} complex (MAC), toxoplasmosis, cryptococcosis and cytomegalovirus (CMV) end-organ disease, are evaluated before non-ADE infections and non-specific symptoms. A binary indicator $D_i$ records the occurrence of any OI. For the survival analysis, follow-up runs from ART initiation to OI onset or the last clinic visit. Appendix~\ref{app:vccc_preprocessing} gives the text-matching rules and diagnostic categories.
+
+The CD4 counts are square-root transformed and the viral loads are log-transformed prior to analysis, following standard practice in HIV research \citep{amorim2021two}. The final dataset contains both the validated ($X_i$) and unvalidated ($\tilde{X}_i$) versions of all error-prone variables, enabling direct comparison of estimates obtained from the full validated data against those from the error-prone data.
+
+\subsubsection{Target Models}
+
+To evaluate our methods across different outcome types and model structures, we establish three target models for this dataset. Each model is fitted twice: once using the fully validated variables and once using the error-prone unvalidated variables, so that the bias induced by measurement error can be quantified directly.
+
+\paragraph{Model 1: Gaussian model.}
+The first target model investigates the association between baseline viral load and immune recovery, measured by the CD4 count at one year after ART initiation. We specify
+\begin{equation}
+    \mathrm{E}(Y_i \mid X_i, Z_i) \;=\;
+    \beta_0
+    + \beta_1 X_i^{(\mathrm{VL})}
+    + \beta_2 Z_i^{(\mathrm{CD4})}
+    + \beta_3 Z_i^{(\mathrm{SEX})}
+    + \beta_4 X_i^{(\mathrm{AGE})},
+    \label{eq:vccc_gauss}
+\end{equation}
+where $Y_i = \sqrt{\mathrm{CD4}_{1\mathrm{yr},i}}$ is the square-root transformed CD4 count at one year, $X_i^{(\mathrm{VL})} = \log(\mathrm{VL}_{0,i})$ is the log-transformed validated baseline viral load, $Z_i^{(\mathrm{CD4})} = \sqrt{\mathrm{CD4}_{0,i}}$ is the square-root transformed validated baseline CD4 count, $Z_i^{(\mathrm{SEX})}$ is a binary sex indicator, and $X_i^{(\mathrm{AGE})}$ is the age at validated ART initiation. In this model, the primary error-prone covariate of interest is the baseline viral load $X_i^{(\mathrm{VL})}$; its unvalidated counterpart $\tilde{X}_i^{(\mathrm{VL})}$ is mapped via the error-prone ART start date and therefore inherits the dependent error structure described above. The age at ART initiation $X_i^{(\mathrm{AGE})}$ is also error-prone for the same reason.
+
+\paragraph{Model 2: Binomial model.}
+The second model targets the overall risk of experiencing any opportunistic infection. We fit a Binomial model,
+\begin{equation}
+    \mathrm{logit}\bigl(\Pr(D_i = 1 \mid Z_i, X_i)\bigr) \;=\;
+    \alpha_0
+    + \alpha_1 Z_i^{(\mathrm{CD4})}
+    + \alpha_2 Z_i^{(\mathrm{SEX})}
+    + \alpha_3 X_i^{(\mathrm{AGE})}
+    + \alpha_4 Z_i^{(\mathrm{YR})},
+    \label{eq:vccc_binom}
+\end{equation}
+where $D_i$ is the binary indicator for any validated OI, and $Z_i^{(\mathrm{YR})}$ is the year of enrolment. In the error-prone version, the outcome $D_i$ itself is replaced by its unvalidated counterpart $\tilde{D}_i$, and the age at ART initiation is replaced by its unvalidated version. This model therefore exhibits simultaneous errors in both a covariate and the binary outcome, a setting that is more challenging than the Gaussian model where the outcome is always correctly observed.
+
+\paragraph{Model 3: Cox proportional hazards.}
+The third model is a survival analysis for the time to first OI. We assume the hazard function follows a proportional hazards structure,
+\begin{equation}
+    \lambda(t \mid Z_i, X_i) \;=\;
+    \lambda_0(t) \exp\!\bigl(
+        \theta_1 Z_i^{(\mathrm{CD4})}
+      + \theta_2 Z_i^{(\mathrm{SEX})}
+      + \theta_3 X_i^{(\mathrm{AGE})}
+      + \theta_4 Z_i^{(\mathrm{YR})}
+    \bigr),
+    \label{eq:vccc_cox}
+\end{equation}
+where $\lambda_0(t)$ is the unspecified baseline hazard and the follow-up time is measured from validated ART initiation to the first validated OI or censoring at the last clinic visit. In the error-prone version, both the event indicator $\tilde{D}_i$ and the follow-up time $\tilde{T}_i$ are derived from the unvalidated ART start date and unvalidated OI onset date, so that the dependent error contaminates the outcome, the covariate, and the risk set simultaneously. This is the most challenging of the three models and directly mirrors the setting studied by \citet{giganti2020accounting}.
+
+For each model, the relative bias of the error-prone estimates is computed as $(\hat{\theta}^{\mathrm{nv}} - \hat{\theta}^{\mathrm{v}}) / \hat{\theta}^{\mathrm{v}}$, where the superscripts denote the non-validated and validated fits respectively. For the Cox model, the relative bias is computed on the hazard ratio scale. These full-data comparisons serve as the benchmark against which the two-phase imputation methods are evaluated in subsequent chapters.
+
+
+\section{Evaluation Metrics}
+\label{sec:eval_metrics}
+The metrics below evaluate final performance after tuning and are not tuning objectives. The results chapters use a fixed reporting block: bias, relative root mean squared estimation error, the empirical and mean reported standard errors, nominal coverage, empirical-standard-error oracle coverage, and bias-corrected oracle coverage.
+
+\subsection{Coefficient bias and root mean squared error}
+
+Let $\beta_j$ denote one target coefficient of the substantive analysis model, and let $\hat{\beta}^{(r)}_j$ denote the corresponding estimate in simulation replicate $r = 1,\ldots,M$. The empirical bias is
+\begin{equation}
+    \mathrm{Bias}_j
+    \;=\; \bar{\hat{\beta}}_j - \beta_j
+    \;=\; \frac{1}{M} \sum_{r=1}^{M} \hat{\beta}^{(r)}_j - \beta_j,
+    \label{eq:eval_bias}
+\end{equation}
+and, when $\beta_j \neq 0$, the signed percentage bias is $100\,\mathrm{Bias}_j/\beta_j$. Bias records the direction and size of systematic displacement, without recording the dispersion of the estimates around their mean.
+
+Root mean squared estimation error combines these two sources of error. It is defined as
+\begin{equation}
+    \mathrm{RMSE}_j
+    \;=\; \sqrt{\frac{1}{M} \sum_{r=1}^{M}
+    \bigl(\hat{\beta}^{(r)}_j - \beta_j\bigr)^2}
+    \label{eq:eval_rmse}
+\end{equation}
+Its exact empirical decomposition is $\mathrm{RMSE}_j^2 = \mathrm{Bias}_j^2 + M^{-1}\sum_{r=1}^{M}(\hat{\beta}^{(r)}_j-\bar{\hat{\beta}}_j)^2$. It is reported as the relative root mean squared estimation error, $\mathrm{RelRMSE}_j = 100\,\mathrm{RMSE}_j/|\beta_j|$, when the relative scale is meaningful. Bias asks whether the estimator is centred correctly, whereas RMSE measures average estimation error from both bias and dispersion. The ablation tables report signed Mean Bias (\%), while the aggregate ranking tables report Mean $|\mathrm{Bias}|$ (\%). In the grouped ranking tables, absolute bias and relative root mean squared estimation error are averaged on the log scale as stated in the table captions. This transformation reduces the influence of an extreme relative error when a true coefficient is close to zero, although the relative metric still requires caution near the null.
+
+\subsection{Confidence-Interval Coverage}
+
+The nominal coverage is the empirical probability that the reported $95\%$ confidence interval contains the target coefficient:
+\begin{equation}
+    \mathrm{NomCov}_j
+    \;=\; \frac{1}{M} \sum_{r=1}^{M}
+    \mathbf{1}\!\bigl(
+        \hat{\beta}_{j,\mathrm{lo}}^{(r)}
+        \leq \beta_j \leq
+        \hat{\beta}_{j,\mathrm{up}}^{(r)}
+    \bigr),
+    \label{eq:eval_coverage}
+\end{equation}
+where $\hat{\beta}_{j,\mathrm{lo}}^{(r)}$ and $\hat{\beta}_{j,\mathrm{up}}^{(r)}$ are constructed from the analytic standard error reported by the method. For imputation methods this standard error is obtained after combining the completed-data analyses under Rubin's rules \citep{Rubin1987}; for design-based comparators it is obtained from the corresponding survey-weighted variance estimator.
+
+Nominal coverage alone does not identify why an interval misses. The interval can miss because $\hat{\beta}_j$ is displaced, because its reported standard error is too small or too large, or because both occur. Following the simulation-diagnostic practice of \citet{williamson2026assessing} and \citet{morris2019using}, two oracle coverages are therefore reported beside nominal coverage.
+
+The empirical-standard-error oracle, written Orc.\ Cov.\ (Emp), replaces the reported standard error by the Monte Carlo empirical standard error (ESE)
+\begin{equation}
+    \mathrm{ESE}_j
+    \;=\; \Bigl\{ (M-1)^{-1} \sum_{r=1}^{M}
+    \bigl(\hat{\beta}^{(r)}_j - \bar{\hat{\beta}}_j\bigr)^2
+    \Bigr\}^{1/2}.
+    \label{eq:eval_ese}
+\end{equation}
+Each oracle interval is centred at $\hat{\beta}^{(r)}_j$ with half-width $z_{0.975}\,\mathrm{ESE}_j$. If Orc.\ Cov.\ (Emp) is materially closer to $0.95$ than nominal coverage, replacing the reported standard errors by the empirical spread accounts for part of the coverage difference. This comparison leaves any bias in the centre unchanged. The SE ratio below is needed to determine whether the reported scale is smaller or larger on average.
+
+The bias-corrected oracle, written Orc.\ Cov.\ (BC), instead recentres each estimate by subtracting the empirical bias, $\hat{\beta}^{(r)}_j - \mathrm{Bias}_j$, while keeping the method's reported analytic standard error. If this oracle is close to $0.95$ while the nominal coverage is not, removing average displacement in this hypothetical replacement accounts for much of the coverage difference. When neither oracle coverage approaches the nominal level, both replacements remain inadequate. The diagnostics do not identify the cause of the displacement or distinguish standard-error miscalibration from failure of the Wald approximation.
+
+Two standard-error summaries are reported alongside the coverages. The empirical standard error is $\mathrm{ESE}_j$ of~\eqref{eq:eval_ese}, written Emp.\ SE. It estimates the repeated-sampling standard deviation from the simulation replicates. Among estimators that are centred correctly, a smaller Emp.\ SE indicates greater precision. The mean reported standard error,
+\begin{equation}
+    \overline{\mathrm{SE}}_j \;=\; M^{-1}\sum_{r=1}^{M} \mathrm{SE}^{(r)}_j,
+    \label{eq:eval_meanse}
+\end{equation}
+written Mean SE, is the average across replicates of the standard error reported by the method. It is obtained from Rubin's rules for the imputation methods and from the survey-weighted variance estimator for the design-based comparators. Emp.\ SE estimates how much the coefficient estimate varies across repeated samples, while Mean SE records the uncertainty reported for each analysed dataset. Their agreement checks the scale of the reported standard error; it does not by itself establish correct coverage when the estimate is biased or the interval approximation is poor. The scale comparison is
+\begin{equation}
+    \mathrm{SE\ ratio}_j \;=\; \overline{\mathrm{SE}}_j \,/\, \mathrm{ESE}_j ,
+    \label{eq:eval_seratio}
+\end{equation}
+which is read against one. A ratio below one means that the reported standard error is smaller on average than the empirical spread; a ratio above one means that it is larger. The ratio records the direction and size of this scale difference. Its effect on coverage must be interpreted with the estimator's bias, variation in the replicate-specific standard errors, and the adequacy of the interval approximation. Emp.\ SE and Mean SE are read within a coefficient because they retain the coefficient's scale, whereas the SE ratio can be compared across coefficients and methods.
+
+These quantities define the fixed reporting block reused in Chapters~\ref{chap:SISL} to~\ref{chap:SIRD}. The method chapters introduce no additional primary metric; they interpret the same bias, standard errors, relative root mean squared estimation error and coverage diagnostics in the context of each simulation setting.
+
+\subsection{Reading the Complete-Case and Naive References}
+\label{sec:cc_reference}
+
+Two reference analyses appear beside the imputation and design-based methods. UNVAL fits the analysis model to the error-prone phase-one variables. CC fits an ordinary unweighted regression to the validated phase-two records and ignores the sampling design. Its behaviour therefore depends on the selection mechanism and the analysis model.
+
+In Simulation Design~II, complete-case bias is low under \texttt{SRS} and the near-proportional \texttt{Neyman-ODS} allocation recorded in Appendix~\ref{app:sim1_sampling}. It is much larger under \texttt{RS}, \texttt{WRS}, \texttt{SFS} and \texttt{ODS-Tail}, which select records from residual, weighted-residual, score-function or outcome tails. The \texttt{Neyman-IF} result lies between these cases, and the privacy-constrained Simulation Design~I also gives material complete-case bias. These are empirical results under the stated designs. They do not imply that complete-case bias must increase monotonically with a general measure of sampling concentration.
+
+\section{Summary}
+
+Six comparator methods are used: \texttt{mice.impute.pmm}, \texttt{mice.impute.rf}, \texttt{mixgb}, GAIN, TabCSDI and generalised raking. The first three represent the main statistical and tree-based imputation baselines, GAIN and TabCSDI represent the early GAN and diffusion imputation references, and raking provides a design-based comparator when its phase-one calibration information is available.
+
+The hyperparameter tuning protocol separates model fitting from downstream inference. Comparator methods are tuned by a bivariate objective combining data-level loss with energy distance \citep{szekely2003statistics, naf2023imputation, naf2025mar}. SICG and SIRD are handled differently: their structural choices are settled by the ablation studies in Chapters~\ref{chap:SICG} and~\ref{chap:SIRD}, and their final configurations are held fixed across the later settings.
+
+The framework contains three simulation designs and the VCCC case study. Simulation Design~I (\texttt{InfSamp}) isolates informative sampling under a privacy constraint for Chapter~\ref{chap:SISL}. Simulation Design~II adapts the dietary validation design of \citet{baldoni2021use} to Gaussian and Binomial outcomes with $95\%$ phase-two missingness. Simulation Design~III is a synthetic high-dimensional survival design with \texttt{SampleE} and \texttt{SampleOE} outcome configurations. The VCCC case study applies the methods to an HIV cohort with validated and EHR-derived records.
+
+Across these settings, performance is judged by inferential criteria rather than pointwise imputation accuracy. The fixed reporting block consists of signed or absolute percentage bias, relative root mean squared estimation error, the empirical and mean reported standard errors, nominal confidence-interval coverage, and two oracle coverage diagnostics. Bias describes centring and RMSE describes repeated-sample error. The two oracle quantities show how coverage changes after replacing either the reported standard error or the average simulation bias. They do not causally assign a coverage failure to one mechanism.
+
+With these benchmarks fixed, each method chapter can ask two separate questions of its method: whether it removes the measurement-error bias, and whether its confidence intervals are correctly calibrated.

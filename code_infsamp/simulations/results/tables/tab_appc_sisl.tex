@@ -1,0 +1,67 @@
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214} \definecolor{rankthree}{RGB}{198,219,239}
+\begin{longtable}{lrrrrrrrr}
+\caption{PASTE THE DEPLOYED CAPTION HERE.}
+\label{tab:appc_sisl} \\
+\toprule
+Method & \multicolumn{1}{c}{Mean $|$Bias$|$ (\%)} & \multicolumn{1}{c}{Rel.\ RMSE (\%)} & \multicolumn{1}{c}{Emp.\ SE} & \multicolumn{1}{c}{Mean SE} & \multicolumn{1}{c}{SE ratio} & \multicolumn{1}{c}{Nom.\ Cov.} & \multicolumn{1}{c}{Orc.\ Cov.\ (Emp)} & \multicolumn{1}{c}{Orc.\ Cov.\ (BC)} \\
+\midrule \endfirsthead
+\multicolumn{9}{l}{\footnotesize\itshape Table~\ref{tab:appc_sisl} (continued)} \\ \toprule
+Method & \multicolumn{1}{c}{Mean $|$Bias$|$ (\%)} & \multicolumn{1}{c}{Rel.\ RMSE (\%)} & \multicolumn{1}{c}{Emp.\ SE} & \multicolumn{1}{c}{Mean SE} & \multicolumn{1}{c}{SE ratio} & \multicolumn{1}{c}{Nom.\ Cov.} & \multicolumn{1}{c}{Orc.\ Cov.\ (Emp)} & \multicolumn{1}{c}{Orc.\ Cov.\ (BC)} \\
+\midrule \endhead
+\midrule \multicolumn{9}{r}{\footnotesize\itshape continued on next page} \\
+\endfoot
+\bottomrule \endlastfoot
+\multicolumn{9}{l}{\textbf{Continuous Phase-Two Covariates}} \\
+\addlinespace[2pt]
+CC & 14.7 & 18.0 & 0.050 & 0.047 & 0.94 & 0.65 & 0.69 & 0.93 \\
+UNVAL & 77.4 & 77.5 & 0.005 & 0.005 & \cellcolor{rankone}1.00 & 0.00 & 0.00 & \cellcolor{rankthree}0.94 \\
+NAIVE & 13.4 & 15.1 & 0.034 & 0.031 & 0.91 & 0.49 & 0.53 & 0.92 \\
+NAIVE+W & 14.2 & 15.8 & 0.033 & 0.030 & 0.91 & 0.45 & 0.47 & 0.92 \\
+WLMI & \cellcolor{ranktwo}0.9 & \cellcolor{rankone}7.6 & 0.036 & 0.038 & 1.06 & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.95 & \cellcolor{ranktwo}0.94 \\
+RAKING & \cellcolor{rankone}0.3 & \cellcolor{rankthree}8.5 & 0.041 & 0.040 & \cellcolor{ranktwo}0.98 & \cellcolor{ranktwo}0.95 & 0.95 & \cellcolor{rankone}0.95 \\
+MICE-PMM & 7.4 & 9.9 & 0.031 & 0.028 & 0.90 & 0.76 & 0.79 & 0.90 \\
+MICE-RF & 12.0 & 13.9 & 0.034 & 0.014 & 0.41 & 0.18 & 0.61 & 0.58 \\
+MIXGB & 130.5 & 131.4 & 0.076 & 0.041 & 0.54 & 0.00 & 0.00 & 0.71 \\
+GAIN & 10.2 & 67.3 & 0.320 & 0.011 & 0.03 & 0.03 & \cellcolor{ranktwo}0.95 & 0.05 \\
+TabCSDI & 18.9 & 24.4 & 0.075 & 0.015 & 0.20 & 0.12 & 0.72 & 0.24 \\
+\textbf{SICG} & 6.6 & 12.3 & 0.050 & 0.013 & 0.26 & 0.37 & 0.90 & 0.45 \\
+\textbf{SIRD} & 19.8 & 21.1 & 0.034 & 0.051 & 1.50 & 0.60 & 0.21 & 0.98 \\
+\textbf{SISL-S} & 3.0 & 8.7 & 0.039 & 0.037 & \cellcolor{rankthree}0.95 & 0.94 & 0.95 & 0.94 \\
+\textbf{SISL-B} & \cellcolor{rankthree}2.2 & \cellcolor{ranktwo}8.4 & 0.039 & 0.043 & 1.10 & \cellcolor{rankthree}0.96 & \cellcolor{rankone}0.95 & 0.96 \\
+\addlinespace[3pt]
+\multicolumn{9}{l}{\textbf{Continuous Phase-One Covariates}} \\
+\addlinespace[2pt]
+CC & 8.3 & 23.0 & 0.052 & 0.053 & 1.02 & 0.93 & 0.92 & \cellcolor{ranktwo}0.95 \\
+UNVAL & 13.0 & 13.9 & 0.011 & 0.011 & \cellcolor{rankone}1.00 & 0.24 & 0.23 & 0.96 \\
+NAIVE & 2.4 & 8.4 & 0.019 & 0.020 & 1.05 & \cellcolor{ranktwo}0.94 & \cellcolor{rankthree}0.94 & \cellcolor{rankone}0.95 \\
+NAIVE+W & 3.7 & 8.6 & 0.019 & 0.019 & \cellcolor{ranktwo}1.00 & 0.93 & 0.92 & \cellcolor{rankthree}0.95 \\
+WLMI & \cellcolor{rankthree}0.7 & 8.7 & 0.021 & 0.021 & \cellcolor{rankthree}1.00 & \cellcolor{rankthree}0.96 & \cellcolor{rankone}0.95 & 0.95 \\
+RAKING & \cellcolor{rankone}0.2 & 13.7 & 0.033 & 0.032 & 0.97 & 0.94 & \cellcolor{ranktwo}0.95 & 0.94 \\
+MICE-PMM & 3.4 & 8.5 & 0.019 & 0.020 & 1.05 & 0.93 & 0.91 & 0.95 \\
+MICE-RF & 4.4 & \cellcolor{rankone}7.1 & 0.013 & 0.011 & 0.85 & 0.78 & 0.87 & 0.90 \\
+MIXGB & 29.7 & 32.0 & 0.027 & 0.014 & 0.52 & 0.08 & 0.26 & 0.69 \\
+GAIN & 3.3 & 50.9 & 0.125 & 0.011 & 0.09 & 0.15 & 0.94 & 0.17 \\
+TabCSDI & 9.0 & 13.0 & 0.022 & 0.011 & 0.50 & 0.41 & 0.77 & 0.68 \\
+\textbf{SICG} & 2.7 & 9.7 & 0.023 & 0.011 & 0.48 & 0.64 & 0.94 & 0.67 \\
+\textbf{SIRD} & 5.3 & 9.3 & 0.019 & 0.024 & 1.26 & 0.96 & 0.89 & 0.98 \\
+\textbf{SISL-S} & \cellcolor{ranktwo}0.3 & \cellcolor{ranktwo}8.1 & 0.020 & 0.020 & 1.00 & \cellcolor{rankone}0.95 & 0.94 & 0.95 \\
+\textbf{SISL-B} & 0.7 & \cellcolor{rankthree}8.2 & 0.020 & 0.021 & 1.05 & 0.96 & 0.94 & 0.96 \\
+\addlinespace[3pt]
+\multicolumn{9}{l}{\textbf{Binary \& Categorical Phase-One Covariates}} \\
+\addlinespace[2pt]
+CC & 10.4 & 37.5 & 0.108 & 0.105 & \cellcolor{ranktwo}0.97 & 0.92 & 0.94 & \cellcolor{ranktwo}0.95 \\
+UNVAL & \cellcolor{rankone}0.4 & \cellcolor{rankone}7.5 & 0.022 & 0.022 & \cellcolor{rankone}1.00 & \cellcolor{rankone}0.95 & 0.95 & \cellcolor{rankone}0.95 \\
+NAIVE & 1.6 & 13.7 & 0.041 & 0.039 & 0.95 & 0.92 & 0.94 & 0.91 \\
+NAIVE+W & 2.5 & 13.4 & 0.039 & 0.037 & 0.95 & 0.94 & \cellcolor{ranktwo}0.95 & 0.93 \\
+WLMI & \cellcolor{rankthree}1.1 & 15.3 & 0.046 & 0.042 & 0.91 & \cellcolor{rankthree}0.94 & 0.95 & 0.93 \\
+RAKING & \cellcolor{ranktwo}0.9 & 22.5 & 0.067 & 0.064 & \cellcolor{rankthree}0.96 & 0.93 & 0.95 & 0.94 \\
+MICE-PMM & 11.7 & 14.9 & 0.028 & 0.030 & 1.07 & 0.84 & 0.76 & \cellcolor{rankthree}0.95 \\
+MICE-RF & 2.3 & \cellcolor{ranktwo}8.2 & 0.024 & 0.022 & 0.92 & 0.91 & 0.93 & 0.94 \\
+MIXGB & 35.4 & 37.3 & 0.035 & 0.024 & 0.69 & 0.05 & 0.14 & 0.83 \\
+GAIN & 1.7 & 64.0 & 0.192 & 0.021 & 0.11 & 0.22 & \cellcolor{rankthree}0.95 & 0.25 \\
+TabCSDI & 4.3 & \cellcolor{rankthree}11.1 & 0.031 & 0.022 & 0.71 & 0.78 & 0.94 & 0.84 \\
+\textbf{SICG} & 3.1 & 15.3 & 0.045 & 0.021 & 0.47 & 0.65 & 0.95 & 0.67 \\
+\textbf{SIRD} & 3.1 & 12.8 & 0.037 & 0.043 & 1.16 & 0.96 & 0.94 & 0.97 \\
+\textbf{SISL-S} & 1.5 & 14.2 & 0.042 & 0.039 & 0.93 & 0.94 & \cellcolor{rankone}0.95 & 0.93 \\
+\textbf{SISL-B} & 1.7 & 14.2 & 0.042 & 0.040 & 0.95 & \cellcolor{ranktwo}0.94 & 0.96 & 0.94 \\
+\end{longtable}

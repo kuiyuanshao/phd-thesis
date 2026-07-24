@@ -1,0 +1,202 @@
+\documentclass[a4paper,12pt,numbered,print]{uathesis}
+\usepackage{graphicx}
+\graphicspath{{sections/figures/}{./}}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{cmap}
+\usepackage{wrapfig}
+% \usepackage{algpseudocode}
+\usepackage{amssymb}
+\usepackage{moreverb}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{url}
+\usepackage{amssymb}
+\usepackage{amsmath, amsthm}
+\usepackage{adjustbox}
+\usepackage{tabularx}
+\usepackage{tabularray}
+\usepackage{multicol}
+% \usepackage{caption}
+\usepackage{listings}
+\usepackage{subcaption}
+\captionsetup{font=small}
+\usepackage{tabularx}
+\usepackage[inline]{enumitem}
+\usepackage[table,usenames,dvipsnames]{xcolor}
+\usepackage{cleveref}
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage[acronym,section=section]{glossaries}
+\usepackage{glossary-mcols}
+\usepackage{setspace}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{tikz}
+\usepackage{bookmark} % after the class's hyperref: rebuilds the PDF outline robustly, fixing cascaded/stale bookmarks
+
+\numberwithin{equation}{section}
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{remark}{Remark}[section]
+
+\renewcommand*{\glspostdescription}{} % Removes dots at the end of each entry.
+
+\renewcommand{\glossarypreamble}{} % abbreviation lists now sit under section headings; no negative offset
+
+\usepackage[Lenny]{fncychap}
+\ChNameVar{\fontsize{18}{20}\usefont{OT1}{ptm}{m}{n}\selectfont}
+% \ChNumVar{\huge\bfseries\fontfamily{ptm}\selectfont}
+\ChTitleVar{\huge\bfseries\fontfamily{ptm}\selectfont}
+
+\usepackage{titlesec}
+% \titleformat{\section}{\large\scshape}{\thesection}{1em}{}
+% \titleformat{\subsection}{\normalsize\scshape}{\thesubsection}{1em}{}
+% \titleformat{\subsubsection}{\normalsize\scshape}{}{0.5em}{}
+
+
+\newtheorem{definition}{Definition}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+% some settings to fill pages more densely
+\renewcommand\floatpagefraction{.9}
+\renewcommand\topfraction{.9}
+\renewcommand\bottomfraction{.9}
+\renewcommand\textfraction{.1}
+\setcounter{totalnumber}{50}
+\setcounter{topnumber}{50}
+\setcounter{bottomnumber}{50}
+
+
+\definecolor{light-gray}{gray}{0.95}
+\newcommand{\code}[1]{\colorbox{light-gray}{\texttt{#1}}}
+
+\newlist{questions}{enumerate}{2}
+\setlist[questions,1]{label=\textit{RQ\arabic*.},ref=\textit{RQ\arabic*}}
+\setlist[questions,2]{label=(\alph*),ref=\thequestionsi(\alph*)}
+
+\renewcommand{\figurename}{Figure}
+
+\newglossary*{biomed}{Clinical and Biomedical Abbreviations}
+\makeglossaries
+\loadglsentries{glossary}
+
+% Consistent, thesis-wide control of line breaking: on any line that would
+% otherwise run past the right margin (an "overfull" line), TeX may stretch the
+% inter-word spacing by up to 3em to pull it back inside the text block. Normal
+% lines are unaffected. This replaces per-line hand fixes with one uniform rule
+% applied to every chapter and appendix.
+\setlength{\emergencystretch}{3em}
+
+\begin{document}
+\title{Two-Phase Sampling: Automated Imputation in Analysing Subsamples}
+\author{Kuiyuan Shao}
+\subjectarea{Statistics}
+\dept{Department of Statistics}
+\supervisor{Thomas Lumley\par
+Claudia Rivera}
+\crest{\includegraphics[width=0.3\textwidth]{University_of_Auckland_Shield.png}}
+\degreetitle{Doctor of Philosophy}
+\degreedate{2026} 
+\university{The University of Auckland}
+
+\maketitle
+
+\frontmatter
+\begin{abstract}
+Observational databases such as electronic health records are cheap and large, but the variables in them are error-prone, and the resulting bias in a regression estimate does not shrink as the sample grows. A two-phase validation design addresses this by auditing a reference version of the error-prone variable on a probability subsample, while the whole cohort keeps the error-prone version. The inferential target is an unbiased coefficient with a correctly covering confidence interval, not faithful reconstruction of the missing values. A two-phase sample can be analysed by a design-based estimator, which reweights the validated records by the known sampling probabilities so they represent the full cohort, or by imputation, which fits a model on the validated records and completes the unvalidated ones.
+
+Imputation is increasingly carried out with deep generative models, which can represent flexible distributions of tabular data. These methods are usually judged by how closely the completed data reproduce the distribution. That standard is insufficient for inference in two respects. Reproducing the distribution does not by itself give an unbiased coefficient or a correctly covering interval, so a completed dataset can match the distribution and still mislead the analysis. And in the single-fit procedure these methods use, a model is fitted once and sampled repeatedly, so the imputations vary through the model's random input but not through its fitted parameters; Rubin's between-imputation variance then omits the variation that refitting would produce, and the intervals under-cover.
+
+Three imputation methods are developed. The first is for a design in which selection is informative but only the sampling weight is released, so imputation that ignores the selection is biased. A sample-distribution identity puts the released weight inside the imputation model, correcting the fit rather than only the final analysis. Its main result is negative: this parametric correction has more bias than a simpler weighted likelihood in the reported design, and a design-based estimator has lower bias than either imputation method. The other two methods are for the case in which the selection variables are observed. The generative adversarial network study shows that repeated imputations from one fitted network provide too little fitted-model variation. The diffusion method uses a denoiser referenced to the phase-one proxy, so it only has to learn the residual around an observed value rather than the whole distribution from noise. That keeps training short enough to refit on bootstrap samples, and the refits carry the fitted-model variation into the completed data. Coverage improves on the main coefficient blocks, while the interaction terms remain poorly covered.
+
+Matching the data distribution does not measure whether the coefficient is unbiased or its interval covers. The methods are therefore evaluated against those targets directly, on three simulation designs and a clinical cohort, by the coefficient's bias and coverage, the ratio of the reported to the empirical standard error, and oracle diagnostics that separate a displaced estimate from a mis-scaled standard error.
+\end{abstract}
+
+\begin{acknowledgements}
+
+Foremost, I would like to thank my supervisors, Professor Thomas Lumley and Dr Claudia Rivera. Thomas, your expertise, guidance, and patience throughout this work have meant a great deal, and I thank you for the time you spent helping me through the difficult parts. Claudia, your insight and support helped shape this thesis, and I am grateful for your mentorship.
+
+This research used two clinical datasets. I thank Professor Bryan Shepherd for his help in obtaining the Vanderbilt Comprehensive Care Clinic data used in the case study, and Dr Zhenqiang Wu for helping me access the Waitemat\=a District Health Board data, the emergency department presentations at North Shore and Wait\=akere Hospitals, which the Simulation Design~III study is based on. I also thank the New Zealand eScience Infrastructure (NeSI) for the high-performance computing used to train the models.
+
+To my family, and above all my mum: thank you. From the sacrifices you made when we moved to Auckland years ago to the support you still give, your resilience has been my greatest source of strength. Thank you for supporting me through all of this.
+
+To my friends, thank you for keeping me grounded. I especially want to thank those who have stood by me for over a decade, through the big moments and the hard times. The long days, the long bus commutes, and the stretches of writing were all easier knowing you were there.
+
+Finally, I want to thank myself: for the discipline to balance the research with a demanding training routine, for the late nights spent putting my ideas into words, and for seeing this through to the end.
+
+\begin{flushright}
+Kuiyuan Shao
+
+Auckland, 2026
+\end{flushright}
+\end{acknowledgements}
+
+\setcitestyle{authoryear,round}
+\hypersetup{
+  colorlinks=true,
+  citecolor=blue,
+  linkcolor=blue,
+  urlcolor=blue,
+  pdftitle={Two-Phase Sampling: Automated Imputation in Analysing Subsamples},
+  pdfauthor={Kuiyuan Shao}
+}
+\hyphenation{Abbreviations}
+\setcounter{tocdepth}{1}
+\tableofcontents
+\addtocontents{toc}{\vspace{-4em}}
+
+% Each front-matter list is added by hand: \cleardoublepage then \phantomsection so its
+% bookmark/link anchors on the list's own page. tocbibind's automatic entry (disabled for
+% LoF/LoT with notlof,notlot in the class) anchored these to the title page instead.
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\listfigurename}
+\listoffigures
+\addtocontents{lof}{\vspace{-4em}}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\listtablename}
+\listoftables
+\addtocontents{lot}{\vspace{-4em}}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{\listalgorithmname}
+\listofalgorithms
+\addtocontents{loa}{\vspace{-4em}}
+
+% List of Abbreviations: umbrella ToC/bookmark entry plus one per sub-list beneath it.
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{List of Abbreviations}
+\chapter*{List of Abbreviations}
+\glsaddall[types={\acronymtype,biomed}]
+\phantomsection
+\addcontentsline{toc}{section}{Statistical, Machine Learning and Computing Abbreviations}
+\printglossary[type=\acronymtype, style=mcolindex, nonumberlist, title={Statistical, Machine Learning and Computing Abbreviations}]
+\phantomsection
+\addcontentsline{toc}{section}{Clinical and Biomedical Abbreviations}
+\printglossary[type=biomed, style=mcolindex, nonumberlist]
+
+
+\mainmatter
+\include{sections/1-Introduction}
+\include{sections/2-Background}
+\include{sections/3-ImpReview}
+\include{sections/4-SimDesigns}
+\include{sections/5-SISL}
+\include{sections/6-SICG}
+\include{sections/7-SIRD}
+\include{sections/8-Conclusion}
+\include{sections/Appendix-A}
+\include{sections/Appendix-B}
+\include{sections/Appendix-C}
+\backmatter
+
+\cleardoublepage
+\bibliographystyle{plainnat}
+\bibliography{bibliography}
+
+\end{document}

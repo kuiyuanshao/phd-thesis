@@ -1,0 +1,278 @@
+\begin{landscape}
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214}\definecolor{rankthree}{RGB}{198,219,239}
+\footnotesize\setlength{\tabcolsep}{3.5pt}
+\begin{longtable}{llrrrrrrrrrr}
+\caption{PASTE THE DEPLOYED CAPTION HERE.}
+\label{tab:appc_nutri_Binomial} \\
+\toprule
+Design & Metric & \multicolumn{1}{c}{CC} & \multicolumn{1}{c}{UNVAL} & \multicolumn{1}{c}{MICE-PMM} & \multicolumn{1}{c}{MICE-RF} & \multicolumn{1}{c}{MIXGB} & \multicolumn{1}{c}{TabCSDI} & \multicolumn{1}{c}{GAIN} & \multicolumn{1}{c}{RAKING} & \multicolumn{1}{c}{\textbf{SICG}} & \multicolumn{1}{c}{\textbf{SIRD}} \\
+\midrule \endfirsthead
+\multicolumn{12}{l}{\footnotesize\itshape Table~\ref{tab:appc_nutri_Binomial} (continued)} \\
+\toprule
+Design & Metric & \multicolumn{1}{c}{CC} & \multicolumn{1}{c}{UNVAL} & \multicolumn{1}{c}{MICE-PMM} & \multicolumn{1}{c}{MICE-RF} & \multicolumn{1}{c}{MIXGB} & \multicolumn{1}{c}{TabCSDI} & \multicolumn{1}{c}{GAIN} & \multicolumn{1}{c}{RAKING} & \multicolumn{1}{c}{\textbf{SICG}} & \multicolumn{1}{c}{\textbf{SIRD}} \\
+\midrule \endhead
+\midrule \multicolumn{12}{r}{\footnotesize\itshape continued on next page} \\
+\endfoot
+\bottomrule \endlastfoot
+\multicolumn{12}{l}{\textbf{Continuous Phase-Two Covariates}} \\
+\addlinespace[2pt]
+\quad \texttt{SRS} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}2.5 & 64.4 & 51.5 & 53.7 & 33.6 & 42.0 & 79.6 & \cellcolor{rankone}0.9 & 5.1 & \cellcolor{rankthree}3.4 \\
+ & Rel.\ RMSE (\%) & 31.6 & 64.6 & 52.0 & 54.4 & 43.7 & 44.3 & 212.9 & \cellcolor{rankthree}24.3 & \cellcolor{ranktwo}23.0 & \cellcolor{rankone}21.4 \\
+ & Emp.\ SE & 0.454 & 0.080 & 0.106 & 0.121 & 0.402 & 0.203 & 2.844 & 0.350 & 0.323 & 0.304 \\
+ & Mean SE & 0.475 & 0.080 & 0.128 & 0.135 & 0.243 & 0.140 & 0.163 & 0.352 & 0.131 & 0.286 \\
+ & SE ratio & \cellcolor{rankthree}1.05 & \cellcolor{rankone}1.00 & 1.21 & 1.12 & 0.60 & 0.69 & 0.06 & \cellcolor{ranktwo}1.01 & 0.41 & 0.94 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.96 & 0.00 & 0.00 & 0.01 & 0.58 & 0.07 & 0.12 & \cellcolor{rankone}0.95 & 0.56 & \cellcolor{rankthree}0.94 \\
+ & Orc.\ Cov.\ (Emp) & 0.94 & 0.00 & 0.00 & 0.00 & 0.81 & 0.16 & \cellcolor{ranktwo}0.95 & \cellcolor{rankthree}0.95 & 0.94 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.96 & 0.99 & 0.97 & 0.79 & 0.86 & 0.10 & \cellcolor{ranktwo}0.96 & 0.59 & 0.93 \\
+\addlinespace[2pt]
+\quad \texttt{RS} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}4.1 & 64.4 & 50.3 & 60.1 & 45.5 & 41.3 & 66.2 & 57.1 & \cellcolor{rankthree}30.8 & \cellcolor{rankone}3.5 \\
+ & Rel.\ RMSE (\%) & \cellcolor{ranktwo}24.1 & 64.6 & 51.2 & 60.7 & 54.4 & 42.7 & 169.8 & 64.0 & \cellcolor{rankthree}39.0 & \cellcolor{rankone}20.0 \\
+ & Emp.\ SE & 0.343 & 0.080 & 0.135 & 0.120 & 0.430 & 0.155 & 2.253 & 0.414 & 0.344 & 0.283 \\
+ & Mean SE & 0.331 & 0.080 & 0.132 & 0.111 & 0.400 & 0.114 & 0.146 & 0.247 & 0.130 & 0.281 \\
+ & SE ratio & 0.97 & \cellcolor{rankone}1.00 & \cellcolor{rankthree}0.98 & 0.92 & 0.93 & 0.74 & 0.06 & 0.60 & 0.38 & \cellcolor{ranktwo}0.99 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.00 & 0.01 & 0.00 & \cellcolor{rankthree}0.72 & 0.03 & 0.12 & 0.18 & 0.27 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.96 & 0.00 & 0.00 & 0.00 & 0.70 & 0.03 & \cellcolor{rankthree}0.93 & 0.47 & 0.75 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.94 & \cellcolor{rankthree}0.96 & \cellcolor{ranktwo}0.96 & 0.94 & 0.90 & 0.91 & 0.12 & 0.76 & 0.53 & 0.94 \\
+\addlinespace[2pt]
+\quad \texttt{WRS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}3.5 & 64.4 & 61.0 & 59.3 & \cellcolor{rankthree}10.6 & 44.3 & 72.9 & 66.7 & 18.2 & \cellcolor{ranktwo}8.4 \\
+ & Rel.\ RMSE (\%) & \cellcolor{rankthree}22.9 & 64.6 & 62.7 & 59.6 & \cellcolor{rankone}19.0 & 45.5 & 173.3 & 72.8 & 28.7 & \cellcolor{ranktwo}20.5 \\
+ & Emp.\ SE & 0.327 & 0.080 & 0.209 & 0.084 & 0.227 & 0.149 & 2.265 & 0.422 & 0.320 & 0.269 \\
+ & Mean SE & 0.312 & 0.080 & 0.093 & 0.101 & 0.187 & 0.108 & 0.147 & 0.253 & 0.120 & 0.274 \\
+ & SE ratio & \cellcolor{rankthree}0.95 & \cellcolor{rankone}1.00 & 0.44 & 1.20 & 0.82 & 0.72 & 0.06 & 0.60 & 0.38 & \cellcolor{ranktwo}1.02 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.00 & 0.00 & 0.00 & \cellcolor{rankthree}0.77 & 0.03 & 0.14 & 0.10 & 0.42 & \cellcolor{rankone}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.94 & 0.00 & 0.00 & 0.00 & 0.91 & 0.04 & \cellcolor{rankthree}0.93 & 0.36 & 0.87 & \cellcolor{ranktwo}0.93 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.96 & 0.97 & 0.98 & 0.88 & 0.89 & 0.12 & 0.78 & 0.51 & \cellcolor{ranktwo}0.94 \\
+\addlinespace[2pt]
+\quad \texttt{SFS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}4.1 & 64.4 & 60.0 & 64.3 & 30.9 & 43.4 & 74.7 & 70.5 & \cellcolor{rankthree}22.1 & \cellcolor{ranktwo}8.7 \\
+ & Rel.\ RMSE (\%) & \cellcolor{ranktwo}23.5 & 64.6 & 61.9 & 64.5 & 41.5 & 44.7 & 170.1 & 75.7 & \cellcolor{rankthree}31.6 & \cellcolor{rankone}21.3 \\
+ & Emp.\ SE & 0.333 & 0.080 & 0.219 & 0.078 & 0.400 & 0.151 & 2.202 & 0.398 & 0.326 & 0.280 \\
+ & Mean SE & 0.306 & 0.080 & 0.092 & 0.096 & 0.342 & 0.107 & 0.146 & 0.259 & 0.122 & 0.271 \\
+ & SE ratio & \cellcolor{rankthree}0.92 & \cellcolor{rankone}1.00 & 0.42 & 1.23 & 0.85 & 0.71 & 0.07 & 0.65 & 0.37 & \cellcolor{ranktwo}0.97 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.00 & 0.00 & 0.00 & \cellcolor{rankthree}0.81 & 0.04 & 0.12 & 0.07 & 0.37 & \cellcolor{ranktwo}0.92 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.94 & 0.00 & 0.00 & 0.00 & 0.83 & 0.06 & \cellcolor{rankthree}0.93 & 0.25 & 0.84 & \cellcolor{ranktwo}0.93 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankthree}0.93 & \cellcolor{rankone}0.96 & 0.98 & 0.98 & 0.90 & 0.86 & 0.10 & 0.81 & 0.50 & \cellcolor{ranktwo}0.94 \\
+\addlinespace[2pt]
+\quad \texttt{ODS-Tail} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}6.0 & 64.4 & \cellcolor{rankthree}10.7 & 63.3 & 60.8 & 44.0 & 64.6 & 107.7 & 36.1 & \cellcolor{ranktwo}8.4 \\
+ & Rel.\ RMSE (\%) & \cellcolor{rankthree}27.9 & 64.6 & \cellcolor{rankone}15.1 & 63.6 & 76.0 & 47.8 & 165.2 & 116.8 & 43.2 & \cellcolor{ranktwo}20.4 \\
+ & Emp.\ SE & 0.392 & 0.080 & 0.155 & 0.089 & 0.657 & 0.270 & 2.191 & 0.652 & 0.342 & 0.268 \\
+ & Mean SE & 0.381 & 0.080 & 0.173 & 0.093 & 0.667 & 0.092 & 0.144 & 0.711 & 0.122 & 0.273 \\
+ & SE ratio & 0.97 & \cellcolor{rankone}1.00 & 1.12 & 1.04 & \cellcolor{ranktwo}1.02 & 0.34 & 0.07 & 1.09 & 0.36 & \cellcolor{rankthree}1.02 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.00 & \cellcolor{rankthree}0.91 & 0.00 & 0.89 & 0.05 & 0.14 & 0.35 & 0.19 & \cellcolor{ranktwo}0.93 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.94 & 0.00 & 0.83 & 0.00 & 0.76 & 0.34 & \cellcolor{rankthree}0.92 & 0.32 & 0.69 & \cellcolor{ranktwo}0.92 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.94 & \cellcolor{ranktwo}0.96 & 0.98 & 0.96 & 0.92 & 0.39 & 0.09 & 0.90 & 0.53 & \cellcolor{rankthree}0.94 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-ODS} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}1.7 & 64.4 & 65.0 & 52.4 & 26.4 & 46.9 & 94.5 & \cellcolor{rankone}1.6 & \cellcolor{rankthree}2.7 & 4.4 \\
+ & Rel.\ RMSE (\%) & 33.4 & 64.6 & 67.2 & 52.9 & 37.6 & 47.8 & 185.0 & \cellcolor{rankthree}25.7 & \cellcolor{ranktwo}22.4 & \cellcolor{rankone}21.6 \\
+ & Emp.\ SE & 0.480 & 0.080 & 0.242 & 0.103 & 0.386 & 0.135 & 2.291 & 0.370 & 0.321 & 0.305 \\
+ & Mean SE & 0.474 & 0.080 & 0.134 & 0.130 & 0.212 & 0.131 & 0.155 & 0.354 & 0.129 & 0.282 \\
+ & SE ratio & \cellcolor{ranktwo}0.99 & \cellcolor{rankone}1.00 & 0.55 & 1.26 & 0.55 & \cellcolor{rankthree}0.97 & 0.07 & 0.96 & 0.40 & 0.92 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.00 & 0.00 & 0.00 & 0.65 & 0.02 & 0.11 & \cellcolor{ranktwo}0.93 & 0.57 & \cellcolor{rankthree}0.93 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.96 & 0.00 & 0.01 & 0.00 & 0.84 & 0.02 & 0.92 & \cellcolor{rankone}0.95 & 0.94 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.96 & 0.67 & 0.99 & 0.72 & \cellcolor{rankthree}0.96 & 0.10 & 0.93 & 0.56 & 0.92 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-IF} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}3.1 & 64.4 & 52.5 & 52.1 & 23.5 & 46.9 & 80.5 & \cellcolor{rankone}0.5 & \cellcolor{rankthree}4.5 & 5.7 \\
+ & Rel.\ RMSE (\%) & 31.8 & 64.6 & 53.3 & 52.6 & 34.8 & 47.9 & 164.9 & \cellcolor{rankthree}27.2 & \cellcolor{ranktwo}23.4 & \cellcolor{rankone}21.7 \\
+ & Emp.\ SE & 0.455 & 0.080 & 0.138 & 0.102 & 0.370 & 0.140 & 2.073 & 0.392 & 0.330 & 0.302 \\
+ & Mean SE & 0.453 & 0.080 & 0.129 & 0.130 & 0.208 & 0.132 & 0.152 & 0.358 & 0.130 & 0.273 \\
+ & SE ratio & \cellcolor{ranktwo}1.00 & \cellcolor{rankone}1.00 & 0.93 & 1.27 & 0.56 & \cellcolor{rankthree}0.94 & 0.07 & 0.91 & 0.39 & 0.90 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.00 & 0.00 & 0.00 & 0.68 & 0.02 & 0.11 & \cellcolor{ranktwo}0.92 & 0.55 & \cellcolor{rankthree}0.92 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.94 & 0.00 & 0.00 & 0.00 & 0.85 & 0.02 & 0.93 & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.94 & 0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankthree}0.96 & \cellcolor{rankone}0.96 & 0.91 & 0.98 & 0.71 & \cellcolor{ranktwo}0.94 & 0.10 & 0.93 & 0.54 & 0.92 \\
+\addlinespace[2pt]
+\multicolumn{12}{l}{\textbf{Continuous Phase-One Covariates}} \\
+\addlinespace[2pt]
+\quad \texttt{SRS} & Mean $|$Bias$|$ (\%) & 23.3 & 25.3 & 171.7 & 29.0 & 15.9 & 31.7 & 19.7 & \cellcolor{ranktwo}11.9 & \cellcolor{rankone}5.0 & \cellcolor{rankthree}14.6 \\
+ & Rel.\ RMSE (\%) & 129.3 & 47.1 & 178.6 & \cellcolor{ranktwo}41.0 & 45.0 & 44.1 & 178.7 & 72.4 & \cellcolor{rankthree}42.2 & \cellcolor{rankone}38.5 \\
+ & Emp.\ SE & 0.159 & 0.024 & 0.093 & 0.022 & 0.055 & 0.027 & 0.197 & 0.108 & 0.051 & 0.043 \\
+ & Mean SE & 0.152 & 0.024 & 0.098 & 0.040 & 0.050 & 0.042 & 0.045 & 0.101 & 0.040 & 0.048 \\
+ & SE ratio & \cellcolor{ranktwo}0.96 & \cellcolor{rankone}1.00 & \cellcolor{rankthree}1.05 & 1.82 & 0.91 & 1.56 & 0.23 & 0.94 & 0.78 & 1.12 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.47 & 0.10 & 0.57 & 0.89 & 0.60 & 0.45 & \cellcolor{rankthree}0.92 & 0.83 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.94 & 0.47 & 0.09 & 0.52 & \cellcolor{rankthree}0.94 & 0.57 & \cellcolor{ranktwo}0.96 & 0.94 & 0.92 & 0.92 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankthree}0.94 & \cellcolor{ranktwo}0.95 & 0.96 & 0.97 & 0.90 & 0.97 & 0.43 & 0.93 & 0.86 & \cellcolor{rankone}0.95 \\
+\addlinespace[2pt]
+\quad \texttt{RS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}15.3 & 25.3 & 146.3 & 27.0 & \cellcolor{ranktwo}15.3 & 31.8 & 17.0 & 60.4 & 15.8 & \cellcolor{rankone}12.3 \\
+ & Rel.\ RMSE (\%) & 102.2 & 47.1 & 156.4 & \cellcolor{ranktwo}37.6 & 46.0 & \cellcolor{rankthree}41.9 & 153.9 & 92.6 & 44.7 & \cellcolor{rankone}35.1 \\
+ & Emp.\ SE & 0.108 & 0.024 & 0.085 & 0.018 & 0.058 & 0.025 & 0.189 & 0.097 & 0.047 & 0.039 \\
+ & Mean SE & 0.106 & 0.024 & 0.109 & 0.031 & 0.059 & 0.035 & 0.040 & 0.065 & 0.039 & 0.045 \\
+ & SE ratio & \cellcolor{rankthree}0.98 & \cellcolor{rankone}1.00 & 1.28 & 1.72 & \cellcolor{ranktwo}1.02 & 1.40 & 0.21 & 0.67 & 0.83 & 1.15 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.47 & 0.28 & 0.55 & \cellcolor{rankone}0.95 & 0.63 & 0.48 & 0.66 & 0.80 & \cellcolor{rankthree}0.96 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.47 & 0.25 & 0.51 & 0.93 & 0.64 & \cellcolor{rankone}0.96 & 0.84 & 0.90 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.95 & 0.97 & 0.97 & \cellcolor{ranktwo}0.95 & 0.97 & 0.45 & 0.84 & 0.85 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{WRS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}16.8 & 25.3 & 139.2 & 25.9 & 20.5 & 30.9 & 25.4 & 72.5 & \cellcolor{rankone}11.7 & \cellcolor{ranktwo}14.0 \\
+ & Rel.\ RMSE (\%) & 97.6 & 47.1 & 143.3 & \cellcolor{ranktwo}37.5 & 41.1 & 41.3 & 168.5 & 100.8 & \cellcolor{rankthree}38.8 & \cellcolor{rankone}36.4 \\
+ & Emp.\ SE & 0.101 & 0.024 & 0.046 & 0.018 & 0.037 & 0.024 & 0.201 & 0.096 & 0.043 & 0.040 \\
+ & Mean SE & 0.101 & 0.024 & 0.063 & 0.030 & 0.037 & 0.033 & 0.040 & 0.065 & 0.036 & 0.044 \\
+ & SE ratio & \cellcolor{rankone}1.00 & \cellcolor{ranktwo}1.00 & 1.37 & 1.67 & \cellcolor{rankthree}1.00 & 1.38 & 0.20 & 0.68 & 0.84 & 1.10 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.47 & 0.05 & 0.54 & 0.79 & 0.62 & 0.46 & 0.59 & \cellcolor{rankthree}0.84 & \cellcolor{ranktwo}0.93 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.47 & 0.04 & 0.49 & 0.80 & 0.60 & \cellcolor{rankone}0.95 & 0.80 & \cellcolor{ranktwo}0.94 & 0.92 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.95 & 0.97 & 0.98 & 0.94 & \cellcolor{rankthree}0.96 & 0.40 & 0.85 & 0.87 & 0.96 \\
+\addlinespace[2pt]
+\quad \texttt{SFS} & Mean $|$Bias$|$ (\%) & 15.2 & 25.3 & 141.7 & 22.1 & \cellcolor{ranktwo}11.5 & 31.0 & \cellcolor{rankthree}13.7 & 72.7 & \cellcolor{rankone}10.8 & 14.1 \\
+ & Rel.\ RMSE (\%) & 99.0 & 47.1 & 146.1 & \cellcolor{rankone}34.7 & 44.9 & 41.2 & 155.2 & 102.2 & \cellcolor{rankthree}40.6 & \cellcolor{ranktwo}36.4 \\
+ & Emp.\ SE & 0.103 & 0.024 & 0.049 & 0.017 & 0.053 & 0.024 & 0.190 & 0.097 & 0.044 & 0.040 \\
+ & Mean SE & 0.101 & 0.024 & 0.065 & 0.028 & 0.056 & 0.033 & 0.041 & 0.068 & 0.037 & 0.044 \\
+ & SE ratio & \cellcolor{ranktwo}0.98 & \cellcolor{rankone}1.00 & 1.33 & 1.65 & \cellcolor{rankthree}1.06 & 1.38 & 0.22 & 0.70 & 0.84 & 1.10 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.47 & 0.06 & 0.54 & \cellcolor{rankone}0.94 & 0.61 & 0.46 & 0.61 & 0.82 & \cellcolor{rankthree}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.94 & 0.47 & 0.06 & 0.50 & 0.92 & 0.64 & \cellcolor{rankone}0.96 & 0.80 & \cellcolor{rankthree}0.93 & 0.93 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankthree}0.94 & \cellcolor{rankone}0.95 & 0.96 & 0.97 & \cellcolor{ranktwo}0.94 & 0.96 & 0.44 & 0.85 & 0.86 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{ODS-Tail} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}10.5 & 25.3 & 56.4 & 28.9 & 27.5 & \cellcolor{rankthree}23.0 & 24.1 & 105.4 & 46.5 & \cellcolor{ranktwo}13.0 \\
+ & Rel.\ RMSE (\%) & 109.6 & 47.1 & 66.5 & \cellcolor{ranktwo}35.8 & 65.6 & \cellcolor{rankone}33.3 & 148.3 & 144.3 & 65.2 & \cellcolor{rankthree}36.3 \\
+ & Emp.\ SE & 0.121 & 0.024 & 0.031 & 0.017 & 0.077 & 0.022 & 0.159 & 0.168 & 0.043 & 0.042 \\
+ & Mean SE & 0.118 & 0.024 & 0.049 & 0.026 & 0.079 & 0.028 & 0.039 & 0.175 & 0.035 & 0.047 \\
+ & SE ratio & \cellcolor{ranktwo}0.98 & \cellcolor{rankone}1.00 & 1.58 & 1.53 & \cellcolor{rankthree}1.03 & 1.27 & 0.25 & 1.04 & 0.81 & 1.12 \\
+ & Nom.\ Cov. & \cellcolor{rankthree}0.94 & 0.47 & 0.69 & 0.62 & \cellcolor{rankone}0.95 & 0.80 & 0.52 & 0.76 & 0.52 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.94 & 0.47 & 0.43 & 0.53 & 0.90 & 0.82 & \cellcolor{rankone}0.95 & 0.76 & 0.69 & \cellcolor{rankthree}0.93 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.95 & 0.98 & 0.98 & \cellcolor{ranktwo}0.95 & 0.92 & 0.45 & 0.94 & 0.84 & 0.96 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-ODS} & Mean $|$Bias$|$ (\%) & 22.8 & 25.3 & 143.7 & 31.5 & \cellcolor{rankthree}10.1 & 36.0 & 20.5 & \cellcolor{rankone}9.6 & \cellcolor{ranktwo}10.0 & 15.9 \\
+ & Rel.\ RMSE (\%) & 128.1 & 47.1 & 159.4 & 41.4 & \cellcolor{ranktwo}40.9 & 45.0 & 145.3 & 70.5 & \cellcolor{rankthree}41.0 & \cellcolor{rankone}36.5 \\
+ & Emp.\ SE & 0.159 & 0.024 & 0.164 & 0.022 & 0.050 & 0.023 & 0.154 & 0.107 & 0.051 & 0.041 \\
+ & Mean SE & 0.152 & 0.024 & 0.080 & 0.039 & 0.049 & 0.040 & 0.043 & 0.102 & 0.039 & 0.046 \\
+ & SE ratio & \cellcolor{rankthree}0.96 & \cellcolor{rankone}1.00 & 0.49 & 1.77 & \cellcolor{ranktwo}0.98 & 1.74 & 0.28 & 0.95 & 0.76 & 1.12 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.47 & 0.12 & 0.57 & 0.90 & 0.56 & 0.51 & \cellcolor{rankthree}0.94 & 0.85 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.47 & 0.39 & 0.50 & 0.94 & 0.50 & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.94 & 0.93 & 0.93 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.95 & 0.75 & 0.97 & 0.91 & 0.97 & 0.48 & \cellcolor{ranktwo}0.95 & 0.87 & 0.96 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-IF} & Mean $|$Bias$|$ (\%) & 13.6 & 25.3 & 151.6 & 30.2 & \cellcolor{ranktwo}6.4 & 33.6 & 20.5 & \cellcolor{rankthree}12.4 & \cellcolor{rankone}6.2 & 14.1 \\
+ & Rel.\ RMSE (\%) & 126.4 & 47.1 & 160.7 & 41.5 & \cellcolor{rankthree}39.3 & 43.4 & 133.1 & 70.7 & \cellcolor{ranktwo}38.6 & \cellcolor{rankone}35.6 \\
+ & Emp.\ SE & 0.151 & 0.024 & 0.124 & 0.023 & 0.051 & 0.023 & 0.142 & 0.111 & 0.048 & 0.039 \\
+ & Mean SE & 0.145 & 0.024 & 0.097 & 0.039 & 0.048 & 0.040 & 0.042 & 0.104 & 0.039 & 0.045 \\
+ & SE ratio & \cellcolor{ranktwo}0.96 & \cellcolor{rankone}1.00 & 0.78 & 1.70 & \cellcolor{rankthree}0.94 & 1.74 & 0.30 & 0.94 & 0.81 & 1.15 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.47 & 0.10 & 0.57 & 0.91 & 0.55 & 0.54 & \cellcolor{rankthree}0.93 & 0.88 & \cellcolor{rankone}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.47 & 0.19 & 0.52 & \cellcolor{rankthree}0.94 & 0.47 & 0.94 & \cellcolor{ranktwo}0.95 & 0.93 & 0.92 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.94 & \cellcolor{rankone}0.95 & 0.91 & 0.97 & 0.92 & 0.98 & 0.51 & 0.93 & 0.87 & \cellcolor{rankthree}0.96 \\
+\addlinespace[2pt]
+\multicolumn{12}{l}{\textbf{Binary \& Categorical Phase-One Covariates}} \\
+\addlinespace[2pt]
+\quad \texttt{SRS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}6.4 & 29.2 & 18.7 & 28.3 & 11.9 & 27.8 & 7.8 & 13.3 & \cellcolor{rankone}3.1 & \cellcolor{ranktwo}3.2 \\
+ & Rel.\ RMSE (\%) & 144.4 & 45.6 & \cellcolor{rankone}37.0 & 44.4 & 39.8 & 44.6 & 209.2 & 101.6 & \cellcolor{rankthree}38.9 & \cellcolor{ranktwo}37.0 \\
+ & Emp.\ SE & 0.396 & 0.081 & 0.085 & 0.080 & 0.097 & 0.090 & 0.580 & 0.159 & 0.106 & 0.100 \\
+ & Mean SE & 0.383 & 0.080 & 0.087 & 0.081 & 0.087 & 0.081 & 0.087 & 0.158 & 0.083 & 0.099 \\
+ & SE ratio & 0.97 & \cellcolor{rankthree}0.99 & 1.02 & 1.01 & 0.90 & 0.90 & 0.15 & \cellcolor{rankone}0.99 & 0.78 & \cellcolor{ranktwo}0.99 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.71 & \cellcolor{rankthree}0.91 & 0.72 & 0.88 & 0.78 & 0.47 & 0.57 & 0.88 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (Emp) & 0.94 & 0.72 & 0.90 & 0.72 & 0.91 & 0.83 & \cellcolor{ranktwo}0.96 & 0.58 & \cellcolor{rankthree}0.94 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (BC) & 0.95 & \cellcolor{rankone}0.95 & 0.96 & \cellcolor{ranktwo}0.95 & 0.92 & 0.92 & 0.46 & \cellcolor{rankthree}0.95 & 0.88 & 0.95 \\
+\addlinespace[2pt]
+\quad \texttt{RS} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}7.1 & 29.2 & 11.0 & 29.4 & \cellcolor{rankthree}7.4 & 21.3 & 14.2 & 55.4 & 11.2 & \cellcolor{rankone}2.4 \\
+ & Rel.\ RMSE (\%) & 136.3 & 45.6 & \cellcolor{ranktwo}38.4 & 45.7 & \cellcolor{rankthree}39.7 & 42.9 & 202.3 & 113.0 & 48.4 & \cellcolor{rankone}37.7 \\
+ & Emp.\ SE & 0.374 & 0.081 & 0.088 & 0.083 & 0.097 & 0.092 & 0.554 & 0.155 & 0.117 & 0.103 \\
+ & Mean SE & 0.363 & 0.080 & 0.091 & 0.081 & 0.096 & 0.081 & 0.088 & 0.150 & 0.084 & 0.103 \\
+ & SE ratio & 0.97 & \cellcolor{rankthree}0.99 & 1.03 & 0.98 & \cellcolor{ranktwo}0.99 & 0.88 & 0.16 & 0.97 & 0.72 & \cellcolor{rankone}1.00 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.94 & 0.71 & 0.91 & 0.72 & \cellcolor{rankthree}0.91 & 0.79 & 0.44 & 0.52 & 0.77 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.95 & 0.72 & 0.89 & 0.73 & 0.91 & 0.85 & \cellcolor{rankone}0.95 & 0.54 & 0.90 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (BC) & 0.95 & \cellcolor{ranktwo}0.95 & 0.95 & \cellcolor{rankthree}0.95 & 0.95 & 0.92 & 0.43 & 0.94 & 0.84 & \cellcolor{rankone}0.95 \\
+\addlinespace[2pt]
+\quad \texttt{WRS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}5.6 & 29.2 & 13.2 & 29.7 & 18.0 & 22.2 & 16.0 & 56.6 & \cellcolor{ranktwo}4.6 & \cellcolor{rankone}2.6 \\
+ & Rel.\ RMSE (\%) & 136.6 & 45.6 & \cellcolor{rankone}37.0 & 45.8 & \cellcolor{rankthree}38.3 & 42.5 & 193.1 & 118.6 & 45.1 & \cellcolor{ranktwo}37.1 \\
+ & Emp.\ SE & 0.375 & 0.081 & 0.088 & 0.080 & 0.086 & 0.089 & 0.528 & 0.160 & 0.113 & 0.100 \\
+ & Mean SE & 0.362 & 0.080 & 0.086 & 0.081 & 0.084 & 0.081 & 0.087 & 0.152 & 0.084 & 0.102 \\
+ & SE ratio & 0.97 & \cellcolor{rankone}0.99 & 0.98 & \cellcolor{ranktwo}1.01 & 0.98 & 0.91 & 0.16 & 0.95 & 0.74 & \cellcolor{rankthree}1.02 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.95 & 0.71 & \cellcolor{rankthree}0.90 & 0.71 & 0.88 & 0.80 & 0.44 & 0.49 & 0.82 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.95 & 0.72 & 0.90 & 0.71 & 0.89 & 0.84 & \cellcolor{rankone}0.95 & 0.53 & 0.92 & \cellcolor{rankthree}0.94 \\
+ & Orc.\ Cov.\ (BC) & 0.95 & \cellcolor{ranktwo}0.95 & 0.96 & \cellcolor{rankthree}0.95 & 0.94 & 0.93 & 0.41 & 0.93 & 0.86 & \cellcolor{rankone}0.95 \\
+\addlinespace[2pt]
+\quad \texttt{SFS} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}6.4 & 29.2 & 10.8 & 30.1 & 8.7 & 18.5 & 13.5 & 51.7 & \cellcolor{rankthree}8.3 & \cellcolor{rankone}3.8 \\
+ & Rel.\ RMSE (\%) & 137.6 & 45.6 & \cellcolor{ranktwo}37.5 & 46.0 & \cellcolor{rankthree}38.9 & 42.0 & 193.4 & 115.4 & 46.2 & \cellcolor{rankone}36.9 \\
+ & Emp.\ SE & 0.377 & 0.081 & 0.090 & 0.080 & 0.096 & 0.090 & 0.531 & 0.157 & 0.113 & 0.100 \\
+ & Mean SE & 0.360 & 0.080 & 0.087 & 0.081 & 0.093 & 0.081 & 0.087 & 0.153 & 0.084 & 0.102 \\
+ & SE ratio & 0.95 & \cellcolor{rankone}0.99 & 0.97 & \cellcolor{ranktwo}1.01 & 0.97 & 0.90 & 0.16 & 0.97 & 0.74 & \cellcolor{rankthree}1.02 \\
+ & Nom.\ Cov. & \cellcolor{ranktwo}0.95 & 0.71 & 0.90 & 0.71 & \cellcolor{rankthree}0.91 & 0.80 & 0.44 & 0.50 & 0.79 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.72 & 0.90 & 0.71 & 0.92 & 0.86 & \cellcolor{rankthree}0.94 & 0.53 & 0.90 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (BC) & 0.95 & \cellcolor{rankthree}0.95 & \cellcolor{rankone}0.95 & 0.95 & 0.94 & 0.92 & 0.42 & 0.94 & 0.86 & \cellcolor{ranktwo}0.95 \\
+\addlinespace[2pt]
+\quad \texttt{ODS-Tail} & Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}6.2 & 29.2 & 29.6 & 23.9 & \cellcolor{rankthree}12.2 & 17.2 & 19.1 & 92.0 & 19.6 & \cellcolor{rankone}2.2 \\
+ & Rel.\ RMSE (\%) & 143.3 & 45.6 & 59.6 & \cellcolor{ranktwo}40.4 & 47.2 & \cellcolor{rankthree}43.9 & 236.3 & 154.4 & 67.6 & \cellcolor{rankone}37.4 \\
+ & Emp.\ SE & 0.394 & 0.081 & 0.097 & 0.082 & 0.118 & 0.109 & 0.673 & 0.204 & 0.138 & 0.101 \\
+ & Mean SE & 0.379 & 0.080 & 0.097 & 0.082 & 0.135 & 0.082 & 0.088 & 0.208 & 0.088 & 0.105 \\
+ & SE ratio & 0.96 & \cellcolor{rankthree}0.99 & \cellcolor{rankone}1.00 & \cellcolor{ranktwo}1.00 & 1.14 & 0.75 & 0.13 & 1.02 & 0.64 & 1.04 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.71 & 0.74 & 0.82 & \cellcolor{ranktwo}0.94 & 0.81 & 0.44 & 0.48 & 0.64 & \cellcolor{rankthree}0.96 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.72 & 0.72 & 0.82 & 0.90 & 0.91 & \cellcolor{rankthree}0.95 & 0.45 & 0.76 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.95 & 0.96 & \cellcolor{rankthree}0.95 & 0.96 & 0.87 & 0.41 & 0.96 & 0.79 & 0.96 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-ODS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}6.0 & 29.2 & 28.4 & 27.3 & 12.9 & 28.3 & 16.4 & 7.9 & \cellcolor{ranktwo}2.1 & \cellcolor{rankone}1.8 \\
+ & Rel.\ RMSE (\%) & 141.9 & 45.6 & 45.9 & 43.5 & \cellcolor{ranktwo}38.8 & 44.8 & 177.8 & 102.3 & \cellcolor{rankthree}38.9 & \cellcolor{rankone}36.9 \\
+ & Emp.\ SE & 0.392 & 0.081 & 0.098 & 0.080 & 0.096 & 0.088 & 0.480 & 0.161 & 0.106 & 0.100 \\
+ & Mean SE & 0.382 & 0.080 & 0.084 & 0.081 & 0.085 & 0.081 & 0.087 & 0.158 & 0.083 & 0.099 \\
+ & SE ratio & 0.97 & \cellcolor{ranktwo}0.99 & 0.86 & \cellcolor{rankthree}1.01 & 0.89 & 0.92 & 0.18 & 0.98 & 0.78 & \cellcolor{rankone}0.99 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.71 & 0.79 & 0.74 & \cellcolor{rankthree}0.88 & 0.74 & 0.44 & 0.58 & 0.87 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.72 & 0.83 & 0.74 & 0.92 & 0.79 & \cellcolor{ranktwo}0.95 & 0.58 & \cellcolor{rankthree}0.95 & 0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.95 & \cellcolor{rankone}0.95 & 0.88 & 0.95 & 0.92 & 0.93 & 0.42 & \cellcolor{rankthree}0.95 & 0.87 & 0.95 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-IF} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}9.4 & 29.2 & 22.7 & 26.9 & 11.8 & 28.5 & 17.9 & 16.2 & \cellcolor{rankone}1.9 & \cellcolor{ranktwo}3.2 \\
+ & Rel.\ RMSE (\%) & 140.5 & 45.6 & 41.5 & 43.3 & \cellcolor{ranktwo}38.3 & 44.7 & 148.9 & 102.1 & \cellcolor{rankthree}38.7 & \cellcolor{rankone}36.6 \\
+ & Emp.\ SE & 0.385 & 0.081 & 0.096 & 0.080 & 0.094 & 0.086 & 0.407 & 0.158 & 0.105 & 0.099 \\
+ & Mean SE & 0.379 & 0.080 & 0.086 & 0.081 & 0.085 & 0.081 & 0.086 & 0.158 & 0.083 & 0.099 \\
+ & SE ratio & 0.98 & \cellcolor{rankthree}0.99 & 0.90 & 1.01 & 0.90 & 0.94 & 0.21 & \cellcolor{rankone}1.00 & 0.79 & \cellcolor{ranktwo}1.00 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.71 & 0.87 & 0.74 & \cellcolor{rankthree}0.89 & 0.76 & 0.46 & 0.57 & 0.87 & \cellcolor{ranktwo}0.94 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.72 & 0.90 & 0.74 & 0.91 & 0.79 & \cellcolor{ranktwo}0.95 & 0.58 & \cellcolor{rankone}0.95 & 0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.95 & \cellcolor{rankone}0.95 & 0.93 & \cellcolor{rankthree}0.95 & 0.93 & 0.95 & 0.45 & 0.95 & 0.88 & 0.94 \\
+\addlinespace[2pt]
+\multicolumn{12}{l}{\textbf{Interaction}} \\
+\addlinespace[2pt]
+\quad \texttt{SRS} & Mean $|$Bias$|$ (\%) & 102.4 & 70.2 & 1962.2 & 54.5 & \cellcolor{ranktwo}8.9 & 40.1 & 128.1 & 88.4 & \cellcolor{rankone}7.5 & \cellcolor{rankthree}9.3 \\
+ & Rel.\ RMSE (\%) & 698.0 & \cellcolor{rankthree}129.4 & 2009.2 & \cellcolor{rankone}108.2 & 244.6 & \cellcolor{ranktwo}122.6 & 807.4 & 493.3 & 225.4 & 189.2 \\
+ & Emp.\ SE & 0.035 & 0.005 & 0.022 & 0.005 & 0.012 & 0.006 & 0.040 & 0.024 & 0.011 & 0.009 \\
+ & Mean SE & 0.033 & 0.005 & 0.023 & 0.009 & 0.011 & 0.009 & 0.010 & 0.023 & 0.009 & 0.011 \\
+ & SE ratio & 0.94 & \cellcolor{rankone}1.00 & \cellcolor{rankthree}1.05 & 1.80 & 0.92 & 1.50 & 0.25 & \cellcolor{ranktwo}0.96 & 0.82 & 1.22 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.90 & 0.00 & 1.00 & \cellcolor{ranktwo}0.94 & 1.00 & 0.64 & \cellcolor{rankthree}0.94 & 0.88 & 0.97 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.95 & 0.91 & 0.00 & 0.90 & \cellcolor{rankthree}0.94 & \cellcolor{rankone}0.95 & 0.96 & 0.94 & 0.94 & 0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.94 & \cellcolor{rankone}0.96 & \cellcolor{rankthree}0.96 & 1.00 & 0.93 & 0.99 & 0.63 & 0.93 & 0.88 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{RS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}23.8 & 70.2 & 2039.8 & 65.9 & 48.3 & \cellcolor{rankthree}36.0 & 124.0 & 380.1 & 60.6 & \cellcolor{ranktwo}33.2 \\
+ & Rel.\ RMSE (\%) & 443.1 & \cellcolor{rankthree}129.4 & 2077.0 & \cellcolor{rankone}98.7 & 264.2 & \cellcolor{ranktwo}109.4 & 772.6 & 576.6 & 210.6 & 170.0 \\
+ & Emp.\ SE & 0.022 & 0.005 & 0.020 & 0.004 & 0.013 & 0.005 & 0.038 & 0.022 & 0.010 & 0.008 \\
+ & Mean SE & 0.022 & 0.005 & 0.026 & 0.007 & 0.013 & 0.008 & 0.009 & 0.014 & 0.008 & 0.010 \\
+ & SE ratio & \cellcolor{rankone}1.00 & \cellcolor{ranktwo}1.00 & 1.30 & 1.75 & \cellcolor{rankthree}1.00 & 1.60 & 0.24 & 0.64 & 0.80 & 1.25 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.90 & 0.00 & 0.99 & \cellcolor{ranktwo}0.97 & 0.98 & 0.62 & 0.60 & 0.89 & \cellcolor{rankthree}0.98 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.91 & 0.00 & 0.85 & \cellcolor{ranktwo}0.94 & 0.93 & \cellcolor{rankthree}0.96 & 0.86 & 0.94 & 0.94 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.95 & \cellcolor{rankthree}0.96 & 0.99 & 1.00 & \cellcolor{rankone}0.95 & 0.99 & 0.62 & 0.78 & 0.92 & 0.98 \\
+\addlinespace[2pt]
+\quad \texttt{WRS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}27.6 & 70.2 & 1108.0 & 70.0 & 55.4 & \cellcolor{rankthree}41.4 & 198.1 & 433.6 & 61.8 & \cellcolor{ranktwo}33.7 \\
+ & Rel.\ RMSE (\%) & 411.0 & \cellcolor{rankthree}129.4 & 1126.8 & \cellcolor{rankone}101.9 & 173.1 & \cellcolor{ranktwo}109.1 & 816.4 & 611.2 & 193.7 & 178.4 \\
+ & Emp.\ SE & 0.021 & 0.005 & 0.010 & 0.004 & 0.008 & 0.005 & 0.040 & 0.022 & 0.009 & 0.009 \\
+ & Mean SE & 0.021 & 0.005 & 0.014 & 0.006 & 0.008 & 0.007 & 0.009 & 0.014 & 0.008 & 0.010 \\
+ & SE ratio & \cellcolor{rankone}1.00 & \cellcolor{ranktwo}1.00 & 1.40 & 1.50 & \cellcolor{rankthree}1.00 & 1.40 & 0.22 & 0.64 & 0.89 & 1.11 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.90 & 0.02 & 0.99 & \cellcolor{ranktwo}0.94 & 0.98 & 0.61 & 0.52 & 0.89 & \cellcolor{rankthree}0.97 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.95 & 0.91 & 0.01 & 0.83 & 0.93 & 0.93 & \cellcolor{rankone}0.95 & 0.85 & 0.94 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankthree}0.96 & \cellcolor{ranktwo}0.96 & 0.99 & 1.00 & \cellcolor{rankone}0.95 & 0.99 & 0.54 & 0.80 & 0.91 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{SFS} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}28.5 & 70.2 & 1180.8 & 82.3 & 73.1 & \cellcolor{rankthree}40.8 & 89.6 & 415.9 & 72.9 & \cellcolor{ranktwo}38.2 \\
+ & Rel.\ RMSE (\%) & 418.5 & \cellcolor{rankthree}129.4 & 1201.2 & \cellcolor{rankone}105.5 & 248.8 & \cellcolor{ranktwo}106.8 & 769.2 & 601.5 & 201.9 & 175.7 \\
+ & Emp.\ SE & 0.021 & 0.005 & 0.011 & 0.003 & 0.012 & 0.005 & 0.038 & 0.022 & 0.009 & 0.009 \\
+ & Mean SE & 0.021 & 0.005 & 0.015 & 0.006 & 0.013 & 0.007 & 0.009 & 0.014 & 0.008 & 0.010 \\
+ & SE ratio & \cellcolor{rankone}1.00 & \cellcolor{ranktwo}1.00 & 1.36 & 2.00 & \cellcolor{rankthree}1.08 & 1.40 & 0.24 & 0.64 & 0.89 & 1.11 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.90 & 0.01 & 0.98 & \cellcolor{rankthree}0.98 & 0.98 & 0.62 & 0.56 & 0.88 & \cellcolor{ranktwo}0.97 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.95 & 0.91 & 0.00 & 0.77 & 0.94 & 0.91 & \cellcolor{rankthree}0.96 & 0.85 & 0.94 & \cellcolor{rankone}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.96 & 0.97 & 1.00 & \cellcolor{rankthree}0.96 & 1.00 & 0.62 & 0.79 & 0.91 & 0.98 \\
+\addlinespace[2pt]
+\quad \texttt{ODS-Tail} & Mean $|$Bias$|$ (\%) & \cellcolor{rankone}7.0 & 70.2 & 278.9 & 50.6 & 238.9 & 49.9 & 226.1 & 1230.3 & \cellcolor{rankthree}12.8 & \cellcolor{ranktwo}12.4 \\
+ & Rel.\ RMSE (\%) & 494.3 & \cellcolor{rankthree}129.4 & 307.1 & \cellcolor{rankone}84.4 & 428.1 & \cellcolor{ranktwo}99.7 & 645.0 & 1438.2 & 178.4 & 181.3 \\
+ & Emp.\ SE & 0.025 & 0.005 & 0.006 & 0.003 & 0.018 & 0.004 & 0.030 & 0.037 & 0.009 & 0.009 \\
+ & Mean SE & 0.024 & 0.005 & 0.010 & 0.006 & 0.018 & 0.006 & 0.009 & 0.037 & 0.007 & 0.010 \\
+ & SE ratio & 0.96 & \cellcolor{rankone}1.00 & 1.67 & 2.00 & \cellcolor{ranktwo}1.00 & 1.50 & 0.30 & \cellcolor{rankthree}1.00 & 0.78 & 1.11 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.90 & 0.86 & 0.99 & \cellcolor{ranktwo}0.96 & \cellcolor{rankthree}0.97 & 0.67 & 0.56 & 0.91 & 0.97 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.91 & 0.43 & 0.88 & 0.89 & 0.90 & \cellcolor{rankone}0.95 & 0.61 & 0.96 & \cellcolor{ranktwo}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.96 & 1.00 & 1.00 & \cellcolor{ranktwo}0.95 & 0.98 & 0.63 & 0.90 & 0.91 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-ODS} & Mean $|$Bias$|$ (\%) & 98.5 & 70.2 & 1152.1 & 42.7 & \cellcolor{ranktwo}19.3 & \cellcolor{rankthree}27.8 & 108.2 & 104.8 & 31.7 & \cellcolor{rankone}1.0 \\
+ & Rel.\ RMSE (\%) & 706.5 & \cellcolor{rankthree}129.4 & 1386.7 & \cellcolor{rankone}102.0 & 224.6 & \cellcolor{ranktwo}103.1 & 627.6 & 496.0 & 228.6 & 181.7 \\
+ & Emp.\ SE & 0.035 & 0.005 & 0.039 & 0.005 & 0.011 & 0.005 & 0.031 & 0.024 & 0.011 & 0.009 \\
+ & Mean SE & 0.033 & 0.005 & 0.019 & 0.009 & 0.011 & 0.009 & 0.010 & 0.023 & 0.009 & 0.010 \\
+ & SE ratio & 0.94 & \cellcolor{rankone}1.00 & 0.49 & 1.80 & \cellcolor{ranktwo}1.00 & 1.80 & 0.32 & \cellcolor{rankthree}0.96 & 0.82 & 1.11 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.90 & 0.22 & 1.00 & \cellcolor{ranktwo}0.94 & 1.00 & 0.67 & \cellcolor{rankthree}0.94 & 0.87 & 0.97 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.95 & 0.91 & 0.70 & 0.91 & 0.95 & 0.93 & 0.95 & \cellcolor{rankone}0.95 & 0.95 & \cellcolor{rankthree}0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.96 & 0.58 & 1.00 & 0.94 & 1.00 & 0.67 & \cellcolor{ranktwo}0.95 & 0.87 & 0.97 \\
+\addlinespace[2pt]
+\quad \texttt{Neyman-IF} & Mean $|$Bias$|$ (\%) & \cellcolor{rankthree}23.2 & 70.2 & 1474.0 & 48.0 & \cellcolor{rankone}13.0 & 39.4 & 116.9 & 39.0 & \cellcolor{ranktwo}17.3 & 26.3 \\
+ & Rel.\ RMSE (\%) & 649.5 & \cellcolor{rankthree}129.4 & 1583.9 & \cellcolor{ranktwo}109.5 & 226.8 & \cellcolor{rankone}104.5 & 586.0 & 501.3 & 210.4 & 172.6 \\
+ & Emp.\ SE & 0.032 & 0.005 & 0.029 & 0.005 & 0.011 & 0.005 & 0.029 & 0.025 & 0.010 & 0.009 \\
+ & Mean SE & 0.031 & 0.005 & 0.023 & 0.009 & 0.011 & 0.009 & 0.009 & 0.023 & 0.009 & 0.010 \\
+ & SE ratio & \cellcolor{rankthree}0.97 & \cellcolor{rankone}1.00 & 0.79 & 1.80 & \cellcolor{ranktwo}1.00 & 1.80 & 0.31 & 0.92 & 0.90 & 1.11 \\
+ & Nom.\ Cov. & \cellcolor{rankone}0.94 & 0.90 & 0.09 & 1.00 & \cellcolor{ranktwo}0.94 & 1.00 & 0.69 & \cellcolor{rankthree}0.93 & 0.89 & 0.98 \\
+ & Orc.\ Cov.\ (Emp) & \cellcolor{rankone}0.95 & 0.91 & 0.29 & 0.92 & 0.94 & 0.93 & \cellcolor{rankthree}0.95 & 0.95 & \cellcolor{ranktwo}0.95 & 0.95 \\
+ & Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.96 & 0.86 & 1.00 & \cellcolor{rankthree}0.94 & 1.00 & 0.71 & 0.92 & 0.88 & 0.97 \\
+\addlinespace[2pt]
+\end{longtable}
+\end{landscape}

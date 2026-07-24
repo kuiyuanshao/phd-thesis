@@ -1,0 +1,57 @@
+# Between-imputation-variance study (nutri). Base = nutri deployed SICG
+# (code_nutri/data/Config/best_config_sicg.yaml): pure UNPACK generator. Only
+# sample.mi_approx is varied across the four configs in this folder, mirroring the
+# surv ablation result_configs. mi_approx None = no MI approximation: a single
+# fixed generator, between-imputation spread comes from the latent noise z alone.
+# m lowered to 5 (surv-ablation value) to keep the 20-rep nutri run light.
+processing:
+  normalization: 'zscore'
+  log: true
+  gmm:
+    max_components: 1
+    epsilon: 1.0e-06
+
+model:
+  residual_modeling: false
+  semi_supervised: false
+  generator:
+    noise_dim: 64
+    hidden_dim: 512
+    layers: 2
+    dropout: 0.5
+
+  discriminator:
+    hidden_dim: 512
+    layers: 2
+    pack: 1
+
+sample:
+  m: 5
+  mi_approx: None
+  pmm: false
+  donors: 5
+
+train:
+  epochs: 2500
+  batch_size: 400
+  Adam:
+    lr_g: 0.0004
+    lr_d: 0.0004
+    betas_g: [0.5, 0.9]
+    betas_d: [0.5, 0.9]
+    weight_decay: 1.0e-06
+  SGD:
+    lr_g: 1.0e-2
+    momentum_g: 0.9
+    lr_d: 1.0e-2
+    momentum_d: 0.9
+    weight_decay: 1.0e-4
+  loss:
+    lambda_gp: 10
+    loss_mse: 0
+    loss_ce: 0
+    loss_mml: 0
+    loss_info: 0
+    tau: 0.2
+    hard_gumbel: false
+    discriminator_steps: 3

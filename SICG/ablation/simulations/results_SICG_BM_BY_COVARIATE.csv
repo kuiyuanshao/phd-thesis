@@ -1,0 +1,53 @@
+"Model","VarType","Covariate","Method","n_rep","Mean_Bm","Median_Bm"
+"Cox","categorical","Smoke 2","None",500,0.00414143938287448,0.00292521108971956
+"Cox","categorical","Smoke 2","Bootstrap",500,0.0246308627446511,0.019880343130597
+"Cox","categorical","Smoke 2","MC-Dropout",500,0.00739065332767643,0.00575802452016545
+"Cox","categorical","Smoke 2","SWAG",500,0.00348378225881628,0.00297751687598488
+"Cox","categorical","Smoke 3","None",500,0.00375023368215668,0.00270600149025443
+"Cox","categorical","Smoke 3","Bootstrap",500,0.0221718425682671,0.0177024586482704
+"Cox","categorical","Smoke 3","MC-Dropout",500,0.00649287445756999,0.00484481104379003
+"Cox","categorical","Smoke 3","SWAG",500,0.00296021079402393,0.00250047636581715
+"Cox","categorical","rs4506565 1","None",500,0.000129345516645452,9.2540128174868e-05
+"Cox","categorical","rs4506565 1","Bootstrap",500,0.00202885191582436,0.00165571242262412
+"Cox","categorical","rs4506565 1","MC-Dropout",500,0.00156647237233319,0.00135842318052448
+"Cox","categorical","rs4506565 1","SWAG",500,0.000727060924662346,0.000607841374684093
+"Cox","categorical","rs4506565 2","None",500,0.000404352675461033,0.000297686779751564
+"Cox","categorical","rs4506565 2","Bootstrap",500,0.00518262872614306,0.00417705302608942
+"Cox","categorical","rs4506565 2","MC-Dropout",500,0.0040176788746584,0.00308192236403301
+"Cox","categorical","rs4506565 2","SWAG",500,0.00258916461462521,0.00211097633168507
+"Cox","continuous","Age:Insulin","None",500,2.18551777223718e-06,1.22365989014582e-06
+"Cox","continuous","Age:Insulin","Bootstrap",500,5.33324248291859e-05,3.63325436797304e-05
+"Cox","continuous","Age:Insulin","MC-Dropout",500,5.28947202411833e-05,4.31364941350376e-05
+"Cox","continuous","Age:Insulin","SWAG",500,1.42167618618428e-06,8.76823733195807e-07
+"Cox","continuous","BMI","None",500,4.04537115687105e-05,3.25925790615839e-05
+"Cox","continuous","BMI","Bootstrap",500,0.0110224192049081,0.00899910088662887
+"Cox","continuous","BMI","MC-Dropout",500,0.000511472542568729,0.000407674338054674
+"Cox","continuous","BMI","SWAG",500,0.00117886706721926,0.00062934484754236
+"Cox","continuous","HbA1c","None",500,5.97281938503602e-06,4.20490166668304e-06
+"Cox","continuous","HbA1c","Bootstrap",500,0.00138629653299322,0.00116926320526836
+"Cox","continuous","HbA1c","MC-Dropout",500,0.00019534085188807,0.000156916307061748
+"Cox","continuous","HbA1c","SWAG",500,0.00019106209109786,0.000119760899943153
+"Cox","continuous","Insulin","None",500,3.01700398666073e-06,1.60545762277733e-06
+"Cox","continuous","Insulin","Bootstrap",500,0.000140440223806432,0.000105763566331044
+"Cox","continuous","Insulin","MC-Dropout",500,5.35711676094616e-05,4.08316098696894e-05
+"Cox","continuous","Insulin","SWAG",500,1.15694399322235e-05,5.94779696683904e-06
+"Cox","continuous","eGFR","None",500,1.55482343190408e-06,1.10088009241972e-06
+"Cox","continuous","eGFR","Bootstrap",500,0.000227230916756116,0.000192540382049778
+"Cox","continuous","eGFR","MC-Dropout",500,5.72873016026753e-05,4.34802909647599e-05
+"Cox","continuous","eGFR","SWAG",500,2.19548408628427e-05,1.39232599081566e-05
+"SBP (Gaussian)","continuous","ln_na_true","None",16,0.00553503405722085,0.00396222960905259
+"SBP (Gaussian)","continuous","ln_na_true","Bootstrap",10,4.44531944629636,2.98582410110403
+"SBP (Gaussian)","continuous","ln_na_true","MC-Dropout",15,0.0483942716371592,0.0457787659552459
+"SBP (Gaussian)","continuous","ln_na_true","SWAG",10,8.40112132196783,4.3378127335152
+"SBP (Gaussian)","continuous","ln_na_true:c_age","None",16,2.17439055798362e-05,1.93282790730031e-05
+"SBP (Gaussian)","continuous","ln_na_true:c_age","Bootstrap",10,0.00834899555094867,0.00689069219677748
+"SBP (Gaussian)","continuous","ln_na_true:c_age","MC-Dropout",15,0.000334482431311196,0.000268217490265119
+"SBP (Gaussian)","continuous","ln_na_true:c_age","SWAG",10,0.00122959740713456,0.00137762506661565
+"HTN (Binomial)","continuous","ln_na_true","None",16,0.000474242671913699,0.000349827950349904
+"HTN (Binomial)","continuous","ln_na_true","Bootstrap",10,0.236922547974894,0.206874953071731
+"HTN (Binomial)","continuous","ln_na_true","MC-Dropout",15,0.00356840518869153,0.0022742891715451
+"HTN (Binomial)","continuous","ln_na_true","SWAG",10,0.0222772508778398,0.0170351455463209
+"HTN (Binomial)","continuous","ln_na_true:c_age","None",16,1.24702715457847e-06,9.06607683097641e-07
+"HTN (Binomial)","continuous","ln_na_true:c_age","Bootstrap",10,0.000202700341974385,0.000185970121785981
+"HTN (Binomial)","continuous","ln_na_true:c_age","MC-Dropout",15,1.54909400603685e-05,9.95927215000995e-06
+"HTN (Binomial)","continuous","ln_na_true:c_age","SWAG",10,2.86548904589486e-05,2.38331418450088e-05

@@ -1,0 +1,56 @@
+# SWAG epochs search base (mirrors SIRD's base_config_multinomial_swag_epochs).
+# Identical to base_config_swag.yaml; the "swag_epochs" profile overrides `epochs`
+# with a categorical search [2500..20000]. SICG epochs was never tuned before, so
+# this finds the budget that gives SWAG enough post-swag_start (50%) steps to
+# collect weights. Fill SGD lr below from the "swag" lr search before running.
+processing:
+  normalization: 'zscore'
+  log: true
+  gmm:
+    max_components: 1
+    epsilon: 1.0e-06
+
+model:
+  residual_modeling: false
+  semi_supervised: false
+  generator:
+    noise_dim: 64
+    hidden_dim: 512
+    layers: 2
+    dropout: 0.5
+
+  discriminator:
+    hidden_dim: 512
+    layers: 2
+    pack: 1
+
+sample:
+  m: 5
+  mi_approx: "SWAG"
+  pmm: false
+  donors: 5
+
+train:
+  epochs: 10000
+  batch_size: 400
+  Adam:
+    lr_g: 0.0004
+    lr_d: 0.0004
+    betas_g: [0.5, 0.9]
+    betas_d: [0.5, 0.9]
+    weight_decay: 1.0e-06
+  SGD:
+    lr_g: 3.0e-3         # tuned SGD lr from the "swag" sweep; epochs searched here
+    momentum_g: 0.9
+    lr_d: 3.0e-3
+    momentum_d: 0.9
+    weight_decay: 1.0e-4
+  loss:
+    lambda_gp: 10
+    loss_mse: 0
+    loss_ce: 0
+    loss_mml: 0
+    loss_info: 0
+    tau: 0.2
+    hard_gumbel: false
+    discriminator_steps: 3

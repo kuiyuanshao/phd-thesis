@@ -1,0 +1,29 @@
+\begin{table}[!htbp]\centering
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214}\definecolor{rankthree}{RGB}{198,219,239}
+\caption{PASTE THE DEPLOYED CAPTION HERE.}
+\label{tab:sird_rank_nutri}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\adjustbox{max width=\linewidth}{%
+\begin{tabular}{lrrrrrrrrrr}
+\toprule
+ & \multicolumn{1}{c}{CC} & \multicolumn{1}{c}{UNVAL} & \multicolumn{1}{c}{MICE-PMM} & \multicolumn{1}{c}{MICE-RF} & \multicolumn{1}{c}{MIXGB} & \multicolumn{1}{c}{TabCSDI} & \multicolumn{1}{c}{GAIN} & \multicolumn{1}{c}{RAKING} & \multicolumn{1}{c}{\textbf{SICG}} & \multicolumn{1}{c}{\textbf{SIRD}} \\
+\midrule
+\multicolumn{11}{l}{\textit{Continuous Phase-Two Covariates}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}5.9 & 63.6 & 41.4 & 46.1 & 42.2 & 13.3 & 54.9 & \cellcolor{rankthree}7.1 & 10.7 & \cellcolor{rankone}3.5 \\
+\quad Rel.\ RMSE (\%) & 26.6 & 63.7 & 43.5 & 46.4 & 50.2 & \cellcolor{rankthree}23.4 & 102.0 & 30.7 & \cellcolor{ranktwo}18.1 & \cellcolor{rankone}11.0 \\
+\quad SE ratio & \cellcolor{ranktwo}1.03 & \cellcolor{rankone}1.01 & 0.39 & 0.62 & 0.74 & 0.24 & 0.04 & 0.78 & 0.32 & \cellcolor{rankthree}1.13 \\
+\quad Nom.\ Cov. & \cellcolor{ranktwo}0.64 & 0.00 & 0.07 & 0.00 & 0.41 & 0.10 & 0.07 & \cellcolor{rankthree}0.45 & 0.26 & \cellcolor{rankone}0.93 \\
+\quad Orc.\ Cov.\ (Emp) & 0.64 & 0.00 & 0.11 & 0.00 & 0.44 & 0.40 & \cellcolor{rankone}0.90 & 0.51 & \cellcolor{rankthree}0.64 & \cellcolor{ranktwo}0.90 \\
+\quad Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.95 & \cellcolor{rankthree}0.96 & 0.77 & 0.86 & 0.79 & 0.58 & 0.07 & 0.87 & 0.49 & \cellcolor{rankone}0.95 \\
+\midrule
+\multicolumn{11}{l}{\textit{Interaction}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}22.1 & 64.8 & 345.3 & 56.4 & 48.1 & 39.8 & 116.9 & 42.4 & \cellcolor{rankthree}38.3 & \cellcolor{rankone}21.4 \\
+\quad Rel.\ RMSE (\%) & 193.6 & \cellcolor{rankthree}89.6 & 360.7 & \cellcolor{ranktwo}76.7 & 146.9 & \cellcolor{rankone}70.1 & 297.4 & 224.8 & 115.9 & 93.6 \\
+\quad SE ratio & 1.07 & \cellcolor{ranktwo}0.93 & \cellcolor{rankthree}0.93 & 1.36 & 0.73 & \cellcolor{rankone}1.06 & 0.23 & 0.88 & 0.53 & 1.15 \\
+\quad Nom.\ Cov. & \cellcolor{ranktwo}0.93 & 0.47 & 0.09 & 0.63 & 0.75 & 0.69 & 0.38 & \cellcolor{rankthree}0.79 & 0.60 & \cellcolor{rankone}0.94 \\
+\quad Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.90 & 0.47 & 0.12 & 0.52 & 0.83 & 0.66 & 0.81 & \cellcolor{rankthree}0.89 & 0.83 & \cellcolor{rankone}0.91 \\
+\quad Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.96 & \cellcolor{rankone}0.95 & 0.92 & 0.99 & 0.87 & \cellcolor{rankthree}0.97 & 0.51 & 0.89 & 0.77 & 0.97 \\
+\bottomrule
+\end{tabular}}
+\end{table}

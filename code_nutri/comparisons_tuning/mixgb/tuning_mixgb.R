@@ -1,0 +1,228 @@
+pacman::p_load(mlr3mbo, mlr3, bbotk, paradox, mlr3learners, Matrix, expm, dplyr, data.table, DiceKriging, mixgb, fields)
+source("../../00_utils_functions.R")
+
+source("../../../utils/loss_calculator.R")
+tune_mixgb <- function(data, data_info, search_space,
+                       log_path = "mixgb_tuning_log_OE.csv",
+                       n_evals = 20, m = 5, folds = 4) {
+
+  num_vars <- data_info$num_vars
+  for (c in num_vars) {
+    if (c %in% colnames(data)) {
+      parsed_col <- suppressWarnings(as.numeric(as.character(data[[c]])))
+      if (any(is.na(parsed_col) & !is.na(data[[c]]))) {
+        data[[c]] <- as.numeric(as.factor(data[[c]]))
+      } else {
+        data[[c]] <- parsed_col
+      }
+    }
+  }
+
+  set.seed(42)
+  N <- nrow(data)
+  shuffled_ids <- sample(1:N)
+  fixed_fold_indices <- split(shuffled_ids, rep(1:folds, length.out = N))
+
+  loss_calc <- create_loss_calculator(data_info)
+
+  fold_histories_acc <- list()
+  fold_histories_dist <- list()
+  for(i in 1:folds) {
+    fold_histories_acc[[i]] <- numeric(0)
+    fold_histories_dist[[i]] <- numeric(0)
+  }
+
+  objective_fun = function(xs) {
+    cat("\n----------------------------------------------------------------\n")
+    cat("[Opt] Testing Config:\n")
+    for (nm in names(xs)) {
+      cat(sprintf("   %s: %s\n", nm, as.character(xs[[nm]])))
+    }
+
+    fold_mse <- numeric(folds)
+    fold_ce <- numeric(folds)
+    fold_ed <- numeric(folds)
+
+    for (k in 1:folds) {
+      val_idx <- fixed_fold_indices[[k]]
+      train_test_data <- data
+      train_test_data[val_idx, data_info$phase2_vars] <- NA
+
+      imputed_mids <- tryCatch({
+        mixgb(
+          data = train_test_data,
+          m = m,
+          xgb.params = xs
+        )
+      }, error = function(e) return(NULL))
+
+      if(is.null(imputed_mids)) return(list(acc_loss = 1e9, dist_loss = 1e9))
+
+      m_mse <- numeric(m)
+      m_ce <- numeric(m)
+      m_ed <- numeric(m)
+      true_val_data <- data[val_idx, ]
+
+      for (i in 1:m) {
+        completed_data <- imputed_mids[[i]]
+        fake_val_data <- completed_data[val_idx, ]
+
+        loss_results <- loss_calc(true_val_data, fake_val_data)
+
+        m_mse[i]   <- loss_results$weighted_mse
+        m_ce[i]    <- loss_results$weighted_ce
+        m_ed[i]    <- loss_results$weighted_ed
+      }
+
+      current_fold_acc <- mean(m_mse, na.rm=TRUE) + mean(m_ce, na.rm=TRUE)
+      current_fold_dist <- mean(m_ed, na.rm=TRUE)
+
+      fold_mse[k] <- mean(m_mse, na.rm=TRUE)
+      fold_ce[k] <- mean(m_ce, na.rm=TRUE)
+      fold_ed[k] <- current_fold_dist
+
+      if (k < folds) {
+        fold_histories_acc[[k]] <<- c(fold_histories_acc[[k]], current_fold_acc)
+        fold_histories_dist[[k]] <<- c(fold_histories_dist[[k]], current_fold_dist)
+
+        if (length(fold_histories_acc[[k]]) >= max(10, floor(n_evals * 0.25))) {
+          threshold_acc <- quantile(fold_histories_acc[[k]], 0.75, na.rm=TRUE)
+          threshold_dist <- quantile(fold_histories_dist[[k]], 0.75, na.rm=TRUE)
+
+          if (current_fold_acc > threshold_acc && current_fold_dist > threshold_dist) {
+            cat(sprintf("Trial pruned at fold %d. Both Acc (%.4f > %.4f) AND Dist (%.4f > %.4f) are in the worst 25 percent.\n",
+                        k, current_fold_acc, threshold_acc, current_fold_dist, threshold_dist))
+            return(list(acc_loss = 1e9, dist_loss = 1e9))
+          }
+        }
+      }
+    }
+
+    avg_mse  <- mean(fold_mse, na.rm=TRUE)
+    avg_ce   <- mean(fold_ce, na.rm=TRUE)
+    avg_ed   <- mean(fold_ed, na.rm=TRUE)
+    avg_acc  <- avg_mse + avg_ce
+
+    if(is.na(avg_acc)) avg_acc <- 1e9
+    if(is.na(avg_ed)) avg_ed <- 1e9
+
+    cat(sprintf("   Trial Summary -> Loss Acc: %.4f (MSE: %.4f, CE: %.4f), Loss Dist (ED): %.4f\n",
+                avg_acc, avg_mse, avg_ce, avg_ed))
+    cat("----------------------------------------------------------------\n")
+
+    return (list(acc_loss = avg_acc, dist_loss = avg_ed))
+  }
+
+  obj = ObjectiveRFun$new(
+    fun = objective_fun,
+    domain = search_space,
+    codomain = ps(
+      acc_loss = p_dbl(tags = "minimize"),
+      dist_loss = p_dbl(tags = "minimize")
+    )
+  )
+
+  opt_instance = OptimInstanceBatchMultiCrit$new(
+    objective = obj,
+    terminator = trm("evals", n_evals = n_evals)
+  )
+
+  learner_km = lrn("regr.km", covtype = "matern5_2", control = list(trace = FALSE))
+  surrogate_object = SurrogateLearner$new(learner_km)
+
+  optimizer = opt("mbo",
+                  loop_function = bayesopt_parego,
+                  surrogate = surrogate_object,
+                  acq_function = acqf("ei")
+  )
+
+  optimizer$optimize(opt_instance)
+
+  best_params <- opt_instance$result_x_domain
+  if (!is.null(log_path)) write.csv(as.data.table(opt_instance$archive), log_path)
+
+  return (best_params)
+}
+
+load(paste0("../../data/True/0001.RData"))
+
+samp_srs_full <- read.csv(paste0("../../data/Sample/SRS/0001.csv"))
+samp_srs_full <- match_types(samp_srs_full, data)
+samp_srs <- samp_srs_full[samp_srs_full$R == 1,]
+
+safe_numeric <- function(x) {
+  num_x <- suppressWarnings(as.numeric(as.character(x)))
+  if (any(is.na(num_x) & !is.na(x))) {
+    return(as.numeric(factor(x)))
+  }
+  return(num_x)
+}
+
+samp <- samp_srs %>%
+  mutate(across(all_of(data_info_srs$cat_vars), as.factor),
+         across(all_of(data_info_srs$num_vars), safe_numeric))
+
+search_space = ps(
+  gamma             = p_dbl(lower = 0, upper = 1),
+  min_child_weight  = p_int(lower = 1, upper = 7),
+  eta               = p_dbl(lower = 0.01, upper = 0.2),
+  subsample         = p_dbl(lower = 0.5, upper = 0.85),
+  max_depth         = p_int(lower = 2, upper = 7),
+  colsample_bytree  = p_dbl(lower = 0.5, upper = 0.9)
+)
+
+tm <- system.time({
+  tune_srs <- tune_mixgb(
+    data = samp,
+    data_info = data_info_srs,
+    search_space = search_space,
+    log_path = "mixgb_tuning_results.csv",
+    n_evals = 42, m = 5, folds = 3
+  )
+})
+save(tm, file = "mixgb_tuning_time.RData")
+
+
+mixgb_tuning_results <- read.csv("mixgb_tuning_results.csv")
+mixgb_tuning_results <- mixgb_tuning_results %>%
+  rowwise() %>%
+  mutate(is_pareto = !any(
+    mixgb_tuning_results$acc_loss <= acc_loss & 
+      mixgb_tuning_results$dist_loss <= dist_loss & 
+      (mixgb_tuning_results$acc_loss < acc_loss | mixgb_tuning_results$dist_loss < dist_loss)
+  )) %>%
+  ungroup()
+
+pareto_front <- mixgb_tuning_results %>% filter(is_pareto == TRUE)
+vals <- apply(pareto_front[, search_space$ids()], 2, median)
+params <- list()
+for (i in 1:length(vals)){
+  if (search_space$storage_type[i] == "integer"){
+    params[[names(vals)[i]]] <- round(vals[i])
+    print(round(vals[i]))
+  }else{
+    params[[names(vals)[i]]] <- round(vals[i], 3)
+    print(round(vals[i], 3))
+  }
+}
+samp_srs_full <-  samp_srs_full %>%
+  mutate(across(all_of(data_info_srs$cat_vars), as.factor),
+         across(all_of(data_info_srs$num_vars), safe_numeric))
+
+nrounds <- c()
+
+for (i in 1:20){
+  cv_results <- mixgb_cv(samp_srs_full, xgb.params = params, nrounds = 500)
+  nrounds <- c(nrounds, cv_results$best.nrounds)
+}
+
+median(nrounds)
+
+tuning_results <- list()
+tuning_results$params <- params
+tuning_results$nrounds <- median(nrounds)
+
+saveRDS(tuning_results, file = "../../data/Config/best_config_mixgb.rds")
+
+
+

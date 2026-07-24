@@ -1,0 +1,61 @@
+# Data Processing Hyperparameters
+# Base = UNPACK tuned setting (config_unpack.yaml). MI approx = SWAG, which the
+# SICG model trains with the SGD optimiser block (see sicg.py::_init_optimizers).
+# Re-tuned, mirroring SIRD: SGD lr from the "swag" profile and epochs from the
+# "swag_epochs" profile (SICG epochs was never tuned before). momentum/weight_decay
+# kept at SGD defaults; architecture fixed at UNPACK values.
+# SGD lr_g/lr_d = 3.0e-3  (tuned: swag_tuning_results.csv)
+# train.epochs  = 20000   (tuned: swag_epochs_tuning_results.csv; loss plateaus
+#                          at 15000-20000, 20000 lowest -- SWAG needs the long
+#                          post-swag_start collection window, like PACK)
+processing:
+  normalization: 'zscore'
+  log: true
+  gmm:
+    max_components: 1
+    epsilon: 1.0e-06
+
+model:
+  residual_modeling: false
+  semi_supervised: false
+  generator:
+    noise_dim: 64
+    hidden_dim: 512
+    layers: 2
+    dropout: 0.5
+
+  discriminator:
+    hidden_dim: 512
+    layers: 2
+    pack: 1
+
+sample:
+  m: 5
+  mi_approx: "SWAG"
+  pmm: false
+  donors: 5
+
+train:
+  epochs: 20000         # tuned (swag_epochs); SWAG needs the long collection window
+  batch_size: 400
+  Adam:
+    lr_g: 0.0004
+    lr_d: 0.0004
+    betas_g: [0.5, 0.9]
+    betas_d: [0.5, 0.9]
+    weight_decay: 1.0e-06
+  SGD:
+    lr_g: 3.0e-3         # tuned (swag); >=1e-2 diverged, <=1.4e-3 underfit
+    momentum_g: 0.9
+    lr_d: 3.0e-3
+    momentum_d: 0.9
+    weight_decay: 1.0e-4
+  loss:
+    lambda_gp: 10
+    loss_mse: 0
+    loss_ce: 0
+    loss_mml: 0
+    loss_info: 0
+    tau: 0.2
+    hard_gumbel: false
+    discriminator_steps: 3

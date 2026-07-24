@@ -1,0 +1,13 @@
+category_encoders
+numpy
+optuna
+pandas
+pyarrow
+pytorch-frame
+pyyaml
+scikit-learn
+scipy
+tensorboard
+torch
+torchvision
+tqdm

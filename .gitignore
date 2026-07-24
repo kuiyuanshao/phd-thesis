@@ -1,0 +1,94 @@
+# =====================================================================
+# .gitignore for the phd-thesis GitHub upload.
+#
+# Goal: publish SOURCE (R/Python/Slurm), CONFIG (yaml/Config), the THESIS
+# (LaTeX + figures), and the small CURATED result files that reproduce the
+# thesis tables/figures. EXCLUDE ~1.3 TB of raw data and simulation output,
+# and ALL raw clinical data (VCCC / Waitemata DHB) regardless of location.
+#
+# Data formats are ignored globally; only specific curated files are added
+# back at the bottom. A blanket "!results_*" is deliberately NOT used, since
+# it would re-include large raw results_*.RData.
+# =====================================================================
+
+# ---- Raw data, simulation output, model checkpoints (the bulk) ----
+*.parquet
+*.RData
+*.rda
+*.rds
+*.csv
+*.tsv
+*.xlsx
+*.xls
+*.feather
+*.arrow
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.pk
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.sav
+*.dta
+*.sas7bdat
+
+# ---- Archives ----
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.gz
+*.7z
+*.rar
+
+# ---- Editor / tooling / OS / build cruft ----
+*.pyc
+*.pyo
+*.log
+*.out
+*.tmp
+*.bak
+*.iml
+*.xml
+*.DS_Store
+*.Rhistory
+__pycache__/
+.ipynb_checkpoints/
+.Rproj.user/
+.claude/
+.agents/
+my_venv/
+.venv/
+venv/
+save/
+
+# =====================================================================
+# Re-include CURATED result files (small; feed the thesis tables/figures)
+# =====================================================================
+!Summary_Table.csv
+!results_COMBINED.csv
+!results_TIMES.csv
+!results_*_SUMMARY.csv
+!results_*_BY_COVARIATE.csv
+!results_combined_first50.csv
+!results_dualboot.csv
+!results_dualsandwich.csv
+!results_modelbased.csv
+
+# ---- Re-include reproducibility seeds / parameters (small config-like data) ----
+!covarInfo.RData
+!data_generation_seed.RData
+!data_sampling_seed.RData
+!genoCorr.RData
+!genoFreq.RData
+!genoTrait.RData
+!labtest_parameters.RData
+!mixgb_balanceParams.RData
+!mixgb_neymanParams.RData
+!mixgb_srsParams.RData

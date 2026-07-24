@@ -1,0 +1,382 @@
+\chapter{Sample Imputation via Sample Likelihood}
+\label{chap:SISL}
+ 
+\section{Introduction}
+\label{sec:SISL_intro}
+ 
+Chapter~\ref{chap:ImpReview} reviewed imputation methods that are in common use for tabular data. This chapter considers a narrower problem. The phase-two sample is drawn by a probability design whose hidden stratifying variables and joint-stratum label are not released. The outcome component of the sampling stratum remains observed. The analyst also observes the error-prone surrogate $\tilde{X}_i$, the recorded covariates, the selection indicator $R_i$, and the design weight $W_i = 1/\pi_i$. The reference measurement $X_i$ is observed only when $R_i = 1$.
+
+The analyst cannot condition on the hidden stratifying variables used for sampling. When complete design variables are available, regression adjustment can be preferable to weight-only adjustment \citep{gelman2007struggles}. When part of that conditioning information is unavailable or cannot be represented in the working model, direct use of the known inclusion probabilities may be needed \citep{robins1997toward}. Design~I has this second structure: the hidden stratifying variables are not merely inconvenient to model, they have been suppressed.
+
+The consequence is an imputation problem. Let $V_i=(\tilde{X}_i,Z_i,A_i,Y_i)$ denote the released phase-one information. Standard multiple imputation fits a model for $X_i\mid V_i$ on the phase-two rows and then uses that fitted model to impute the remaining rows. This is appropriate when $R_i \perp X_i \mid V_i$. Under the informative-sampling design of Section~\ref{sec:infsamp_context}, that conditional independence need not hold, because the suppressed variables are related to $X_i$ and also determine $\pi_i$. The selected rows therefore follow the sample distribution of $X_i\mid V_i,R_i=1$, not necessarily the population distribution of $X_i\mid V_i$ needed for imputation.
+
+This chapter introduces Sample Imputation via Sample Likelihood (SISL). The method uses the released weights inside the fit of the imputation model, rather than treating them only as analysis weights or as another ordinary predictor. Its construction follows the sample-likelihood identity of \citet{pfeffermann1999parametric}, which relates a population density to the corresponding density among selected units through the inclusion probability. The same identity underlies ascertainment-conditional likelihood estimators for two-stage and response-biased samples \citep{breslow1988logistic, scott2011fitting}; the present chapter applies it to the imputation factor instead of directly to the analysis model.
+ 
+The remainder of this chapter is arranged as follows. Section~\ref{sec:SISL_background} sets out the two-phase setting specific to this chapter and introduces the sample-likelihood identity on which the method is built. Section~\ref{sec:SISLmethod} introduces SISL. Section~\ref{sec:SISL_sim} describes the simulation study and the comparators. Section~\ref{sec:SISL_disc} concludes.
+ 
+ 
+\section{Background}
+\label{sec:SISL_background}
+ 
+\subsection{Setting}
+\label{sec:SISL_background_setting}
+ 
+We retain the notation of Section~\ref{sec:two_phase}, but specialise it to the privacy-constrained design of Section~\ref{sec:infsamp_context}. The released phase-one information is
+\[
+V_i = (\tilde{X}_i,Z_i,A_i,Y_i),
+\]
+where $Y_i$ is included explicitly because it is observed for every unit, enters the imputation models, and is the variable on which the within-stratum Neyman allocation is computed in the informative-sampling simulation. The reference measurement $X_i$ is observed only when $R_i=1$.
+
+The data producer also observes the pair of hidden stratifying variables $C_i=(S_{1i},S_{2i})$, which has nine levels in the simulation of Section~\ref{sec:infsamp_context}. Let $T_i$ denote the empirical tertile of the observed outcome $Y_i$. The sampling stratum is the joint label $H_i=(C_i,T_i)$, so the phase-two sample is allocated across $K=27$ strata and the inclusion probability is constant within joint stratum $h$:
+\begin{equation}
+\pi_i \;=\; \pi_h \quad \text{for every unit } i \text{ in joint stratum } h,
+\label{eq:SISL_piecewise}
+\end{equation}
+with $\pi_h=n_h/N_h$ determined by the design. The analyst receives $\pi_i$, or equivalently $W_i=1/\pi_i$, for every row in the released data. The outcome and hence $T_i$ remain observed, but the analyst does not receive $C_i$ or the joint-stratum label $H_i$.
+
+Across the levels of $C_i$ the conditional distribution of $X_i$ differs in both mean and variance, so selection through $H_i$ remains associated with $X_i$ after conditioning on the released variables $V_i$. If $C_i$ were released, the imputation model could condition on it directly and estimate $P(X_i\mid V_i,C_i)$. The weights would then mainly describe the sampling design. In the present setting $C_i$ is suppressed, so the model fitted on the selected rows estimates the sample distribution unless the weights are used in some further way. The target for imputation remains the population conditional density
+\[
+f_p(x\mid V_i;\alpha,\sigma),
+\]
+because the missing values are needed for the full phase-one cohort, not only for the selected rows.
+ 
+\subsection{Existing approaches and the gap}
+\label{sec:SISL_background_gap}
+ 
+A useful way to organise the existing methods is by how they use the released weight. The first option is not to use it. A standard parametric imputation method fits
+\begin{equation}
+\ell_0(\alpha,\sigma)
+\;=\;
+\sum_{i:\,R_i = 1} \log f_p(X_i \mid V_i;\alpha,\sigma),
+\label{eq:SISL_existing_MI}
+\end{equation}
+and then draws imputations from the fitted model. This is the baseline to which ordinary chained-equation and automated imputation methods reduce when the weight is excluded. It is justified when the selected rows are representative for $X_i$ after conditioning on $V_i$. It is not generally justified when $R_i$ remains associated with $X_i$ through suppressed design variables.
+
+The second option is to condition on the weight. In a parametric imputation method this means replacing $f_p(X_i\mid V_i;\alpha,\sigma)$ by a model such as $f(X_i\mid V_i,W_i;\alpha,\sigma)$; in automated imputation methods it means allowing $W_i$ to enter the predictor set like any other released variable. This is the model-based route suggested by \citet{gelman2007struggles}: represent the design-relevant information in the model whenever it is available in a usable form. Several survey-imputation papers use related ideas, but their targets are not the same as the one considered here. \citet{marti2011multiple} study multiple imputation for case-cohort data, where the sampling structure is part of the observed design. \citet{seaman2012combining} discuss how multiple imputation and inverse-probability weighting can be combined when missingness and weighting both enter the final analysis. \citet{quartagno2020multiple} use survey weights in a multilevel imputation framework for complex surveys. On the design side, \citet{chen2026generalised} treat a two-phase setting in which the design variables cannot be used as covariates and modify the released weights instead, stabilising them to remove the part of the sampling variation the covariates already explain and combining this with generalised raking to improve the precision of a weighted analysis. Stabilisation and SISL both draw on the relationship between the design weight and the covariates that \citet{pfeffermann1999parametric} formalise, but the former adjusts the weights for a weighted analysis while the latter uses that relationship inside the imputation model. These papers show that weights can enter imputation or analysis in more than one way; they do not derive a sample likelihood for a released-weight design in which the stratifying variables behind $\pi_i$ are suppressed.
+
+The third option is to use the weights in a direct weighted likelihood for the imputation model,
+\begin{equation}
+\ell_w(\alpha,\sigma)
+\;=\;
+\sum_{i:\,R_i = 1} W_i\,\log f_p(X_i\mid V_i;\alpha,\sigma).
+\label{eq:SISL_weighted_MI}
+\end{equation}
+This is closer to the survey pseudo-likelihood idea reviewed in Section~\ref{sec:ipw}. It uses the realised weights as case weights and targets a design-weighted population score when the weights are correct. It still does not model the conditional sample density of $X_i$ among selected rows. In particular, it does not account for the fact that, for a fixed $V_i$, the probability of appearing in the validation sample may change across possible values of $X_i$.
+
+The fourth option is to use multiple imputation only as a working model inside a design-based estimator. The raking construction of \citet{han2021combining} is of this type: imputation is used to build an auxiliary variable for calibration, and the final estimator remains a calibrated weighted estimator rather than a completed-data estimator. This is useful as a robust design-based comparator, but it answers a different question. It estimates the analysis parameter $\beta$ for a specified analysis model; it does not produce a reusable imputed dataset whose distribution is intended to represent $X_i\mid V_i$ in the full cohort.
+
+\citet{schildcrout2015biased} is closer in spirit, because the paper studies outcome-dependent subsampling and uses imputation for expensive covariates in a full-cohort analysis. Its imputation distribution is, however, built from a joint model tailored to a longitudinal outcome-dependent design. The present problem is different: the design variables that created the weights are suppressed, and the chapter asks whether the released weights themselves can be used inside the imputation likelihood.
+
+\subsection{Sample-likelihood identity for the imputation factor}
+\label{sec:SISL_background_samplelik}
+
+The population imputation density is $f_p(x\mid V_i;\alpha,\sigma)$. The density observed among selected phase-two rows is
+\begin{equation}
+\begin{aligned}
+f_s(x\mid V_i,R_i=1;\alpha,\sigma)
+&\;=\;
+\frac{\pi^*(x,V_i)\, f_p(x\mid V_i;\alpha,\sigma)}
+{D_i(\alpha,\sigma)}, \\
+D_i(\alpha,\sigma)
+&\;=\;
+\int \pi^*(u,V_i)\, f_p(u\mid V_i;\alpha,\sigma)\,\mathrm{d}u,
+\end{aligned}
+\label{eq:SISL_ps_identity}
+\end{equation}
+where $\pi^*(x,V_i)=P(R_i=1\mid X_i=x,V_i)$ is the inclusion probability as a function of the reference value and the released phase-one information. This is the sample-distribution identity of \citet{pfeffermann1999parametric}, written for the imputation factor. The outcome $Y_i$ is part of $V_i$ because it is observed at phase one and belongs to the conditioning information used by the imputation model.
+
+Equation~\eqref{eq:SISL_ps_identity} uses the released weight differently from a model that simply adds $W_i$ to the predictor set. Let $H_i$ denote the 27-level joint sampling stratum and let $\pi_h=P(R_i=1\mid H_i=h)$. Since the joint-stratum label is not released, the inclusion probability entering the sample-density identity is not the stratum-specific value $\pi_{H_i}$ itself, but the conditional inclusion function
+\[
+\pi^*(x,V_i)=P(R_i=1\mid X_i=x,V_i)
+=\sum_h \pi_h P(H_i=h\mid X_i=x,V_i).
+\]
+Thus $\pi^*(x,V_i)$ marginalises over the unreleased joint-stratum label after conditioning on the reference value and the released phase-one variables. The normalising term
+\[
+D_i(\alpha,\sigma)
+=
+\int \pi^*(u,V_i) f_p(u\mid V_i;\alpha,\sigma)\,\mathrm{d}u
+\]
+is the corresponding conditional expectation of $\pi^*(X_i,V_i)$ under the imputation model for $X_i\mid V_i$. The comparison is therefore between two ways of modelling the released weight. The covariate approach conditions directly on the released weight and targets $f_p(X_i\mid V_i,W_i)$. The SISL formulation used here leaves $W_i$ outside the imputation conditioning vector, uses it to estimate the conditional inclusion function $\pi^*(x,V_i)$, and fits $f_p(X_i\mid V_i)$ through the selected-row density in~\eqref{eq:SISL_ps_identity}.
+
+In the two-phase validation literature, related conditional likelihoods have mostly been applied to the analysis-model score. \citet{breslow1988logistic} derived the corresponding likelihood for two-stage case-control logistic regression, where the sampling offset corrects the analysis likelihood. \citet{scott2011fitting} extended the response-biased-sampling likelihood to broader regression families. In both cases the identity produces a direct estimator of the analysis parameter. SISL instead applies the same sample-distribution argument to the imputation model for $X_i\mid V_i$. The resulting completed datasets can then be analysed under the usual multiple-imputation workflow.
+ 
+ 
+\section{Method}
+\label{sec:SISLmethod}
+ 
+\subsection{Sample likelihood for the imputation model}
+\label{sec:SISL_method_samplelik}
+ 
+Let $P(X_i \mid V_i;\alpha,\sigma)$ denote a parametric imputation model for the reference measurement, with $V_i = (\tilde{X}_i, Z_i, A_i, Y_i)$ collecting the released phase-one variables together with the outcome, and with $\alpha$ and $\sigma$ a location and a scale parameter. For notational simplicity, this section writes the conditional inclusion function $\pi^*(x,V)$ from Section~\ref{sec:SISL_background_samplelik} as $\pi(x,V)$. A standard imputation fit on the phase-two rows treats those rows as sufficient for learning $f_p(X_i\mid V_i)$. This is appropriate when the validation indicator is conditionally independent of $X_i$ given $V_i$. The privacy-constrained design weakens that condition: the suppressed stratum affects both the realised inclusion probability and the distribution of the reference measurement, while the released variables need not fully recover the stratum. The phase-two data therefore identify a selected-row conditional distribution unless the released information is rich enough to remove the remaining design dependence.
+
+The sample-likelihood identity~\eqref{eq:SISL_ps_identity} requires the conditional inclusion function $\pi(x,V)$ to be available. The strata that generated $\pi_i$ are not released, so $\pi(\cdot)$ is not a known step function over observable boundaries. The released file does contain $W_i = 1/\pi_i$ for every row, and the phase-two rows contain the reference value $X_i$. The sample-distribution argument of \citet{pfeffermann1999parametric} gives
+\begin{equation}
+E_s(W_i\mid X_i=x,V_i)=\frac{1}{\pi(x,V_i)},
+\qquad
+\hat{\pi}(x, V) \;=\; \frac{1}{\hat{E}_s\!\left[\,W \mid X = x, V\,\right]}.
+\label{eq:SISL_pi_est}
+\end{equation}
+To see the identity, use
+\[
+P(H_i=h\mid X_i=x,V_i,R_i=1)
+=\frac{\pi_hP(H_i=h\mid X_i=x,V_i)}{\pi^*(x,V_i)}.
+\]
+It follows that
+\[
+E_s(W_i\mid X_i=x,V_i)
+=\sum_h\frac{1}{\pi_h}
+  \frac{\pi_hP(H_i=h\mid X_i=x,V_i)}{\pi^*(x,V_i)}
+=\frac{1}{\pi^*(x,V_i)}.
+\]
+The conditional inclusion function can therefore be estimated without reconstructing the hidden stratum. Its quality depends on the regression for $E_s(W\mid x,V)$ and on phase-two support for the required values of $(x,V)$. Section~\ref{sec:SISL_method_implementation} gives the working specification used in Design~I. In the following derivation, $\pi(\cdot)$ is treated as a smooth function of $(x,V)$.
+ 
+Replacing the population density in~\eqref{eq:SISL_existing_MI} by the conditional density on the selected rows via~\eqref{eq:SISL_ps_identity}, the sample log-likelihood on the phase-two rows is
+\begin{equation}
+\ell_s(\alpha,\sigma)
+\;=\;
+\sum_{i:\,R_i = 1}
+\left\{
+\log P(X_i \mid V_i;\alpha,\sigma)
+\;+\; \log \pi(X_i, V_i)
+\;-\; \log D_i(\alpha,\sigma)
+\right\},
+\label{eq:SISL_sample_loglik}
+\end{equation}
+where
+\begin{equation}
+D_i(\alpha,\sigma)
+\;=\;
+E\!\left[\,\pi(X_i, V_i) \mid V_i;\alpha,\sigma\,\right]
+\;=\;
+\int \pi(x, V_i)\, P(x \mid V_i;\alpha,\sigma)\,\mathrm{d}x
+\label{eq:SISL_denominator}
+\end{equation}
+is the conditional expectation of $\pi(X_i,V_i)$ under the imputation model. Conditional on a fitted or drawn weight-regression parameter $\lambda$, the function $\hat\pi(\cdot,V;\lambda)$ is held fixed while $(\alpha,\sigma)$ are estimated. The numerator value $\log\hat\pi(X_i,V_i;\lambda)$ is then constant with respect to $(\alpha,\sigma)$. The normaliser is not constant: $D_i(\alpha,\sigma;\lambda)$ changes with the distribution assigned to $X_i\mid V_i$. Each draw of $\lambda$ therefore defines a new inclusion surface and requires the sample likelihood to be refitted. When $\pi(\cdot)$ does not vary across the support of $X$, the normaliser equals that common value and the sample log-likelihood reduces to the population log-likelihood~\eqref{eq:SISL_existing_MI}.
+ 
+Under the Gaussian linear specification
+\begin{equation}
+X_i \mid V_i
+\;\sim\;
+\mathcal{N}\!\left(\mathbf{w}_i^{\top}\alpha,\;\sigma^2\right),
+\qquad
+\mathbf{w}_i = (1,\, \tilde{X}_i^{\top},\, Z_i^{\top},\, A_i^{\top},\, Y_i)^{\top},
+\label{eq:SISL_gaussian}
+\end{equation}
+the normaliser is the one-dimensional expectation
+\[
+D_i(\alpha,\sigma;\lambda)
+=E_Z\!\left\{\pi(\mathbf w_i^\top\alpha+\sigma Z,V_i;\lambda)\right\},
+\qquad Z\sim\mathcal N(0,1).
+\]
+The implementation evaluates this expectation numerically at 15 fixed points under the standard normal density. The calculation uses the fitted conditional inclusion surface rather than the original stratum boundaries.
+ 
+For proper multiple imputation in the sense of \citet{Rubin1987}, each imputed dataset requires fresh parameter draws. Let $\lambda$ index the weight regression used to construct $\pi(x,V;\lambda)$, and write $\psi=(\alpha,\log\sigma)$ for the parameters of the population imputation model. For imputation $j$, a draw $\lambda^{(j)}$ is taken from the fitted sampling distribution of the weight regression, the corresponding inclusion surface $\pi^{(j)}(x,V)$ is constructed, and the sample log-likelihood~\eqref{eq:SISL_sample_loglik} is refitted at that surface. A draw $\psi^{(j)}$ is then centred at the resulting sample-likelihood estimate. Section~\ref{sec:SISL_method_implementation} defines the three covariance rules used for these two stages.
+ 
+\begin{proposition}
+\label{prop:SISL_consistency}
+Let $(\alpha_0,\sigma_0)$ denote the population-level parameters of the imputation model~\eqref{eq:SISL_gaussian}, and let $(\hat{\alpha},\hat{\sigma})$ denote the maximiser of the sample log-likelihood~\eqref{eq:SISL_sample_loglik}. Suppose that
+\begin{enumerate}
+\item the imputation model~\eqref{eq:SISL_gaussian} is correctly specified; and
+\item the inclusion model $\pi(x, V)$ is correctly specified, in the sense that the weight regression~\eqref{eq:SISL_pi_est} is consistent for $E_s[W \mid x, V]$.
+\end{enumerate}
+Then, under standard regularity conditions \citep{newey1994large}, the estimator $(\hat{\alpha},\hat{\sigma})$ is consistent for $(\alpha_0,\sigma_0)$ as $n \to \infty$.
+\end{proposition}
+ 
+\begin{proof}[Proof sketch]
+Under conditions (i) and (ii), the sample log-likelihood~\eqref{eq:SISL_sample_loglik} is the correctly specified log-likelihood for the conditional density of $X_i$ on the selected rows given by~\eqref{eq:SISL_ps_identity}, with $\pi(\cdot)$ of~\eqref{eq:SISL_pi_est} in the role of the inclusion probability. The correction terms $\log \pi(X_i, V_i)$ and $\log D_i(\alpha,\sigma)$ are then, respectively, free of the imputation-model parameters and a known functional of $(\alpha,\sigma)$, so the expected sample log-likelihood $E[\ell_s(\alpha,\sigma)]$ is a function of $(\alpha,\sigma)$ alone. Under standard identifiability and regularity conditions, it is uniquely maximised at $(\alpha_0,\sigma_0)$, and the conclusion follows from the uniform convergence argument of \citet{newey1994large}, Theorem~2.1. The structure of the proof is the same as the parametric case in Section~3.1 of \citet{pfeffermann1999parametric}, with the analysis-model density replaced by the imputation-model density throughout. Condition (ii) is essential and is not automatic: because $\pi(\cdot)$ is estimated rather than known, a misspecified weight regression carries directly into a bias in $(\hat{\alpha},\hat{\sigma})$, a point returned to in Section~\ref{sec:SISL_method_implementation}.
+\end{proof}
+
+The privacy constraint prevents direct reconstruction of the original stratum rule, but it does not prevent identification of the conditional inclusion function. Equation~\eqref{eq:SISL_pi_est} identifies $\pi(x,V)$ through the selected-sample conditional mean of the released weight. Consistency still requires the fitted regression for that conditional mean to be adequate over the relevant support. The spline model used below is a working model for Design~I. Any remaining coefficient bias can reflect its approximation error, the Gaussian imputation model, or finite-sample estimation; the simulation does not separate these sources.
+ 
+ 
+\subsection{Imputation draws for unsampled units}
+\label{sec:SISL_method_imputation}
+ 
+The fit of Section~\ref{sec:SISL_method_samplelik} targets the population parameters $(\alpha,\sigma)$ using the selected rows. Imputation is required for units with $R_i=0$. Given $V_i$, their distribution differs from the population model whenever $1-\pi(x,V_i)$ varies with $x$. The imputation distribution must therefore condition on non-selection.
+ 
+By Bayes' rule, and using $P(R_i = 0 \mid X_i = x, V_i) = 1 - \pi(x, V_i)$,
+\begin{equation}
+f_0(x \mid V_i, R_i = 0;\alpha,\sigma)
+\;=\;
+\frac{\bigl(1 - \pi(x, V_i)\bigr)\, f_p(x \mid V_i;\alpha,\sigma)}
+{1 - D_i(\alpha,\sigma)},
+\label{eq:SISL_fR0}
+\end{equation}
+where $1 - D_i(\alpha,\sigma)$ is the marginal probability of non-selection under the imputation model, with $D_i$ as in~\eqref{eq:SISL_denominator}. The non-selection density is the population imputation density tilted by the factor $1 - \pi(x, V_i)$, which up-weights the regions of low inclusion probability that the phase-two sample under-represents.
+ 
+Because the estimated $\hat{\pi}(\cdot)$ is a smooth function of $(x, V)$ rather than a step function with known boundaries, the density~\eqref{eq:SISL_fR0} is not of a standard parametric form, and a rejection scheme with a simple envelope is no longer convenient. The density is univariate and bounded, so it is sampled by inversion on a fine grid. For each unsampled unit, the population density $f_p(x \mid V_i;\hat{\alpha}^{\star},\hat{\sigma}^{\star})$ and the factor $1 - \hat{\pi}(x, V_i)$ are evaluated on a common grid spanning the support used by the imputation model. Their product is normalised to approximate~\eqref{eq:SISL_fR0}, and a uniform draw is mapped through the resulting cumulative distribution by linear interpolation. Each imputed value $X_{i,\mathrm{mis}}^{(j)}$ uses a fresh parameter draw rather than a single fixed estimate, so the fitted-model uncertainty represented by the chosen covariance estimator enters the imputations.
+ 
+The complete procedure is summarised in Algorithm~\ref{alg:sisl}.
+ 
+\begin{algorithm}[t]
+\caption{Sample imputation via sample likelihood (SISL)}
+\label{alg:sisl}
+\begin{algorithmic}[1]
+    \Require reference $X_i$ for $\{i : R_i = 1\}$;
+             released weights $W_i = 1/\pi_i$ for $i = 1,\ldots,N$;
+             phase-one variables $V_i$;
+             $m$: number of imputations
+    \State Fit the weight regression on $\{i:R_i=1\}$ to obtain $\hat\lambda$, with
+           $\hat\pi(x,V;\lambda)=1/\hat E_s[W\mid x,V;\lambda]$
+    \State Fit the sample likelihood at $\hat\lambda$ and estimate the covariance pair
+           $(\hat V_\lambda,\hat V_\psi)$ by the selected model-based, sandwich,
+           or bootstrap rule
+    \For{$j = 1,\ldots,m$}
+        \State Draw $\lambda^{(j)}\sim\mathcal N(\hat\lambda,\hat V_\lambda)$ and
+               set $\pi^{(j)}(x,V)=\hat\pi(x,V;\lambda^{(j)})$
+        \State Maximise the sample log-likelihood on $\{i:R_i=1\}$,
+               \[
+               \ell_s(\alpha,\sigma;\pi^{(j)})
+               =\sum_{R_i=1}\left\{
+               \log f_p(X_i\mid V_i;\alpha,\sigma)
+               -\log D_i(\alpha,\sigma;\pi^{(j)})
+               \right\},
+               \]
+               where $D_i$ is evaluated as the numerical expectation in
+               \eqref{eq:SISL_denominator}, to obtain
+               $\hat\psi^{(j)}=(\hat\alpha^{(j)},\widehat{\log\sigma}^{(j)})$
+        \State Draw $\psi^{(j)}\sim\mathcal N(\hat\psi^{(j)},\hat V_\psi)$
+               \hfill\textit{(parameter-draw step)}
+        \For{each $i$ with $R_i = 0$}
+            \State Draw $X_{i,\mathrm{mis}}^{(j)}$ from the non-selection density~\eqref{eq:SISL_fR0}
+                   by grid inversion, using $\psi^{(j)}$ and $\pi^{(j)}(\cdot)$
+                   \hfill\textit{(imputation step)}
+        \EndFor
+    \EndFor
+    \State \Return $\{X_{i,\mathrm{mis}}^{(j)} : R_i = 0,\; j = 1,\ldots,m\}$
+\end{algorithmic}
+\end{algorithm}
+ 
+ 
+\subsection{Design I implementation and covariance estimators}
+\label{sec:SISL_method_implementation}
+ 
+The Design~I simulation uses a standalone R routine. It receives the reference measurement on the phase-two rows, the released phase-one variables and the released weight. The hidden stratifying variables and the joint-stratum label are not inputs. The conditional inclusion function is estimated from the selected rows through the working regression
+\begin{equation}
+\begin{aligned}
+L_i
+&= \log(W_i-1) \\
+&= \gamma_0
+ + \mathbf b_{X,6}(X_i)^\top\gamma_X
+ + \mathbf b_{Y,5}(Y_i)^\top\gamma_Y
+ + \{\mathbf b_{X,4}(X_i)\otimes\mathbf b_{Y,3}(Y_i)\}^\top\gamma_{XY}
+ + Q_i^\top\gamma_Q + e_i,
+\end{aligned}
+\label{eq:SISL_weight_model}
+\end{equation}
+where $\mathbf b_{X,d}$ is a $d$-term B-spline basis, $\mathbf b_{Y,d}$ is a $d$-term natural-spline basis, and $Q_i=(\tilde X_i,Z_{1i},Z_{2i},Z_{3i})^\top$. The coefficients are fitted by least squares on the phase-two rows. With fitted mean $\hat\eta(x,V)$ and residual variance $\hat\tau^2$, the working shifted log-normal calculation gives
+\begin{equation}
+\widehat E_s(W\mid x,V)
+=1+\exp\{\hat\eta(x,V)+\hat\tau^2/2\},
+\qquad
+\hat\pi(x,V)
+=\left[1+\exp\{\hat\eta(x,V)+\hat\tau^2/2\}\right]^{-1}.
+\label{eq:SISL_weight_surface}
+\end{equation}
+This specification was chosen for Design~I. The interaction allows the weight surface to change jointly with the reference measurement and the observed outcome. It is not a general specification for other sampling designs.
+
+The residual variance $\hat\tau^2$ is held at its full-phase-two estimate when the weight-regression coefficients are drawn. The variance comparison below does not add a separate draw for this shift term.
+
+The spline basis for $X$ is evaluated at the nearest boundary when the likelihood or imputation grid extends outside the range of the phase-two reference values. This avoids extrapolating the fitted weight regression beyond its observed support. For each likelihood evaluation, $D_i$ is calculated from the 15-point numerical expectation described after~\eqref{eq:SISL_gaussian}. The sample likelihood is maximised by the Broyden--Fletcher--Goldfarb--Shanno algorithm. Missing reference values are then drawn by the grid inversion in Section~\ref{sec:SISL_method_imputation}.
+
+The three SISL variants use different covariance estimators at both fitted stages. Let $P$ be the design matrix in~\eqref{eq:SISL_weight_model}, let $H$ be the observed Hessian of the negative sample log-likelihood, and let $J$ be the outer product of its rowwise scores. SISL-M uses the classical least-squares covariance $\hat\tau^2(P^\top P)^{-1}$ for the weight regression and $H^{-1}$ for the main imputation-model parameters. SISL-S uses an HC0 covariance for the weight regression and $H^{-1}JH^{-1}$ for the main parameters. SISL-B uses the empirical covariance of 100 bootstrap refits at each stage. The weight-model spline bases are rebuilt in each weight-model resample. The main-model bootstrap refits use the inclusion surface from the full phase-two fit. The two bootstrap covariances are estimated separately.
+
+All three variants use the same draw sequence. For each imputation, a weight-coefficient draw defines a new inclusion surface. The sample likelihood is refitted on all phase-two rows at that surface, and the main imputation-model parameters are drawn around the refitted values. The two covariance matrices are calculated once from the full phase-two fits and are reused across the $m=20$ imputations.
+
+The model-based covariance would be exact only if the fitted sample likelihood were the true selected-row density. It is not. The inclusion function is a step surface over the suppressed strata, and across those strata $X_i$ shifts in both mean and variance, so the fit of Section~\ref{sec:SISL_method_implementation} recovers it only as a smooth function of the released variables. The sample likelihood built on that smooth fit is a working approximation, and the model-based covariances taken at the two fitted stages understate the repeated-sampling spread of the estimates. The sandwich and the bootstrap do not assume the fit is exact. The sandwich estimates the spread from the per-observation scores, and the bootstrap resamples the phase-two rows and refits both stages \citep{huber1967behavior,white1982maximum}.
+
+\begin{table}[!htbp]\centering
+\caption{Variance calibration of the three SISL constructions on the exposure coefficient $\beta_X$ of the informative-sampling design, over $500$ replicates. The empirical standard error (Emp.\ SE) is the standard deviation of the coefficient estimates, and Mean SE is the mean reported standard error. Their ratio summarises calibration, and nominal coverage (Nom.\ Cov.) is assessed against $0.95$. The empirical-standard-error oracle coverage, Orc.\ Cov.\ (Emp), replaces the reported standard error with the empirical standard error. All variants draw the weight-regression parameters; SISL-M, SISL-S and SISL-B use model-based, sandwich and bootstrap covariance, respectively, at both fitted stages.}
+\label{tab:sisl_variance}
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Variance source & \multicolumn{1}{c}{Emp.\ SE} & \multicolumn{1}{c}{Mean SE} & \multicolumn{1}{c}{SE ratio} & \multicolumn{1}{c}{Nom.\ Cov.} & \multicolumn{1}{c}{Orc.\ Cov.\ (Emp)} \\
+\midrule
+SISL-M (model-based) & 0.040 & 0.029 & 0.72 & 0.83 & 0.94 \\
+SISL-S (sandwich) & 0.039 & 0.037 & 0.95 & 0.94 & 0.95 \\
+SISL-B (bootstrap) & 0.039 & 0.043 & 1.10 & 0.96 & 0.95 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+SISL-M reports a mean standard error of $0.029$ against an empirical standard error of $0.040$, giving an SE ratio of $0.72$. Its intervals cover in $0.83$ of the replicates. Replacing the reported standard error by the empirical standard error raises the oracle coverage to $0.94$, so the scale difference accounts for most of the observed undercoverage. SISL-S has an SE ratio of $0.95$ and coverage of $0.94$. SISL-B has an SE ratio of $1.10$ and coverage of $0.96$, indicating slight overestimation of the repeated-sample spread. These results support sandwich or bootstrap covariance for the two-stage SISL procedure in Design~I. The model-based covariance is too small because it treats the smooth inclusion fit as exact, when that fit only approximates the step selection over the suppressed strata across which $X_i$ varies in mean and variance.
+
+In the simulation study of Section~\ref{sec:SISL_sim}, SISL imputes the single reference measurement $X_i$; the remaining released variables are observed for every unit and enter the imputation and inclusion models as predictors.
+ 
+ 
+\section{Simulation study}
+\label{sec:SISL_sim}
+
+\subsection{Design}
+\label{sec:SISL_sim_setup}
+
+The method is assessed on the informative-sampling design under a privacy constraint introduced in Section~\ref{sec:infsamp_context}, whose data generation and sampling are set out in full in Appendix~\ref{app:infsamp}. Each simulated population contains $N = 10{,}000$ units. The phase-two validation sample of $n = 500$ is allocated across 27 joint strata formed by the nine hidden $(S_1,S_2)$ combinations and three observed-$Y$ tertiles. The released data carry the weight $W_i = 1/\pi_i$, the surrogate $\tilde{X}_i$, the covariates $Z_i$ and the outcome $Y_i$, but not the hidden stratifying variables or joint-stratum label. The reference measurement $X_i$ is observed on the phase-two rows and is the target of imputation. Its coefficient $\beta_X$ is estimated in the Gaussian analysis model $Y_i = \beta_X X_i + Z_i^{\top}\beta_Z + \varepsilon_i$.
+
+The comparison is organised around the role of the released weight. The first estimator ignores it and imputes $X$ from the released variables; this is the naive multiple imputation that Section~\ref{sec:SISL_background_gap} identifies as vulnerable when the selected rows do not represent $X_i\mid V_i$. The second enters the factor-coded weight as an additional covariate, testing whether it can serve as a modelling surrogate for the hidden stratifying variables. Weighted-likelihood multiple imputation (WLMI) instead uses $W_i=1/\pi_i$ as a case weight in the imputation-model likelihood and propagates parameter uncertainty by a Bayesian bootstrap. SISL uses the released weights to estimate the conditional inclusion function in Section~\ref{sec:SISLmethod}. These four approaches compare ignoring the weight, conditioning on it, using it directly in the likelihood, and using it to estimate the sample-likelihood correction.
+
+Alongside these four, the imputation methods that serve as comparators throughout the thesis, described in Section~\ref{sec:comparators}, are applied to the same design. This places methods that use the released weight in the likelihood or analysis beside methods that do not. Performance is summarised by the benchmark block of Section~\ref{sec:eval_metrics}.
+
+
+
+
+
+
+
+\subsection{Results}
+\label{sec:SISL_sim_results}
+
+Table~\ref{tab:sisl_rank} reports the benchmark block for the exposure coefficient $\beta_X$ over the $500$ replicates. The full per-method metrics, broken down by coefficient group, are collected in Table~\ref{tab:appc_sisl}, and the per-replicate percentage-bias distributions for the exposure and for the Phase-One covariates are shown in Figures~\ref{fig:sisl_pctbias} and~\ref{fig:sisl_phase1cov}, all in Appendix~\ref{app:suppC_sisl}.
+
+\begin{table}[!htbp]\centering
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214}\definecolor{rankthree}{RGB}{198,219,239}
+\caption{Method performance on the exposure coefficient $\beta_X$ of the informative-sampling design, over 500 replicates. Mean $|$Bias$|$ and relative RMSE of the coefficient estimate are in per cent; the empirical standard error (Emp.\ SE) and mean reported standard error (Mean SE) are on the coefficient scale, and their ratio summarises variance calibration. The three coverages are assessed against $0.95$. Mean $|$Bias$|$ and relative RMSE are ranked ascending, and the SE ratio and coverages by proximity to their targets. The three best distinct ranks in each shaded column, including the complete-case (CC) and naive-proxy (UNVAL) references, are shown by colour; displayed ties receive the same shade. SICG and SIRD are introduced in Chapters~\ref{chap:SICG} and~\ref{chap:SIRD}; SISL-S and SISL-B use sandwich and bootstrap covariance. TabCSDI is computed over 100 of the 500 replicates.}
+\label{tab:sisl_rank}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\adjustbox{max width=\linewidth}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Method & \multicolumn{1}{c}{Mean $|$Bias$|$ (\%)} & \multicolumn{1}{c}{Rel.\ RMSE (\%)} & \multicolumn{1}{c}{Emp.\ SE} & \multicolumn{1}{c}{Mean SE} & \multicolumn{1}{c}{SE ratio} & \multicolumn{1}{c}{Nom.\ Cov.} & \multicolumn{1}{c}{Orc.\ Cov.\ (Emp)} & \multicolumn{1}{c}{Orc.\ Cov.\ (BC)} \\
+\midrule
+CC & 14.7 & 18.0 & 0.050 & 0.047 & 0.94 & 0.65 & 0.69 & \cellcolor{rankthree}0.93 \\
+UNVAL & 77.4 & 77.5 & 0.005 & 0.005 & \cellcolor{rankone}1.00 & 0.00 & 0.00 & \cellcolor{ranktwo}0.94 \\
+NAIVE & 13.4 & 15.1 & 0.034 & 0.031 & 0.91 & 0.49 & 0.53 & 0.92 \\
+NAIVE+W & 14.2 & 15.8 & 0.033 & 0.030 & 0.91 & 0.45 & 0.47 & 0.92 \\
+WLMI & \cellcolor{ranktwo}0.9 & \cellcolor{rankone}7.6 & 0.036 & 0.038 & 1.06 & \cellcolor{rankone}0.95 & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.94 \\
+RAKING & \cellcolor{rankone}0.3 & \cellcolor{rankthree}8.5 & 0.041 & 0.040 & \cellcolor{ranktwo}0.98 & \cellcolor{rankone}0.95 & \cellcolor{rankone}0.95 & \cellcolor{rankone}0.95 \\
+MICE-PMM & 7.4 & 9.9 & 0.031 & 0.028 & 0.90 & \cellcolor{rankthree}0.76 & \cellcolor{rankthree}0.79 & 0.90 \\
+MICE-RF & 12.0 & 13.9 & 0.034 & 0.014 & 0.41 & 0.18 & 0.61 & 0.58 \\
+MIXGB & 130.5 & 131.4 & 0.076 & 0.041 & 0.54 & 0.00 & 0.00 & 0.71 \\
+GAIN & 10.2 & 67.3 & 0.320 & 0.011 & 0.03 & 0.03 & \cellcolor{rankone}0.95 & 0.05 \\
+TabCSDI & 18.9 & 24.4 & 0.075 & 0.015 & 0.20 & 0.12 & 0.72 & 0.24 \\
+\textbf{SICG} & 6.6 & 12.3 & 0.050 & 0.013 & 0.26 & 0.37 & \cellcolor{ranktwo}0.90 & 0.45 \\
+\textbf{SIRD} & 19.8 & 21.1 & 0.034 & 0.051 & 1.50 & 0.60 & 0.21 & 0.98 \\
+\textbf{SISL-S} & 3.0 & 8.7 & 0.039 & 0.037 & \cellcolor{rankthree}0.95 & \cellcolor{ranktwo}0.94 & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.94 \\
+\textbf{SISL-B} & \cellcolor{rankthree}2.2 & \cellcolor{ranktwo}8.4 & 0.039 & 0.043 & 1.10 & \cellcolor{ranktwo}0.96 & \cellcolor{rankone}0.95 & \cellcolor{ranktwo}0.96 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+The methods that ignore the released weight retain substantial bias. NAIVE has $13.4\%$ bias and $15.1\%$ relative RMSE. This is consistent with fitting the conditional distribution among the selected rows when selection remains informative given the released predictors. Entering the factor-coded weight as a main effect does not change the result: NAIVE+W has $14.2\%$ bias and $15.8\%$ relative RMSE. This comparison assesses the tested factor-covariate specification. It does not rule out a richer outcome model containing interactions between the weight and the other predictors.
+
+WLMI and raking use the realised inverse inclusion probabilities directly. WLMI has $0.9\%$ bias and $7.6\%$ relative RMSE, while raking has $0.3\%$ bias and $8.5\%$ relative RMSE. SISL-S and SISL-B also remove most of the bias left by NAIVE. Their biases are $3.0\%$ and $2.2\%$, and their relative RMSEs are $8.7\%$ and $8.4\%$. These four procedures have nominal coverage between $0.94$ and $0.96$. In this design, the fitted conditional inclusion surface reduces bias and gives near-nominal coverage, but it does not improve on methods that use the realised weights directly.
+
+The comparison of SISL-S and SISL-B is mainly a variance comparison. Their empirical standard errors are both $0.039$. The sandwich version reports a mean standard error of $0.037$, and the bootstrap version reports $0.043$. Their corresponding coverages of $0.94$ and $0.96$ agree with the calibration results in Table~\ref{tab:sisl_variance}. The small difference between their coefficient biases is not evidence that one covariance rule improves centring; the simulation was not designed to separate that difference from Monte Carlo and imputation variation.
+
+The general-purpose methods show different failures. MICE-PMM reduces the bias to $7.4\%$, but its SE ratio of $0.90$ and coverage of $0.76$ remain below the SISL, WLMI and raking results. MICE-RF and TabCSDI report much smaller standard errors than the repeated-sample spread, with SE ratios of $0.41$ and $0.20$. GAIN has a mean absolute bias of $10.2\%$, but its relative RMSE is $67.3\%$ and its empirical standard error is $0.320$. Its mean reported standard error is only $0.011$. MIXGB has $130.5\%$ bias in this setting. These results show that a moderate average bias alone does not establish stable coefficient estimation or calibrated intervals.
+
+SICG and SIRD are included in the table for comparison with later chapters. Their construction and uncertainty procedures have not yet been introduced, so their Design~I results are not interpreted here. More generally, the oracle columns are hypothetical replacements of the reported standard error or the average bias. They help describe an interval failure but do not identify its cause.
+
+\section{Discussion}
+\label{sec:SISL_disc}
+
+Design~I separates two forms of available sampling information. The analyst observes each realised weight and the outcome component of the sampling stratum, while the other stratifying variables are withheld. Equation~\eqref{eq:SISL_pi_est} shows that this suppression does not prevent identification of the conditional inclusion function. It changes the estimation task: the function must be learned from the selected rows rather than reconstructed from the original stratum rule. The quality of the fitted function then depends on the working regression and the phase-two support.
+
+Regression adjustment can use sampling information efficiently when the model represents the relevant dependence \citep{gelman2007struggles}. The NAIVE+W result shows that a factor-coded weight entered as one main effect was not sufficient in Design~I. WLMI takes another route by using the inverse inclusion probabilities in the imputation likelihood. This follows the broader principle that inverse-probability weighting and imputation must be combined in a way that preserves the target estimating equation \citep{robins1997toward,seaman2012combining}. SISL instead estimates $P(R=1\mid X,V)$ and uses it in the selected-row likelihood.
+
+The main SISL result is negative within this comparison. \citet{pfeffermann1999parametric} established an efficiency advantage for a correctly specified sample likelihood used directly to estimate analysis-model parameters. SISL applies that identity to a Gaussian imputation model, estimates the inclusion surface, and then fits the analysis model to multiply imputed data. Under the Design~I working specifications, SISL-S and SISL-B reduce the naive bias and attain near-nominal coverage. WLMI and raking have lower coefficient bias. This result does not contradict the direct sample-likelihood result because the estimators and fitted components differ.
+
+The covariance comparison also concerns the complete two-stage procedure. All three variants draw the weight-model coefficients and refit the main sample likelihood. SISL-M uses model-based covariance at both stages and underestimates the empirical spread. Sandwich and bootstrap covariance give SE ratios closer to one and restore near-nominal coverage. This agrees with the use of sandwich covariance when likelihood curvature alone does not represent score variation under a working model \citep{huber1967behavior,white1982maximum}. The working model is the smooth inclusion surface fitted in place of the suppressed step selection. Because $X_i$ differs in mean and variance across those strata, that surface only approximates the selection, and the model-based covariance is too small at both stages.
+
+The choice between WLMI, raking and SISL also depends on the intended output. WLMI and SISL produce completed datasets that can be passed to the specified analysis workflow. Survey-weighted imputation methods likewise coordinate the imputation and sampling models to support population inference \citep{quartagno2020multiple}. Raking uses imputation to construct calibration variables and retains a design-based analysis for a specified estimating equation \citep{han2021combining}. In Design~I, WLMI and raking have the lowest coefficient bias. SISL shows how an estimated conditional inclusion function can enter the imputation likelihood, but the present simulation gives no advantage over direct use of the realised weights.

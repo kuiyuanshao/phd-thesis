@@ -1,0 +1,37 @@
+\begin{table}[!htbp]\centering
+\definecolor{rankone}{RGB}{33,113,181}\definecolor{ranktwo}{RGB}{107,174,214}\definecolor{rankthree}{RGB}{198,219,239}
+\caption{PASTE THE DEPLOYED CAPTION HERE.}
+\label{tab:sicg_rank_surv}
+\scriptsize
+\setlength{\tabcolsep}{3.5pt}
+\adjustbox{max width=\linewidth}{%
+\begin{tabular}{lrrrrrrrrr}
+\toprule
+ & \multicolumn{1}{c}{CC} & \multicolumn{1}{c}{UNVAL} & \multicolumn{1}{c}{MICE-PMM} & \multicolumn{1}{c}{MICE-RF} & \multicolumn{1}{c}{MIXGB} & \multicolumn{1}{c}{TabCSDI} & \multicolumn{1}{c}{GAIN} & \multicolumn{1}{c}{RAKING} & \multicolumn{1}{c}{\textbf{SICG}} \\
+\midrule
+\multicolumn{10}{l}{\textit{Continuous Phase-Two Covariates}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}1.2 & 6.0 & 3.8 & 4.5 & 2.0 & -- & 2.9 & \cellcolor{rankone}0.1 & \cellcolor{rankthree}1.5 \\
+\quad Rel.\ RMSE (\%) & 4.4 & 6.3 & 5.1 & 4.6 & \cellcolor{ranktwo}3.1 & -- & 14.0 & \cellcolor{rankthree}3.5 & \cellcolor{rankone}2.9 \\
+\quad SE ratio & \cellcolor{rankone}1.00 & \cellcolor{rankthree}0.91 & 1.16 & 1.78 & 0.78 & -- & 0.10 & \cellcolor{ranktwo}0.93 & 0.59 \\
+\quad Nom.\ Cov. & \cellcolor{ranktwo}0.79 & 0.14 & 0.61 & 0.13 & 0.44 & -- & 0.15 & \cellcolor{rankone}0.92 & \cellcolor{rankthree}0.62 \\
+\quad Orc.\ Cov.\ (Emp) & 0.79 & 0.15 & 0.52 & 0.05 & 0.54 & -- & \cellcolor{ranktwo}0.89 & \cellcolor{rankone}0.95 & \cellcolor{rankthree}0.80 \\
+\quad Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.95 & 0.91 & \cellcolor{ranktwo}0.93 & 0.99 & 0.87 & -- & 0.17 & \cellcolor{rankthree}0.92 & 0.78 \\
+\midrule
+\multicolumn{10}{l}{\textit{Binary \& Categorical Phase-Two Covariates}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & 3.0 & 6.2 & 13.4 & \cellcolor{ranktwo}2.5 & \cellcolor{rankone}2.0 & -- & 6.5 & \cellcolor{rankthree}2.6 & 3.5 \\
+\quad Rel.\ RMSE (\%) & 23.3 & \cellcolor{rankthree}9.0 & 22.9 & \cellcolor{rankone}6.8 & \cellcolor{ranktwo}8.8 & -- & 39.2 & 24.9 & 13.5 \\
+\quad SE ratio & \cellcolor{ranktwo}1.01 & \cellcolor{rankone}1.00 & 0.90 & 1.96 & 0.93 & -- & 0.23 & \cellcolor{rankthree}0.93 & 0.72 \\
+\quad Nom.\ Cov. & \cellcolor{rankone}0.95 & 0.56 & 0.67 & 1.00 & \cellcolor{rankthree}0.92 & -- & 0.35 & \cellcolor{ranktwo}0.93 & 0.83 \\
+\quad Orc.\ Cov.\ (Emp) & \cellcolor{rankthree}0.94 & 0.59 & 0.74 & 0.84 & 0.93 & -- & \cellcolor{ranktwo}0.95 & \cellcolor{rankone}0.95 & 0.93 \\
+\quad Orc.\ Cov.\ (BC) & \cellcolor{ranktwo}0.96 & \cellcolor{rankone}0.95 & 0.90 & 1.00 & 0.93 & -- & 0.37 & \cellcolor{rankthree}0.93 & 0.84 \\
+\midrule
+\multicolumn{10}{l}{\textit{Interaction}} \\[2pt]
+\quad Mean $|$Bias$|$ (\%) & \cellcolor{ranktwo}0.4 & 4.3 & 5.1 & 7.0 & \cellcolor{rankthree}3.4 & -- & 5.6 & \cellcolor{rankone}0.1 & 6.5 \\
+\quad Rel.\ RMSE (\%) & \cellcolor{ranktwo}1.1 & 4.4 & 5.1 & 7.0 & \cellcolor{rankthree}3.4 & -- & 6.3 & \cellcolor{rankone}1.0 & 6.5 \\
+\quad SE ratio & \cellcolor{rankone}1.00 & 0.57 & \cellcolor{ranktwo}1.00 & 2.50 & 0.67 & -- & 0.19 & \cellcolor{rankthree}0.80 & 1.67 \\
+\quad Nom.\ Cov. & \cellcolor{ranktwo}0.86 & 0.00 & 0.00 & 0.00 & 0.01 & -- & \cellcolor{rankthree}0.08 & \cellcolor{rankone}0.90 & 0.00 \\
+\quad Orc.\ Cov.\ (Emp) & \cellcolor{ranktwo}0.88 & 0.00 & 0.00 & 0.00 & 0.01 & -- & \cellcolor{rankthree}0.27 & \cellcolor{rankone}0.95 & 0.00 \\
+\quad Orc.\ Cov.\ (BC) & \cellcolor{rankone}0.94 & 0.82 & \cellcolor{ranktwo}0.94 & 1.00 & 0.82 & -- & 0.27 & 0.91 & \cellcolor{rankthree}0.99 \\
+\bottomrule
+\end{tabular}}
+\end{table}

@@ -1,0 +1,37 @@
+## TabCSDI config tuned on the InfSamp design, 2026-07-14.
+## Source: comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv (22 completed trials; the
+## Pareto front on (accuracy loss = avg_mse + avg_ce, distributional loss = avg_ed) collapses
+## to a single dominating trial -- trial 15 minimises BOTH objectives, loss 1.168 / ed 0.0106)
+## and tabcsdi_epoch_tuning_results.csv (epoch grid 300-5000; loss minimum at 4388 epochs).
+## Importance: lr 0.62 >> batch_size 0.20 ~= featureemb 0.18.
+## Previous placeholder kept as best_config_tabcsdi.yaml.pre-tune-20260714.
+## Rounding per project convention: lr to the nearest 0/5 final digit (raw 0.000336 -> 0.00035);
+## batch_size exempt, kept a multiple of 8 (32); featureemb a structural embedding int, exempt (10);
+## epochs set to 3000 for consistency with the nutri/surv/vccc TabCSDI configs: although the
+## grid minimum is at 4388 (loss 1.08), the loss is already ~1.12 by ~2600-3000, so the extra
+## ~1500 epochs to the minimum buy only ~4% loss reduction -- the same "barely-low improvement"
+## rationale used to set 3000 across the other settings (whose minima were also ~4500).
+train:
+  epochs: 3000
+  batch_size: 32
+  eval_batch_size: 512
+  lr: 0.00035
+diffusion:
+  layers: 2
+  channels: 128
+  nheads: 2
+  diffusion_embedding_dim: 128
+  beta_start: 0.0001
+  beta_end: 0.5
+  num_steps: 60
+  schedule: "quad"
+  mixed: True
+  token_emb_dim: 1
+model:
+  task: onehot
+  is_unconditional: 0
+  timeemb: 128
+  featureemb: 10
+  target_strategy: "random"
+sample:
+  m: 20
