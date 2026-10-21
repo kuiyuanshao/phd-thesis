@@ -46,11 +46,11 @@ Run each design from its own `code_*` directory. Generated figures stay under
 
 ## Data
 
-The raw cohorts and the per-replicate simulation outputs are not in this repository. They are large,
-over one terabyte in total, and the clinical data are not ours to release. Only the curated result
-files that reproduce the thesis tables and figures are included, mostly under
-`*/simulations/results/`, together with the generation seeds and parameters under `*/data/params/`.
-Running the pipeline regenerates the rest.
+Raw cohorts, completed/imputed datasets and model checkpoints are not included.
+The repository contains generation parameters, sampling seeds, selected method
+configurations, tuning exports, per-replicate regression estimates and confidence
+intervals, runtime records, summary tables and figures. VCCC patient-level records
+remain excluded.
 
 ## Requirements
 

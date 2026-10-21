@@ -1,0 +1,4 @@
+parameter,importance
+cfg_scale_num,0.9398592836971998
+cond_drop_prob,0.03417012137919133
+cfg_scale_cat,0.02597059492360887

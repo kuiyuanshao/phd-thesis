@@ -1,0 +1,1890 @@
+{
+  "source": "Original thesis archive on external drive (read only)",
+  "source_files_verified_unchanged": 303,
+  "raw_vccc_records_copied": false,
+  "paper_method_filtering": "All thesis methods retained",
+  "restored_files": [
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "source_sha256": "e1e29ed1cbb248df2dd2c20beedc0482df4df4dce413c8a6b9367d6908d1e027",
+      "bytes": 901,
+      "filter_method": "",
+      "destination_sha256": "e1e29ed1cbb248df2dd2c20beedc0482df4df4dce413c8a6b9367d6908d1e027"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "source_sha256": "8c9da019fb2c5431f117202b90db0473b106fb0356435c8b9190c94a722cc1dd",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "8c9da019fb2c5431f117202b90db0473b106fb0356435c8b9190c94a722cc1dd"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_tuning_results.csv",
+      "source_sha256": "6a091fe24ac37235bb11aa1e985e58fde208643485d740a68ec7e4ad55def408",
+      "bytes": 3629,
+      "filter_method": "",
+      "destination_sha256": "6a091fe24ac37235bb11aa1e985e58fde208643485d740a68ec7e4ad55def408"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "source_sha256": "e4470ca408b8432d5f7e843bca5c35bb40f48676c11dec9d353af16a2aa43441",
+      "bytes": 162,
+      "filter_method": "",
+      "destination_sha256": "e4470ca408b8432d5f7e843bca5c35bb40f48676c11dec9d353af16a2aa43441"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/gain/gain_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/gain/gain_tuning_time.csv",
+      "source_sha256": "2e36d736e733e03aa4290b2400599a06407bdeaa1050c62ad981183394c5befa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "2e36d736e733e03aa4290b2400599a06407bdeaa1050c62ad981183394c5befa"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/mice/mice_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/mice/mice_tuning_results.csv",
+      "source_sha256": "7cc3323effe4c7aeff63cb7458fbccfdfad454d0327ad6e6c8633ae809076a61",
+      "bytes": 5348,
+      "filter_method": "",
+      "destination_sha256": "7cc3323effe4c7aeff63cb7458fbccfdfad454d0327ad6e6c8633ae809076a61"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/mice/rf_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/mice/rf_tuning_results.csv",
+      "source_sha256": "a4389e7edda5e033f240555110386187860c51dfc05abf23cb1e919170f8feb5",
+      "bytes": 4531,
+      "filter_method": "",
+      "destination_sha256": "a4389e7edda5e033f240555110386187860c51dfc05abf23cb1e919170f8feb5"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "source_sha256": "5a98d1bc555dc3f61caed203626d324532d9c5046775555ff0711c2be1596bc6",
+      "bytes": 11051,
+      "filter_method": "",
+      "destination_sha256": "5a98d1bc555dc3f61caed203626d324532d9c5046775555ff0711c2be1596bc6"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "source_sha256": "ace25132752b3c3ab81de50c4af92d4ea59709051d2cd1bdf6a37ad718b697f9",
+      "bytes": 893,
+      "filter_method": "",
+      "destination_sha256": "ace25132752b3c3ab81de50c4af92d4ea59709051d2cd1bdf6a37ad718b697f9"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "source_sha256": "e8427f68ca8e3208ff96a65a1f6bc13d070ee0408806063d11ab6e1ccfeb973a",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "e8427f68ca8e3208ff96a65a1f6bc13d070ee0408806063d11ab6e1ccfeb973a"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "source_sha256": "efc16be899806aeadf451bc64b1f447e63c6bdc37f248e6bc7f04e3081b7f595",
+      "bytes": 2583,
+      "filter_method": "",
+      "destination_sha256": "efc16be899806aeadf451bc64b1f447e63c6bdc37f248e6bc7f04e3081b7f595"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "source_sha256": "d408b9c48fdf1373d82f64c4961953236f89caa93821dbdd77ba8fda3fe50289",
+      "bytes": 109,
+      "filter_method": "",
+      "destination_sha256": "d408b9c48fdf1373d82f64c4961953236f89caa93821dbdd77ba8fda3fe50289"
+    },
+    {
+      "source": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "source_sha256": "843cfc62774b61154c287acf627fc9daede7b209bab709155be79d2962292594",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "843cfc62774b61154c287acf627fc9daede7b209bab709155be79d2962292594"
+    },
+    {
+      "source": "code_infsamp/data/Config/best_config_mice.rds",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/data/Config/best_config_mice.rds",
+      "source_sha256": "0c59d09954e421b08e5b8f25e7640a9c52a5d65f9eb128fa31119bc8b56b29db",
+      "bytes": 111,
+      "filter_method": "",
+      "destination_sha256": "0c59d09954e421b08e5b8f25e7640a9c52a5d65f9eb128fa31119bc8b56b29db"
+    },
+    {
+      "source": "code_infsamp/data/Config/best_config_mixgb.rds",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/data/Config/best_config_mixgb.rds",
+      "source_sha256": "aa11be35299bd907a14d1bfb6989388300dd345a76850c170af1c2d8d7c8aa6e",
+      "bytes": 222,
+      "filter_method": "",
+      "destination_sha256": "aa11be35299bd907a14d1bfb6989388300dd345a76850c170af1c2d8d7c8aa6e"
+    },
+    {
+      "source": "code_infsamp/data/Config/best_config_rf.rds",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/data/Config/best_config_rf.rds",
+      "source_sha256": "5f4076243fa9e013e3ab601d9beeadde02fee9605609abdf356f3e712f1c7266",
+      "bytes": 133,
+      "filter_method": "",
+      "destination_sha256": "5f4076243fa9e013e3ab601d9beeadde02fee9605609abdf356f3e712f1c7266"
+    },
+    {
+      "source": "code_infsamp/data/params/simulation_seed.RData",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/data/params/simulation_seed.RData",
+      "source_sha256": "f87e33efd2637d9b895e78687ea52b095af997dbf5133b5f17d87bd53f114024",
+      "bytes": 1705,
+      "filter_method": "",
+      "destination_sha256": "f87e33efd2637d9b895e78687ea52b095af997dbf5133b5f17d87bd53f114024"
+    },
+    {
+      "source": "code_infsamp/data/params/truth.RData",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/data/params/truth.RData",
+      "source_sha256": "7a48e62b764d53d5e4ebe8936f29727763a4f4929480d9b00f40c9a7a5b59caf",
+      "bytes": 120,
+      "filter_method": "",
+      "destination_sha256": "7a48e62b764d53d5e4ebe8936f29727763a4f4929480d9b00f40c9a7a5b59caf"
+    },
+    {
+      "source": "code_infsamp/simulations/results/results_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "code_infsamp/simulations/results/results_COMBINED.RData",
+      "source_sha256": "14e6a0a524a3a2969d8613ab5f6034e52eb089e606ca11bf094cce1090ad01a7",
+      "bytes": 936409,
+      "filter_method": "",
+      "destination_sha256": "14e6a0a524a3a2969d8613ab5f6034e52eb089e606ca11bf094cce1090ad01a7"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "source_sha256": "5fcd98dd14bf1e1d08b92c62a7d3d98b669dd260eda9323c907dcbb764efa26e",
+      "bytes": 978,
+      "filter_method": "",
+      "destination_sha256": "5fcd98dd14bf1e1d08b92c62a7d3d98b669dd260eda9323c907dcbb764efa26e"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "source_sha256": "ee824d06c5efebfdeceece9e4e408269c6b6b95e16ed81c9dad641d2af65d2d4",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "ee824d06c5efebfdeceece9e4e408269c6b6b95e16ed81c9dad641d2af65d2d4"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_tuning_results.csv",
+      "source_sha256": "8b850e3007cd0114603c1cfa3e114060289e72196d9a0bd58f20964e1060c4fc",
+      "bytes": 3449,
+      "filter_method": "",
+      "destination_sha256": "8b850e3007cd0114603c1cfa3e114060289e72196d9a0bd58f20964e1060c4fc"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "source_sha256": "6b1d73017284d935d6134917304c3f94984cd63ebe3a1de98be0f951c2486c3d",
+      "bytes": 159,
+      "filter_method": "",
+      "destination_sha256": "6b1d73017284d935d6134917304c3f94984cd63ebe3a1de98be0f951c2486c3d"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/gain/gain_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/gain/gain_tuning_time.csv",
+      "source_sha256": "52c3c4b195eba4a2a81e313d6e15780c848261af8cf63760da023bb55a9a43c9",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "52c3c4b195eba4a2a81e313d6e15780c848261af8cf63760da023bb55a9a43c9"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/mice/mice_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/mice/mice_tuning_results.csv",
+      "source_sha256": "36393263c10a96ecece33b81f2c40525b91f1966a95c062542d5882ab411e691",
+      "bytes": 5428,
+      "filter_method": "",
+      "destination_sha256": "36393263c10a96ecece33b81f2c40525b91f1966a95c062542d5882ab411e691"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/mice/rf_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/mice/rf_tuning_results.csv",
+      "source_sha256": "785b2e0221f955b483bb70de3a8d965feb07155f156ad6dbdb632910c62a2eed",
+      "bytes": 4709,
+      "filter_method": "",
+      "destination_sha256": "785b2e0221f955b483bb70de3a8d965feb07155f156ad6dbdb632910c62a2eed"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "source_sha256": "b5d01579f16485a7fa501d6dd06cf909d90d9669439804577aff144ab9cdca29",
+      "bytes": 10794,
+      "filter_method": "",
+      "destination_sha256": "b5d01579f16485a7fa501d6dd06cf909d90d9669439804577aff144ab9cdca29"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "source_sha256": "e61c7ede514c06d44bd6272dfc7023621c8a44baa195a69577371e323cf61db5",
+      "bytes": 982,
+      "filter_method": "",
+      "destination_sha256": "e61c7ede514c06d44bd6272dfc7023621c8a44baa195a69577371e323cf61db5"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "source_sha256": "86d1db0e3001fdaef2838a3392578f356e0c628a41474e6714d75251b8ecc025",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "86d1db0e3001fdaef2838a3392578f356e0c628a41474e6714d75251b8ecc025"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "source_sha256": "ca40034dab493633b171a6f594c41d2a28df38d08dc4b6216990be311a9a65e1",
+      "bytes": 2968,
+      "filter_method": "",
+      "destination_sha256": "ca40034dab493633b171a6f594c41d2a28df38d08dc4b6216990be311a9a65e1"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "source_sha256": "f7930e7a8f77cfc6ec5c7a2926c860334b91d2258051087e99a59d7e2e89ed71",
+      "bytes": 109,
+      "filter_method": "",
+      "destination_sha256": "f7930e7a8f77cfc6ec5c7a2926c860334b91d2258051087e99a59d7e2e89ed71"
+    },
+    {
+      "source": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "source_sha256": "c3eb27104cb8fb19bd26364afbb9f27756e89896906c59e800df06694bd7b809",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "c3eb27104cb8fb19bd26364afbb9f27756e89896906c59e800df06694bd7b809"
+    },
+    {
+      "source": "code_nutri/data/Config/best_config_mice.rds",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/Config/best_config_mice.rds",
+      "source_sha256": "3d22fc85337bbd73f9b81015c8ee04a616056489444b624e4bbc92ccf755a358",
+      "bytes": 124,
+      "filter_method": "",
+      "destination_sha256": "3d22fc85337bbd73f9b81015c8ee04a616056489444b624e4bbc92ccf755a358"
+    },
+    {
+      "source": "code_nutri/data/Config/best_config_mixgb.rds",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/Config/best_config_mixgb.rds",
+      "source_sha256": "b2ef075cb7e305ca05784c7f02fb30cef5ab980be61b5bb205c803dea9f66f81",
+      "bytes": 249,
+      "filter_method": "",
+      "destination_sha256": "b2ef075cb7e305ca05784c7f02fb30cef5ab980be61b5bb205c803dea9f66f81"
+    },
+    {
+      "source": "code_nutri/data/Config/best_config_rf.rds",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/Config/best_config_rf.rds",
+      "source_sha256": "305a2d22d1df484103cd5dcffe1ceff51d6ae2ffebf65ade43688abbf1ec10c3",
+      "bytes": 151,
+      "filter_method": "",
+      "destination_sha256": "305a2d22d1df484103cd5dcffe1ceff51d6ae2ffebf65ade43688abbf1ec10c3"
+    },
+    {
+      "source": "code_nutri/data/params/calibrCoeff.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/params/calibrCoeff.RData",
+      "source_sha256": "7445db4109e58fd429f3917e4bfe51afc87e986be59fef9f071a0d7321d8cef4",
+      "bytes": 884,
+      "filter_method": "",
+      "destination_sha256": "7445db4109e58fd429f3917e4bfe51afc87e986be59fef9f071a0d7321d8cef4"
+    },
+    {
+      "source": "code_nutri/data/params/logiReg.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/params/logiReg.RData",
+      "source_sha256": "9d35636e3a927da63730a586c98dc5d3d2a55898e7bd0efa67bc13a1f2586702",
+      "bytes": 1152,
+      "filter_method": "",
+      "destination_sha256": "9d35636e3a927da63730a586c98dc5d3d2a55898e7bd0efa67bc13a1f2586702"
+    },
+    {
+      "source": "code_nutri/data/params/multiNorm.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/params/multiNorm.RData",
+      "source_sha256": "bddd363f29b0355435691c58bf18c5cff870365c87411e1e3fb3dd5047c1c09d",
+      "bytes": 1820,
+      "filter_method": "",
+      "destination_sha256": "bddd363f29b0355435691c58bf18c5cff870365c87411e1e3fb3dd5047c1c09d"
+    },
+    {
+      "source": "code_nutri/data/params/outPar.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/data/params/outPar.RData",
+      "source_sha256": "0ba3082359832cc7321679cab9213be0f70e23c8bd400d8d6c04307a48756fc6",
+      "bytes": 560,
+      "filter_method": "",
+      "destination_sha256": "0ba3082359832cc7321679cab9213be0f70e23c8bd400d8d6c04307a48756fc6"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_COMBINED.RData",
+      "source_sha256": "99d1e0428d9494c13199edd05520272850c70fa1386ac48ef0de6c38007dc648",
+      "bytes": 27498899,
+      "filter_method": "",
+      "destination_sha256": "99d1e0428d9494c13199edd05520272850c70fa1386ac48ef0de6c38007dc648"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_CC.RData",
+      "source_sha256": "560a404fd1701c5676018901c40f9bc0ea111ca16092e1ec61c4effdca5f9b37",
+      "bytes": 1232455,
+      "filter_method": "",
+      "destination_sha256": "560a404fd1701c5676018901c40f9bc0ea111ca16092e1ec61c4effdca5f9b37"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_GAIN.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_GAIN.RData",
+      "source_sha256": "154e0d9c6561b5ab6c1e17cde56635886d1220da999f7ee5c36362d9d9bad654",
+      "bytes": 1608263,
+      "filter_method": "",
+      "destination_sha256": "154e0d9c6561b5ab6c1e17cde56635886d1220da999f7ee5c36362d9d9bad654"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_IPW.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_IPW.RData",
+      "source_sha256": "2c9969689e32ad48d8a7a983c2b492eeed0924a2132af7ab1087c2950d507964",
+      "bytes": 1233282,
+      "filter_method": "",
+      "destination_sha256": "2c9969689e32ad48d8a7a983c2b492eeed0924a2132af7ab1087c2950d507964"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_MICE-PMM.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_MICE-PMM.RData",
+      "source_sha256": "6d0502cae433a3a7e3aed0548c0d871ed137313685f3e6b85b195121dc7b98fe",
+      "bytes": 1566263,
+      "filter_method": "",
+      "destination_sha256": "6d0502cae433a3a7e3aed0548c0d871ed137313685f3e6b85b195121dc7b98fe"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_MICE-RF.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_MICE-RF.RData",
+      "source_sha256": "d547fae9013b4012f6c1d29e704462d55d0e5618e01ef8a2595c142a14a968fd",
+      "bytes": 1550257,
+      "filter_method": "",
+      "destination_sha256": "d547fae9013b4012f6c1d29e704462d55d0e5618e01ef8a2595c142a14a968fd"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_MIXGB.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_MIXGB.RData",
+      "source_sha256": "865a9b16b4028a2dc16311f79ffb1125321fe0e564c9304a67a5797458aa6217",
+      "bytes": 1570818,
+      "filter_method": "",
+      "destination_sha256": "865a9b16b4028a2dc16311f79ffb1125321fe0e564c9304a67a5797458aa6217"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_ORACLE.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_ORACLE.RData",
+      "source_sha256": "41f99eba966214224510f325cf65d2f65d8f657e46a29324b12f5e65aa48674b",
+      "bytes": 358799,
+      "filter_method": "",
+      "destination_sha256": "41f99eba966214224510f325cf65d2f65d8f657e46a29324b12f5e65aa48674b"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_RAKING.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_RAKING.RData",
+      "source_sha256": "7b49e2d44ec41cb5d8fdba4f85fff9e6a7c67824002c3d0b8ff64f0990404e14",
+      "bytes": 1580325,
+      "filter_method": "",
+      "destination_sha256": "7b49e2d44ec41cb5d8fdba4f85fff9e6a7c67824002c3d0b8ff64f0990404e14"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_SICG.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_SICG.RData",
+      "source_sha256": "70ba7621832b856dd31838f8a762be355d250db9b2734a2b358eeef29c160e82",
+      "bytes": 1563637,
+      "filter_method": "",
+      "destination_sha256": "70ba7621832b856dd31838f8a762be355d250db9b2734a2b358eeef29c160e82"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_SIRD.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_SIRD.RData",
+      "source_sha256": "cf6561b2bd2f80738fcb5bc51de0a444cb498afce5db897296f3621495684a70",
+      "bytes": 1218526,
+      "filter_method": "",
+      "destination_sha256": "cf6561b2bd2f80738fcb5bc51de0a444cb498afce5db897296f3621495684a70"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_TABCSDI.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_TABCSDI.RData",
+      "source_sha256": "d6147464783459b910d1202e9231faacac0ea06a0a802eaf06908c975b39b1a5",
+      "bytes": 319746,
+      "filter_method": "",
+      "destination_sha256": "d6147464783459b910d1202e9231faacac0ea06a0a802eaf06908c975b39b1a5"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_UNVAL.RData",
+      "source_sha256": "dd85ca87bae4c7790e323ef3422e64ac626e1bd1155a743e13174e51ececb9c1",
+      "bytes": 182462,
+      "filter_method": "",
+      "destination_sha256": "dd85ca87bae4c7790e323ef3422e64ac626e1bd1155a743e13174e51ececb9c1"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_HTN_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_HTN_VAL.RData",
+      "source_sha256": "b5155964346738dd94e2a81e43094eb5952a9e5b6cfa62ab6a16ca5836bfac2d",
+      "bytes": 182085,
+      "filter_method": "",
+      "destination_sha256": "b5155964346738dd94e2a81e43094eb5952a9e5b6cfa62ab6a16ca5836bfac2d"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_CC.RData",
+      "source_sha256": "fc4544c4a2d10022be302ade4c38cfd0e60ca7edda5e88d14a822a244f61d6f6",
+      "bytes": 1238475,
+      "filter_method": "",
+      "destination_sha256": "fc4544c4a2d10022be302ade4c38cfd0e60ca7edda5e88d14a822a244f61d6f6"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_GAIN.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_GAIN.RData",
+      "source_sha256": "0dfc210b133b3e225733c2dbbefdb8bd7168e8dfbd3838cca34ef795598c9939",
+      "bytes": 1624448,
+      "filter_method": "",
+      "destination_sha256": "0dfc210b133b3e225733c2dbbefdb8bd7168e8dfbd3838cca34ef795598c9939"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_IPW.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_IPW.RData",
+      "source_sha256": "ace0d7a4306ec3d6f21ef2d80c292d8a7fd69f0441324deb9dd64f34ff0d46da",
+      "bytes": 1238656,
+      "filter_method": "",
+      "destination_sha256": "ace0d7a4306ec3d6f21ef2d80c292d8a7fd69f0441324deb9dd64f34ff0d46da"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_MICE-PMM.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_MICE-PMM.RData",
+      "source_sha256": "7c4c00dc569dfc471b0ee9dc98869bf9dafbc22f7394ad68ba30f75f47166c13",
+      "bytes": 1567950,
+      "filter_method": "",
+      "destination_sha256": "7c4c00dc569dfc471b0ee9dc98869bf9dafbc22f7394ad68ba30f75f47166c13"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_MICE-RF.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_MICE-RF.RData",
+      "source_sha256": "79a3a1ac282086759054584b7b6a7bce0f08610402d2366f472bcd8a5b439f0b",
+      "bytes": 1555089,
+      "filter_method": "",
+      "destination_sha256": "79a3a1ac282086759054584b7b6a7bce0f08610402d2366f472bcd8a5b439f0b"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_MIXGB.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_MIXGB.RData",
+      "source_sha256": "0e6174372a3cd5ecab6d73c75504669ebcfb817d743085e8fb0a01a4648fe24b",
+      "bytes": 1601216,
+      "filter_method": "",
+      "destination_sha256": "0e6174372a3cd5ecab6d73c75504669ebcfb817d743085e8fb0a01a4648fe24b"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_ORACLE.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_ORACLE.RData",
+      "source_sha256": "9545fee82a115c67b0d99047bb5d162ff1615918b7879cd39ab6d9d496de12d2",
+      "bytes": 360645,
+      "filter_method": "",
+      "destination_sha256": "9545fee82a115c67b0d99047bb5d162ff1615918b7879cd39ab6d9d496de12d2"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_RAKING.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_RAKING.RData",
+      "source_sha256": "0927d69260bcf4bce8d8aca832e27e070f5d4330e9d20e6132b2e0c6a7e2223f",
+      "bytes": 1600128,
+      "filter_method": "",
+      "destination_sha256": "0927d69260bcf4bce8d8aca832e27e070f5d4330e9d20e6132b2e0c6a7e2223f"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_SICG.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_SICG.RData",
+      "source_sha256": "94d8180c938f349c40426c027d3b2ed8e32da876a4f5b03c0f782656d32d33aa",
+      "bytes": 1576495,
+      "filter_method": "",
+      "destination_sha256": "94d8180c938f349c40426c027d3b2ed8e32da876a4f5b03c0f782656d32d33aa"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_SIRD.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_SIRD.RData",
+      "source_sha256": "899cca6cda3bf5ba03fdabedf94023e6d76eb0b2dc816ddd15ff14f62fd3e5be",
+      "bytes": 1230145,
+      "filter_method": "",
+      "destination_sha256": "899cca6cda3bf5ba03fdabedf94023e6d76eb0b2dc816ddd15ff14f62fd3e5be"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_TABCSDI.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_TABCSDI.RData",
+      "source_sha256": "c3f3f8acf74293f334080b90f910c5ce0249766b3e7852830ec82566d93d5986",
+      "bytes": 322956,
+      "filter_method": "",
+      "destination_sha256": "c3f3f8acf74293f334080b90f910c5ce0249766b3e7852830ec82566d93d5986"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_UNVAL.RData",
+      "source_sha256": "ebf190fa0510101e9939e5d04213d5fab91ea6c1ead0e123c211c35527f2551e",
+      "bytes": 178684,
+      "filter_method": "",
+      "destination_sha256": "ebf190fa0510101e9939e5d04213d5fab91ea6c1ead0e123c211c35527f2551e"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_SBP_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_SBP_VAL.RData",
+      "source_sha256": "b5c555b6d119dcccad798ad99b6f48cd4d56f00c1efd90f8613624cf5c738b1b",
+      "bytes": 177324,
+      "filter_method": "",
+      "destination_sha256": "b5c555b6d119dcccad798ad99b6f48cd4d56f00c1efd90f8613624cf5c738b1b"
+    },
+    {
+      "source": "code_nutri/simulations/results/results_TIMES.RData",
+      "repository": "phd-thesis",
+      "destination": "code_nutri/simulations/results/results_TIMES.RData",
+      "source_sha256": "88b8ca0ff3e3a3e8be04fa09d206b8b7dd3a4399318a433ddac5093140442461",
+      "bytes": 47334,
+      "filter_method": "",
+      "destination_sha256": "88b8ca0ff3e3a3e8be04fa09d206b8b7dd3a4399318a433ddac5093140442461"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "source_sha256": "0910a817d4979684a86307bec69647b7741e0ce27fb4fe05ecf9824054338e31",
+      "bytes": 1043,
+      "filter_method": "",
+      "destination_sha256": "0910a817d4979684a86307bec69647b7741e0ce27fb4fe05ecf9824054338e31"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "source_sha256": "5614ace84bcd21bda2dffed9ac698d6a9944137020094203ba16105c75a7bff3",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "5614ace84bcd21bda2dffed9ac698d6a9944137020094203ba16105c75a7bff3"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_tuning_results.csv",
+      "source_sha256": "70ad0dfa069777c601f516a6a2ba1233bf50d307b15f4ba8156984167704fee5",
+      "bytes": 4315,
+      "filter_method": "",
+      "destination_sha256": "70ad0dfa069777c601f516a6a2ba1233bf50d307b15f4ba8156984167704fee5"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "source_sha256": "6fa4073f06585de0ba352fe43098f43d6a3b72da5611a84594912b096b23e7b2",
+      "bytes": 161,
+      "filter_method": "",
+      "destination_sha256": "6fa4073f06585de0ba352fe43098f43d6a3b72da5611a84594912b096b23e7b2"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/gain/gain_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/gain/gain_tuning_time.csv",
+      "source_sha256": "bb141dbb35494b3b69768aeed3dd14eb048c76b061cf02c2332dca63fba5cc31",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "bb141dbb35494b3b69768aeed3dd14eb048c76b061cf02c2332dca63fba5cc31"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/mice/mice_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/mice/mice_tuning_results.csv",
+      "source_sha256": "7c445bc34b1a860cee4a84fc47be87803391aae8b30e7be6c4a42a8094760ae5",
+      "bytes": 5446,
+      "filter_method": "",
+      "destination_sha256": "7c445bc34b1a860cee4a84fc47be87803391aae8b30e7be6c4a42a8094760ae5"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/mice/rf_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/mice/rf_tuning_results.csv",
+      "source_sha256": "16d8d0496502148605cecaec2175047bd6e9ebd5f96823559534aca58701cf3a",
+      "bytes": 4739,
+      "filter_method": "",
+      "destination_sha256": "16d8d0496502148605cecaec2175047bd6e9ebd5f96823559534aca58701cf3a"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "source_sha256": "901163ef16c7b2bf9be3fe6ca28103d9ab1771cb3f00f284b162dfe28816a453",
+      "bytes": 10823,
+      "filter_method": "",
+      "destination_sha256": "901163ef16c7b2bf9be3fe6ca28103d9ab1771cb3f00f284b162dfe28816a453"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "source_sha256": "5c56dda326c9991ffe5d5ee2cb8668d4056ddd9d747bace59fb674135e1d2a6c",
+      "bytes": 999,
+      "filter_method": "",
+      "destination_sha256": "5c56dda326c9991ffe5d5ee2cb8668d4056ddd9d747bace59fb674135e1d2a6c"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "source_sha256": "aea80f80269bea43afbcb2d775216df530e4dc051d7f4e4b25f564e79783d7c5",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "aea80f80269bea43afbcb2d775216df530e4dc051d7f4e4b25f564e79783d7c5"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "source_sha256": "72f400901bb8d48f876cbde8130b15e4cc50e292c468da15fa4580900cb5ec7b",
+      "bytes": 2897,
+      "filter_method": "",
+      "destination_sha256": "72f400901bb8d48f876cbde8130b15e4cc50e292c468da15fa4580900cb5ec7b"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "source_sha256": "afb3d84d9398af019152df0d068796607aa90c677220c204072596d4aff0e2b5",
+      "bytes": 110,
+      "filter_method": "",
+      "destination_sha256": "afb3d84d9398af019152df0d068796607aa90c677220c204072596d4aff0e2b5"
+    },
+    {
+      "source": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_surv/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "source_sha256": "d45c8437977f1509e203e75d8931290922bb26a470ae31e952f01ea2b6a4896b",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "d45c8437977f1509e203e75d8931290922bb26a470ae31e952f01ea2b6a4896b"
+    },
+    {
+      "source": "code_surv/data/Config/best_config_mice.rds",
+      "repository": "phd-thesis",
+      "destination": "code_surv/data/Config/best_config_mice.rds",
+      "source_sha256": "af202fa447ade3957d1ffc245a25cf68d4d33c15de2035117c53219e32282820",
+      "bytes": 124,
+      "filter_method": "",
+      "destination_sha256": "af202fa447ade3957d1ffc245a25cf68d4d33c15de2035117c53219e32282820"
+    },
+    {
+      "source": "code_surv/data/Config/best_config_mixgb.rds",
+      "repository": "phd-thesis",
+      "destination": "code_surv/data/Config/best_config_mixgb.rds",
+      "source_sha256": "b649db995265338dec59804d79b8282d3c5a00bbc2dc43679e738b91e75e6e41",
+      "bytes": 241,
+      "filter_method": "",
+      "destination_sha256": "b649db995265338dec59804d79b8282d3c5a00bbc2dc43679e738b91e75e6e41"
+    },
+    {
+      "source": "code_surv/data/Config/best_config_rf.rds",
+      "repository": "phd-thesis",
+      "destination": "code_surv/data/Config/best_config_rf.rds",
+      "source_sha256": "4afe066a93f19710449ff71493261aaab72556279d91379187f3654c45b6e2b3",
+      "bytes": 153,
+      "filter_method": "",
+      "destination_sha256": "4afe066a93f19710449ff71493261aaab72556279d91379187f3654c45b6e2b3"
+    },
+    {
+      "source": "code_surv/simulations/results/results_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_COMBINED.RData",
+      "source_sha256": "ee538dd41b6ffc617cdd649985b43e0a290564a47de28d2230d5f3f4a2f9d140",
+      "bytes": 14765490,
+      "filter_method": "",
+      "destination_sha256": "ee538dd41b6ffc617cdd649985b43e0a290564a47de28d2230d5f3f4a2f9d140"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_CC.RData",
+      "source_sha256": "fb7164bb188b49e05b9c78ce22c87f7c2e1f9007598bc32e9cad527e6a4b06c3",
+      "bytes": 810687,
+      "filter_method": "",
+      "destination_sha256": "fb7164bb188b49e05b9c78ce22c87f7c2e1f9007598bc32e9cad527e6a4b06c3"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_GAIN.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_GAIN.RData",
+      "source_sha256": "0c2bba7777f330e2b9e8063149a5b7a15d0e3d05c019d0fef38437401a621c69",
+      "bytes": 823870,
+      "filter_method": "",
+      "destination_sha256": "0c2bba7777f330e2b9e8063149a5b7a15d0e3d05c019d0fef38437401a621c69"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_IPW.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_IPW.RData",
+      "source_sha256": "a752f478a9bddf19d208b53deba7791174655d864c08938ad310370bf2dd1147",
+      "bytes": 812748,
+      "filter_method": "",
+      "destination_sha256": "a752f478a9bddf19d208b53deba7791174655d864c08938ad310370bf2dd1147"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_MICE-PMM.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_MICE-PMM.RData",
+      "source_sha256": "fd021ddfdf51b6814f9ef25c633660c909a6817381c52096c8b41d159d230e34",
+      "bytes": 807585,
+      "filter_method": "",
+      "destination_sha256": "fd021ddfdf51b6814f9ef25c633660c909a6817381c52096c8b41d159d230e34"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_MICE-RF.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_MICE-RF.RData",
+      "source_sha256": "3675758a6a00a898f657d6d29218b7ef2888241cae6a8d35fad11b0576dcd8b0",
+      "bytes": 501646,
+      "filter_method": "",
+      "destination_sha256": "3675758a6a00a898f657d6d29218b7ef2888241cae6a8d35fad11b0576dcd8b0"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_MIXGB.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_MIXGB.RData",
+      "source_sha256": "90bffcdbb5b50066de377869e8fb8a4dba86ee3240494d178db3b75a9458855e",
+      "bytes": 794187,
+      "filter_method": "",
+      "destination_sha256": "90bffcdbb5b50066de377869e8fb8a4dba86ee3240494d178db3b75a9458855e"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_RAKING.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_RAKING.RData",
+      "source_sha256": "afd722e24b54385c59f6acf76d0b5f84298305495948d2d234de97993659fe5a",
+      "bytes": 810132,
+      "filter_method": "",
+      "destination_sha256": "afd722e24b54385c59f6acf76d0b5f84298305495948d2d234de97993659fe5a"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_SICG.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_SICG.RData",
+      "source_sha256": "5ad5af38a8ffdd74cf6be6199689c9f9d5c7cfe03a4759ce73384e2df3e92bea",
+      "bytes": 798264,
+      "filter_method": "",
+      "destination_sha256": "5ad5af38a8ffdd74cf6be6199689c9f9d5c7cfe03a4759ce73384e2df3e92bea"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_SIRD.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_SIRD.RData",
+      "source_sha256": "f09215986f959f646750179537632705166da8e13ab2fe4bd0f09ae0f9fe22aa",
+      "bytes": 798333,
+      "filter_method": "",
+      "destination_sha256": "f09215986f959f646750179537632705166da8e13ab2fe4bd0f09ae0f9fe22aa"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_UNVAL.RData",
+      "source_sha256": "0ae31017094c5383de449ad679ebe0902d54403b258577dd7ef74c1d7de1ecca",
+      "bytes": 270521,
+      "filter_method": "",
+      "destination_sha256": "0ae31017094c5383de449ad679ebe0902d54403b258577dd7ef74c1d7de1ecca"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleE_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleE_VAL.RData",
+      "source_sha256": "3cc34dd37864281488d8a7fabc3e67a65b4356d0ded8b22727b2b4af7900c6ee",
+      "bytes": 270008,
+      "filter_method": "",
+      "destination_sha256": "3cc34dd37864281488d8a7fabc3e67a65b4356d0ded8b22727b2b4af7900c6ee"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_CC.RData",
+      "source_sha256": "20b2a6ee40194cec1144073d34b2bc1341e01b35ccd9c955fe58f8fa0c8ef273",
+      "bytes": 812806,
+      "filter_method": "",
+      "destination_sha256": "20b2a6ee40194cec1144073d34b2bc1341e01b35ccd9c955fe58f8fa0c8ef273"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_GAIN.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_GAIN.RData",
+      "source_sha256": "30583b9660de422613e32681b8f89578422b14daec8faaff6f5876ca0f58150e",
+      "bytes": 829875,
+      "filter_method": "",
+      "destination_sha256": "30583b9660de422613e32681b8f89578422b14daec8faaff6f5876ca0f58150e"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_IPW.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_IPW.RData",
+      "source_sha256": "79d1eb694c1523acfc7efdef7b5f40330b2d58edc87a7368d4e769003d36406e",
+      "bytes": 814428,
+      "filter_method": "",
+      "destination_sha256": "79d1eb694c1523acfc7efdef7b5f40330b2d58edc87a7368d4e769003d36406e"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_MICE-PMM.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_MICE-PMM.RData",
+      "source_sha256": "2951af9d4e679bb9816ea832eb1301716d5001eae873ce2eb7598be03d27a42c",
+      "bytes": 812464,
+      "filter_method": "",
+      "destination_sha256": "2951af9d4e679bb9816ea832eb1301716d5001eae873ce2eb7598be03d27a42c"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_MICE-RF.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_MICE-RF.RData",
+      "source_sha256": "168c49cd8b254e631d5754854c0f1fcef7a4606f019ef6337f482b95ac3e16a1",
+      "bytes": 421213,
+      "filter_method": "",
+      "destination_sha256": "168c49cd8b254e631d5754854c0f1fcef7a4606f019ef6337f482b95ac3e16a1"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_MIXGB.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_MIXGB.RData",
+      "source_sha256": "5ee1e19747ac2887c1b4a7f4f8fc7d86324b394290397ab369aaf52f07ae5bd7",
+      "bytes": 798843,
+      "filter_method": "",
+      "destination_sha256": "5ee1e19747ac2887c1b4a7f4f8fc7d86324b394290397ab369aaf52f07ae5bd7"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_RAKING.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_RAKING.RData",
+      "source_sha256": "d66d47cb2e81865790f2ac76d6a1359225f1aac49375369cd8c301df3559f3a5",
+      "bytes": 813301,
+      "filter_method": "",
+      "destination_sha256": "d66d47cb2e81865790f2ac76d6a1359225f1aac49375369cd8c301df3559f3a5"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_SICG.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_SICG.RData",
+      "source_sha256": "4a8197f78c02eddebc4a9a956eaad275b9206fbd55c33263e8ed09b679206e65",
+      "bytes": 805119,
+      "filter_method": "",
+      "destination_sha256": "4a8197f78c02eddebc4a9a956eaad275b9206fbd55c33263e8ed09b679206e65"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_SIRD.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_SIRD.RData",
+      "source_sha256": "f06d022dd450e35914e59a4c8f7be57e6396aa402b73c8d03b9770757ea05503",
+      "bytes": 803769,
+      "filter_method": "",
+      "destination_sha256": "f06d022dd450e35914e59a4c8f7be57e6396aa402b73c8d03b9770757ea05503"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_UNVAL.RData",
+      "source_sha256": "ee17879b6db3552b6724a0d3cf219fc2343d37e81fe45dde2090d8b83e553dc8",
+      "bytes": 269012,
+      "filter_method": "",
+      "destination_sha256": "ee17879b6db3552b6724a0d3cf219fc2343d37e81fe45dde2090d8b83e553dc8"
+    },
+    {
+      "source": "code_surv/simulations/results/results_SampleOE_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_SampleOE_VAL.RData",
+      "source_sha256": "3cc34dd37864281488d8a7fabc3e67a65b4356d0ded8b22727b2b4af7900c6ee",
+      "bytes": 270008,
+      "filter_method": "",
+      "destination_sha256": "3cc34dd37864281488d8a7fabc3e67a65b4356d0ded8b22727b2b4af7900c6ee"
+    },
+    {
+      "source": "code_surv/simulations/results/results_TIMES.RData",
+      "repository": "phd-thesis",
+      "destination": "code_surv/simulations/results/results_TIMES.RData",
+      "source_sha256": "2c07fd090e88d03bc98414b1c3782767e7c5e3ca40c07fe5df1b971d98e014f8",
+      "bytes": 95524,
+      "filter_method": "",
+      "destination_sha256": "2c07fd090e88d03bc98414b1c3782767e7c5e3ca40c07fe5df1b971d98e014f8"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_results.csv",
+      "source_sha256": "194ebda83c83432915d0eb47187e8ec8dc53fd981b981e075cbdc3275efe91ef",
+      "bytes": 1041,
+      "filter_method": "",
+      "destination_sha256": "194ebda83c83432915d0eb47187e8ec8dc53fd981b981e075cbdc3275efe91ef"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_epoch_tuning_time.csv",
+      "source_sha256": "4e1ffd2c49d6a6f32113da3a9ed511e900bd3f6c13867fae30fa01c75303670f",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "4e1ffd2c49d6a6f32113da3a9ed511e900bd3f6c13867fae30fa01c75303670f"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_tuning_results.csv",
+      "source_sha256": "e7d36c8f5c666b4c3d38ab7d7dadf356a937722fa04a5f0ca6db910f4cd0635c",
+      "bytes": 4331,
+      "filter_method": "",
+      "destination_sha256": "e7d36c8f5c666b4c3d38ab7d7dadf356a937722fa04a5f0ca6db910f4cd0635c"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_tuning_results_importance.csv",
+      "source_sha256": "1ebe81e652133bbb35a8951bce4e417dbf6b4daa5545d328f5137cad5b909c83",
+      "bytes": 160,
+      "filter_method": "",
+      "destination_sha256": "1ebe81e652133bbb35a8951bce4e417dbf6b4daa5545d328f5137cad5b909c83"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/gain/gain_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/gain/gain_tuning_time.csv",
+      "source_sha256": "ea619ace3e232a645e290dff47b1e58bed120fa6922de3017ce51858bd4b8fdd",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "ea619ace3e232a645e290dff47b1e58bed120fa6922de3017ce51858bd4b8fdd"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/mice/mice_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/mice/mice_tuning_results.csv",
+      "source_sha256": "09a94e52d1e4f00e9554c330276e932eb669b986b7e5f179e265c8a953065521",
+      "bytes": 5335,
+      "filter_method": "",
+      "destination_sha256": "09a94e52d1e4f00e9554c330276e932eb669b986b7e5f179e265c8a953065521"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/mice/rf_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/mice/rf_tuning_results.csv",
+      "source_sha256": "c784569187fba299e9fd2e19b77de440a016f50c20bb9f9dd56264406d6dc888",
+      "bytes": 4877,
+      "filter_method": "",
+      "destination_sha256": "c784569187fba299e9fd2e19b77de440a016f50c20bb9f9dd56264406d6dc888"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/mixgb/mixgb_tuning_results.csv",
+      "source_sha256": "26c87fb353baa4a37f19f868c7d67768366f8b454ae4d965bace3483ddbff064",
+      "bytes": 10552,
+      "filter_method": "",
+      "destination_sha256": "26c87fb353baa4a37f19f868c7d67768366f8b454ae4d965bace3483ddbff064"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results.csv",
+      "source_sha256": "010e45ee254e2e5c2dd0036cc76877c9e5be4b927d8eca4455c377a85f1b1c8b",
+      "bytes": 4158,
+      "filter_method": "",
+      "destination_sha256": "010e45ee254e2e5c2dd0036cc76877c9e5be4b927d8eca4455c377a85f1b1c8b"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_epoch_tuning_time.csv",
+      "source_sha256": "95473668e3c9e1a4ae21ac6e2bbe4b23e1557b34f817de8cf49804fe3ee52eac",
+      "bytes": 33,
+      "filter_method": "",
+      "destination_sha256": "95473668e3c9e1a4ae21ac6e2bbe4b23e1557b34f817de8cf49804fe3ee52eac"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_results.csv",
+      "source_sha256": "e03de504a58325be61bca3c3bc8a3cefa6e8173ff982299a98cb9c7815cd3e8b",
+      "bytes": 7249,
+      "filter_method": "",
+      "destination_sha256": "e03de504a58325be61bca3c3bc8a3cefa6e8173ff982299a98cb9c7815cd3e8b"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_results_importance.csv",
+      "source_sha256": "5c98bdef25e8f78367f209e8c5bc8dc670f865d886cfc6eb1386371ea6633576",
+      "bytes": 269,
+      "filter_method": "",
+      "destination_sha256": "5c98bdef25e8f78367f209e8c5bc8dc670f865d886cfc6eb1386371ea6633576"
+    },
+    {
+      "source": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/comparisons_tuning/tabcsdi/tabcsdi_tuning_time.csv",
+      "source_sha256": "aa0091336774f4c6836eedffc29f7ab1914b4831e30bd18f0ef1d79f142ef43b",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "aa0091336774f4c6836eedffc29f7ab1914b4831e30bd18f0ef1d79f142ef43b"
+    },
+    {
+      "source": "code_vccc/data/Config/best_config_mice.rds",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/data/Config/best_config_mice.rds",
+      "source_sha256": "5e19f4771ee57b3ba7c110eefd4dfbd5e15403871adcb639c4f6cc50296df205",
+      "bytes": 124,
+      "filter_method": "",
+      "destination_sha256": "5e19f4771ee57b3ba7c110eefd4dfbd5e15403871adcb639c4f6cc50296df205"
+    },
+    {
+      "source": "code_vccc/data/Config/best_config_mixgb.rds",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/data/Config/best_config_mixgb.rds",
+      "source_sha256": "f825af71a1b89a2156672b651045ab2bd03637b418ffcab9f0b8456aa1b0d517",
+      "bytes": 249,
+      "filter_method": "",
+      "destination_sha256": "f825af71a1b89a2156672b651045ab2bd03637b418ffcab9f0b8456aa1b0d517"
+    },
+    {
+      "source": "code_vccc/data/Config/best_config_rf.rds",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/data/Config/best_config_rf.rds",
+      "source_sha256": "7a987180db0e2a38d3e88e9cac3d905a006522258b6d840a16ae10b66a1a4b1d",
+      "bytes": 153,
+      "filter_method": "",
+      "destination_sha256": "7a987180db0e2a38d3e88e9cac3d905a006522258b6d840a16ae10b66a1a4b1d"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_CC.RData",
+      "source_sha256": "35c5a45ec21ef096e3060d93751534833d3f1a2dbbde949042f61597765a1090",
+      "bytes": 891575,
+      "filter_method": "",
+      "destination_sha256": "35c5a45ec21ef096e3060d93751534833d3f1a2dbbde949042f61597765a1090"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_COMBINED.RData",
+      "source_sha256": "0867cd076674d00acaa8ed5df7cb6bb26965b67abb49a2050187ab43ad27e9b3",
+      "bytes": 14767906,
+      "filter_method": "",
+      "destination_sha256": "0867cd076674d00acaa8ed5df7cb6bb26965b67abb49a2050187ab43ad27e9b3"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_GAIN.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_GAIN.RData",
+      "source_sha256": "5a2558e8ea59e3db894028339ce5fbbef1fb607af91e64c3e014b06b7ca99345",
+      "bytes": 1963549,
+      "filter_method": "",
+      "destination_sha256": "5a2558e8ea59e3db894028339ce5fbbef1fb607af91e64c3e014b06b7ca99345"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_IPW.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_IPW.RData",
+      "source_sha256": "8c17a84add86b3e26b74c9004433e18551b1322d3adf016c70b2048bb8cc7b39",
+      "bytes": 891726,
+      "filter_method": "",
+      "destination_sha256": "8c17a84add86b3e26b74c9004433e18551b1322d3adf016c70b2048bb8cc7b39"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_MICE.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_MICE.RData",
+      "source_sha256": "a60f541c8c966cf33ba4589cb634599c27dcd19e1d504a3d8605374945260fef",
+      "bytes": 2110155,
+      "filter_method": "",
+      "destination_sha256": "a60f541c8c966cf33ba4589cb634599c27dcd19e1d504a3d8605374945260fef"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_MIXGB.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_MIXGB.RData",
+      "source_sha256": "2552d351231e9cad26cd11a3ec5c333b80434c92dccb1c8b3ccb11b2401e173b",
+      "bytes": 2110798,
+      "filter_method": "",
+      "destination_sha256": "2552d351231e9cad26cd11a3ec5c333b80434c92dccb1c8b3ccb11b2401e173b"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_RAKING.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_RAKING.RData",
+      "source_sha256": "aa3a5d19e6e7ab165211a1d2c9fce925124503cdbc4cecf736300399b080ec6f",
+      "bytes": 1329197,
+      "filter_method": "",
+      "destination_sha256": "aa3a5d19e6e7ab165211a1d2c9fce925124503cdbc4cecf736300399b080ec6f"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_RF.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_RF.RData",
+      "source_sha256": "b20b0ae73382da3a1215f9076058800a5b7c7d20e52d49bf77d471b74d4a443a",
+      "bytes": 2106474,
+      "filter_method": "",
+      "destination_sha256": "b20b0ae73382da3a1215f9076058800a5b7c7d20e52d49bf77d471b74d4a443a"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_SICG.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_SICG.RData",
+      "source_sha256": "0d5accfbd9c89c70248a188b2db01e01d01935ffb82b79cccd5e36f185bd938f",
+      "bytes": 2103849,
+      "filter_method": "",
+      "destination_sha256": "0d5accfbd9c89c70248a188b2db01e01d01935ffb82b79cccd5e36f185bd938f"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_SIRD.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_SIRD.RData",
+      "source_sha256": "3415d60ee3e6769e64848e09f29cc39f58945c11bb6d88d3cfed99056d00feb9",
+      "bytes": 1637620,
+      "filter_method": "",
+      "destination_sha256": "3415d60ee3e6769e64848e09f29cc39f58945c11bb6d88d3cfed99056d00feb9"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_TABCSDI.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_TABCSDI.RData",
+      "source_sha256": "a69f91a28dd31f454b856e4bf1f01be259efd30284b6baa0cb4e1a8243a61a61",
+      "bytes": 420984,
+      "filter_method": "",
+      "destination_sha256": "a69f91a28dd31f454b856e4bf1f01be259efd30284b6baa0cb4e1a8243a61a61"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_TIMES.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_TIMES.RData",
+      "source_sha256": "3ce2a2e3cb374f5fe46a4e5d04190fb9e8745776e2aba42264fa4df73ce98ab4",
+      "bytes": 132964,
+      "filter_method": "",
+      "destination_sha256": "3ce2a2e3cb374f5fe46a4e5d04190fb9e8745776e2aba42264fa4df73ce98ab4"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_UNVAL.RData",
+      "source_sha256": "3a215feb0359baa21628b86a9e87250f206219167526fc4c12326a5b6b388471",
+      "bytes": 830,
+      "filter_method": "",
+      "destination_sha256": "3a215feb0359baa21628b86a9e87250f206219167526fc4c12326a5b6b388471"
+    },
+    {
+      "source": "code_vccc/simulations/results/results_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "code_vccc/simulations/results/results_VAL.RData",
+      "source_sha256": "52ba4566f54e456c992ec55e159e27d1d7d7644a50fcca102014b0cf919dc988",
+      "bytes": 826,
+      "filter_method": "",
+      "destination_sha256": "52ba4566f54e456c992ec55e159e27d1d7d7644a50fcca102014b0cf919dc988"
+    },
+    {
+      "source": "SICG/ablation/bvar/simulations/results_SICG_BVAR_BOOTSTRAP.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/bvar/simulations/results_SICG_BVAR_BOOTSTRAP.RData",
+      "source_sha256": "f55b8a766c986a7312f74acfa6b1377f0cd81a0c895e7e72abe8507d6bc9f3eb",
+      "bytes": 75288,
+      "filter_method": "",
+      "destination_sha256": "f55b8a766c986a7312f74acfa6b1377f0cd81a0c895e7e72abe8507d6bc9f3eb"
+    },
+    {
+      "source": "SICG/ablation/bvar/simulations/results_SICG_BVAR_DROPOUT.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/bvar/simulations/results_SICG_BVAR_DROPOUT.RData",
+      "source_sha256": "b3d862313488be714a3c932b06adfb34ba53a45a234af6a8ff0ca8ad597b3014",
+      "bytes": 75409,
+      "filter_method": "",
+      "destination_sha256": "b3d862313488be714a3c932b06adfb34ba53a45a234af6a8ff0ca8ad597b3014"
+    },
+    {
+      "source": "SICG/ablation/bvar/simulations/results_SICG_BVAR_UNPACK.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/bvar/simulations/results_SICG_BVAR_UNPACK.RData",
+      "source_sha256": "158380f43ec4804aa9ee8b4211ead2ee0aba7c3360e4934f85a2cacedcb85817",
+      "bytes": 77004,
+      "filter_method": "",
+      "destination_sha256": "158380f43ec4804aa9ee8b4211ead2ee0aba7c3360e4934f85a2cacedcb85817"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_BOOTSTRAP.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_BOOTSTRAP.RData",
+      "source_sha256": "bc8d792f9e3e0d0c35d779894fdf74c7b2dbcc552270a79a02c948f3af03c26b",
+      "bytes": 277517,
+      "filter_method": "",
+      "destination_sha256": "bc8d792f9e3e0d0c35d779894fdf74c7b2dbcc552270a79a02c948f3af03c26b"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_CC.RData",
+      "source_sha256": "793da10a2f5a932b3838302b291616c1e5f3b0d42419a82455f75061c6ca8621",
+      "bytes": 277503,
+      "filter_method": "",
+      "destination_sha256": "793da10a2f5a932b3838302b291616c1e5f3b0d42419a82455f75061c6ca8621"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_DROPOUT.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_DROPOUT.RData",
+      "source_sha256": "4bf93cff900733c29194bfef0e8048fc65ca6f91a7232f49e12d756e28f27b13",
+      "bytes": 274452,
+      "filter_method": "",
+      "destination_sha256": "4bf93cff900733c29194bfef0e8048fc65ca6f91a7232f49e12d756e28f27b13"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_PACK.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_PACK.RData",
+      "source_sha256": "aa803b1d7c79d73e8eb7d19516c759e40efddbcafe329a3e6fc4c56e6b6b1e34",
+      "bytes": 274824,
+      "filter_method": "",
+      "destination_sha256": "aa803b1d7c79d73e8eb7d19516c759e40efddbcafe329a3e6fc4c56e6b6b1e34"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_PACK_MML.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_PACK_MML.RData",
+      "source_sha256": "258fe1af141b8f242b248e8d540a643bb42d5116ca42f19adcbd27c743ef3af6",
+      "bytes": 275076,
+      "filter_method": "",
+      "destination_sha256": "258fe1af141b8f242b248e8d540a643bb42d5116ca42f19adcbd27c743ef3af6"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_COMBINED.RData",
+      "source_sha256": "84658ac66bef0d0c400cd260cea94d07ffb1d6f6e42bd05e472057c983ee2dab",
+      "bytes": 265959,
+      "filter_method": "",
+      "destination_sha256": "84658ac66bef0d0c400cd260cea94d07ffb1d6f6e42bd05e472057c983ee2dab"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_NUTRI.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_NUTRI.RData",
+      "source_sha256": "b931149cf8dbb7ed7aa6ba7783dfa0dc7c24b12d993c90bd6d443ecffc1a5fb3",
+      "bytes": 10601,
+      "filter_method": "",
+      "destination_sha256": "b931149cf8dbb7ed7aa6ba7783dfa0dc7c24b12d993c90bd6d443ecffc1a5fb3"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_SURV_BOOTSTRAP.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_SURV_BOOTSTRAP.RData",
+      "source_sha256": "f55b8a766c986a7312f74acfa6b1377f0cd81a0c895e7e72abe8507d6bc9f3eb",
+      "bytes": 75288,
+      "filter_method": "",
+      "destination_sha256": "f55b8a766c986a7312f74acfa6b1377f0cd81a0c895e7e72abe8507d6bc9f3eb"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_SURV_DROPOUT.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_SURV_DROPOUT.RData",
+      "source_sha256": "b3d862313488be714a3c932b06adfb34ba53a45a234af6a8ff0ca8ad597b3014",
+      "bytes": 75409,
+      "filter_method": "",
+      "destination_sha256": "b3d862313488be714a3c932b06adfb34ba53a45a234af6a8ff0ca8ad597b3014"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_SURV_SWAG.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_SURV_SWAG.RData",
+      "source_sha256": "e860f2d592c6bfe2220afc7456a3d5fc0673da20783bc59867310ef897206aea",
+      "bytes": 76320,
+      "filter_method": "",
+      "destination_sha256": "e860f2d592c6bfe2220afc7456a3d5fc0673da20783bc59867310ef897206aea"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_BM_SURV_UNPACK.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_BM_SURV_UNPACK.RData",
+      "source_sha256": "158380f43ec4804aa9ee8b4211ead2ee0aba7c3360e4934f85a2cacedcb85817",
+      "bytes": 77004,
+      "filter_method": "",
+      "destination_sha256": "158380f43ec4804aa9ee8b4211ead2ee0aba7c3360e4934f85a2cacedcb85817"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SICG_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SICG_COMBINED.RData",
+      "source_sha256": "43e6a2346a7e9ff8bc69f7372c0aed292d8c031e109dc42d110bad25cd221a37",
+      "bytes": 3446165,
+      "filter_method": "",
+      "destination_sha256": "43e6a2346a7e9ff8bc69f7372c0aed292d8c031e109dc42d110bad25cd221a37"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_SWAG.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_SWAG.RData",
+      "source_sha256": "181b274c224eea6dec1a9b8d19ba660125c067f6585b2c6ad597ff00651925ae",
+      "bytes": 275988,
+      "filter_method": "",
+      "destination_sha256": "181b274c224eea6dec1a9b8d19ba660125c067f6585b2c6ad597ff00651925ae"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNPACK.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNPACK.RData",
+      "source_sha256": "45aae8bd35fda7c1b82217b9721a3e7634015c41da230a53416111f102669dcf",
+      "bytes": 274345,
+      "filter_method": "",
+      "destination_sha256": "45aae8bd35fda7c1b82217b9721a3e7634015c41da230a53416111f102669dcf"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNPACK_CE.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNPACK_CE.RData",
+      "source_sha256": "f1d9e609d0d09d52a735f56ef07eb13ae6c74842132e78379a264f3e14eb55ea",
+      "bytes": 274454,
+      "filter_method": "",
+      "destination_sha256": "f1d9e609d0d09d52a735f56ef07eb13ae6c74842132e78379a264f3e14eb55ea"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNPACK_INFO.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNPACK_INFO.RData",
+      "source_sha256": "b9065c6381f3cf2e743fa9416264ec6d2e6002abb9e83c4a5b6a6e3bd228cd7e",
+      "bytes": 274537,
+      "filter_method": "",
+      "destination_sha256": "b9065c6381f3cf2e743fa9416264ec6d2e6002abb9e83c4a5b6a6e3bd228cd7e"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNPACK_RESIDUALMODELING.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNPACK_RESIDUALMODELING.RData",
+      "source_sha256": "ae494095ea39760840c33ee11dffe375464d30dd67fb28ee5e5c02b97862c9aa",
+      "bytes": 273647,
+      "filter_method": "",
+      "destination_sha256": "ae494095ea39760840c33ee11dffe375464d30dd67fb28ee5e5c02b97862c9aa"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNPACK_SEMISUPERVISED.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNPACK_SEMISUPERVISED.RData",
+      "source_sha256": "4f07f628e17c30d7655bc0509fff1c5234fc4b67854bba3ed6f64de338b27f79",
+      "bytes": 274811,
+      "filter_method": "",
+      "destination_sha256": "4f07f628e17c30d7655bc0509fff1c5234fc4b67854bba3ed6f64de338b27f79"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_UNVAL.RData",
+      "source_sha256": "e91284631f857b5974b802d107b7da149597a2b142e1ba3f80d8b820dca7ac7b",
+      "bytes": 270146,
+      "filter_method": "",
+      "destination_sha256": "e91284631f857b5974b802d107b7da149597a2b142e1ba3f80d8b820dca7ac7b"
+    },
+    {
+      "source": "SICG/ablation/simulations/results_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/simulations/results_VAL.RData",
+      "source_sha256": "c808bb205d190c60f2f2b28a0b101bdad8acc46c5acbd9ed3fa219126db78535",
+      "bytes": 269741,
+      "filter_method": "",
+      "destination_sha256": "c808bb205d190c60f2f2b28a0b101bdad8acc46c5acbd9ed3fa219126db78535"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/pack_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/pack_epochs_tuning_results.csv",
+      "source_sha256": "20193b303375bb116730cc4d37ebf902007217289a77505b8ec933f83331d97c",
+      "bytes": 1837,
+      "filter_method": "",
+      "destination_sha256": "20193b303375bb116730cc4d37ebf902007217289a77505b8ec933f83331d97c"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/pack_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/pack_epochs_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/pack_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/pack_tuning_results.csv",
+      "source_sha256": "b5fb7027337221fc5d42c83460f0d10c54ea61a537af633fe847722a736d57aa",
+      "bytes": 16361,
+      "filter_method": "",
+      "destination_sha256": "b5fb7027337221fc5d42c83460f0d10c54ea61a537af633fe847722a736d57aa"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/pack_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/pack_tuning_results_importance.csv",
+      "source_sha256": "4706f2abb0112e6f5e47811ecc522e17b9e54b1e3bb81c513b6272353f061371",
+      "bytes": 310,
+      "filter_method": "",
+      "destination_sha256": "4706f2abb0112e6f5e47811ecc522e17b9e54b1e3bb81c513b6272353f061371"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/swag_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/swag_epochs_tuning_results.csv",
+      "source_sha256": "ba2e1e320d4c7b03d75c1767aa43828fa96f1adee13f44a142b4a6eabcb45499",
+      "bytes": 1834,
+      "filter_method": "",
+      "destination_sha256": "ba2e1e320d4c7b03d75c1767aa43828fa96f1adee13f44a142b4a6eabcb45499"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/swag_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/swag_epochs_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/swag_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/swag_tuning_results.csv",
+      "source_sha256": "0df81e69a651de1270fafdf3bffba3405c15502fa1b31cef122e4fa00ffeb39b",
+      "bytes": 1637,
+      "filter_method": "",
+      "destination_sha256": "0df81e69a651de1270fafdf3bffba3405c15502fa1b31cef122e4fa00ffeb39b"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/swag_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/swag_tuning_results_importance.csv",
+      "source_sha256": "71043a58f14abec47cb16b02338593c6e2a10b6f46a4367dc32e99059217b303",
+      "bytes": 30,
+      "filter_method": "",
+      "destination_sha256": "71043a58f14abec47cb16b02338593c6e2a10b6f46a4367dc32e99059217b303"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/unpack_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/unpack_epochs_tuning_results.csv",
+      "source_sha256": "5a2a50559687fe8aaf4dab89dbefa60686274329ebd0cf8289de595d86ccb935",
+      "bytes": 1833,
+      "filter_method": "",
+      "destination_sha256": "5a2a50559687fe8aaf4dab89dbefa60686274329ebd0cf8289de595d86ccb935"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/unpack_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/unpack_epochs_tuning_results_importance.csv",
+      "source_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa",
+      "bytes": 34,
+      "filter_method": "",
+      "destination_sha256": "a679fe0da036038a4db8d7c400c0039ea49575044e600ad40c3b6202293519aa"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/unpack_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/unpack_tuning_results.csv",
+      "source_sha256": "810e9ebbc78e95fdfc15e0c57e916768078ac349c31c2020c624652565bf3e3a",
+      "bytes": 17717,
+      "filter_method": "",
+      "destination_sha256": "810e9ebbc78e95fdfc15e0c57e916768078ac349c31c2020c624652565bf3e3a"
+    },
+    {
+      "source": "SICG/ablation/tuning_results/unpack_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SICG/ablation/tuning_results/unpack_tuning_results_importance.csv",
+      "source_sha256": "bcb3f747481e85cd8a4a9aa42614ab8fd98ee8047b74ec8045c4b34cc55625ca",
+      "bytes": 359,
+      "filter_method": "",
+      "destination_sha256": "bcb3f747481e85cd8a4a9aa42614ab8fd98ee8047b74ec8045c4b34cc55625ca"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_ANALOGBITS.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_ANALOGBITS.RData",
+      "source_sha256": "792f7af9b30597dbca2620146c7e6209dbc97ee478bac56db7b2d99daea97f08",
+      "bytes": 348833,
+      "filter_method": "",
+      "destination_sha256": "792f7af9b30597dbca2620146c7e6209dbc97ee478bac56db7b2d99daea97f08"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_BOOTSTRAP.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_BOOTSTRAP.RData",
+      "source_sha256": "214df80228e42f6b27111379199e18f77b7d4a14e041955623a774c393236705",
+      "bytes": 348809,
+      "filter_method": "",
+      "destination_sha256": "214df80228e42f6b27111379199e18f77b7d4a14e041955623a774c393236705"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_CC.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_CC.RData",
+      "source_sha256": "7f773d17cccfba4dd056e82b59283a36387ca65642bf3314039649554e552355",
+      "bytes": 279748,
+      "filter_method": "",
+      "destination_sha256": "7f773d17cccfba4dd056e82b59283a36387ca65642bf3314039649554e552355"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_DROPOUT.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_DROPOUT.RData",
+      "source_sha256": "eefa0ada6663d7512506f89a9eed206172f26e25d75bfc5cd3e2e7954966cca2",
+      "bytes": 348529,
+      "filter_method": "",
+      "destination_sha256": "eefa0ada6663d7512506f89a9eed206172f26e25d75bfc5cd3e2e7954966cca2"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_MULTINOMIAL.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_MULTINOMIAL.RData",
+      "source_sha256": "b12595e121c04fecc36c1f747e8026fba27d38d88733cbc8e666ed355e221099",
+      "bytes": 348903,
+      "filter_method": "",
+      "destination_sha256": "b12595e121c04fecc36c1f747e8026fba27d38d88733cbc8e666ed355e221099"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_MULTINOMIAL_CFG.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_MULTINOMIAL_CFG.RData",
+      "source_sha256": "1740b0569ad865941c58b321b77597745e366cae2d87db755ee92be09f1a1aca",
+      "bytes": 349071,
+      "filter_method": "",
+      "destination_sha256": "1740b0569ad865941c58b321b77597745e366cae2d87db755ee92be09f1a1aca"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_SIRD_BM_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_SIRD_BM_COMBINED.RData",
+      "source_sha256": "5107ff80beeb956b314ac9901769fdd9609a45cf8e16afa3281672e506b6de94",
+      "bytes": 271622,
+      "filter_method": "",
+      "destination_sha256": "5107ff80beeb956b314ac9901769fdd9609a45cf8e16afa3281672e506b6de94"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_SIRD_BM_NUTRI.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_SIRD_BM_NUTRI.RData",
+      "source_sha256": "0154d43edff80e1aa6b566990e2651f21d1e7bc006dde4238c5b07b61872a90a",
+      "bytes": 16357,
+      "filter_method": "",
+      "destination_sha256": "0154d43edff80e1aa6b566990e2651f21d1e7bc006dde4238c5b07b61872a90a"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_SIRD_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_SIRD_COMBINED.RData",
+      "source_sha256": "8080ab1b0caa33a544a83f7e88baf1c7bcb5d14da11d70e5eeb5495a29336113",
+      "bytes": 2821768,
+      "filter_method": "",
+      "destination_sha256": "8080ab1b0caa33a544a83f7e88baf1c7bcb5d14da11d70e5eeb5495a29336113"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_SWAG.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_SWAG.RData",
+      "source_sha256": "e4aadbf830bb0c5142407fc1cecf4374470403a13d3f8e194f1e39a0c58ec596",
+      "bytes": 348883,
+      "filter_method": "",
+      "destination_sha256": "e4aadbf830bb0c5142407fc1cecf4374470403a13d3f8e194f1e39a0c58ec596"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_UNVAL.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_UNVAL.RData",
+      "source_sha256": "279b825da4d6a29bb62bbd331c0bdfa5c6ac7e53971cc21cecd3aa5f764cb42e",
+      "bytes": 272419,
+      "filter_method": "",
+      "destination_sha256": "279b825da4d6a29bb62bbd331c0bdfa5c6ac7e53971cc21cecd3aa5f764cb42e"
+    },
+    {
+      "source": "SIRD/ablation/simulations/results_VAL.RData",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/simulations/results_VAL.RData",
+      "source_sha256": "ebf55d290f70a01f1f93115941867a49db081da3521ec3525e170575eeeb9c13",
+      "bytes": 271991,
+      "filter_method": "",
+      "destination_sha256": "ebf55d290f70a01f1f93115941867a49db081da3521ec3525e170575eeeb9c13"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/analogbits_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/analogbits_tuning_results.csv",
+      "source_sha256": "3e3c1b2058dde73507967263debc2e1d32e0e4102bd90ff9e9f9824e514f5af6",
+      "bytes": 1822,
+      "filter_method": "",
+      "destination_sha256": "3e3c1b2058dde73507967263debc2e1d32e0e4102bd90ff9e9f9824e514f5af6"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/analogbits_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/analogbits_tuning_results_importance.csv",
+      "source_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_cfg_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_cfg_tuning_results.csv",
+      "source_sha256": "b48ecab1a595ed555b8941c1538b73fbbab33fe886988f38c5bc4fe34535a98e",
+      "bytes": 4405,
+      "filter_method": "",
+      "destination_sha256": "b48ecab1a595ed555b8941c1538b73fbbab33fe886988f38c5bc4fe34535a98e"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_cfg_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_cfg_tuning_results_importance.csv",
+      "source_sha256": "c987f2a3a60bb78af2933c5f7d222e229615cd719d81ed392a99e38ff3908fe7",
+      "bytes": 123,
+      "filter_method": "",
+      "destination_sha256": "c987f2a3a60bb78af2933c5f7d222e229615cd719d81ed392a99e38ff3908fe7"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_cond_drop_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_cond_drop_epochs_tuning_results.csv",
+      "source_sha256": "a4c8af4db10696fe90c3709073230a1798df3f9d683589e23936402aca916993",
+      "bytes": 1821,
+      "filter_method": "",
+      "destination_sha256": "a4c8af4db10696fe90c3709073230a1798df3f9d683589e23936402aca916993"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_cond_drop_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_cond_drop_epochs_tuning_results_importance.csv",
+      "source_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_epochs_tuning_results.csv",
+      "source_sha256": "a4c8af4db10696fe90c3709073230a1798df3f9d683589e23936402aca916993",
+      "bytes": 1821,
+      "filter_method": "",
+      "destination_sha256": "a4c8af4db10696fe90c3709073230a1798df3f9d683589e23936402aca916993"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_epochs_tuning_results_importance.csv",
+      "source_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_swag_epochs_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_swag_epochs_tuning_results.csv",
+      "source_sha256": "0dd82ed2b48be09e3e584dc9197d74203e4bfaf7d8608e313f699641e5792239",
+      "bytes": 1806,
+      "filter_method": "",
+      "destination_sha256": "0dd82ed2b48be09e3e584dc9197d74203e4bfaf7d8608e313f699641e5792239"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_swag_epochs_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_swag_epochs_tuning_results_importance.csv",
+      "source_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2",
+      "bytes": 32,
+      "filter_method": "",
+      "destination_sha256": "e3315ff167701d33f01b7cc6a5e09b0315ed08a8dd2f3ed9c1d9b46a0da51dc2"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_swag_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_swag_tuning_results.csv",
+      "source_sha256": "065ef271f6b04b772606daaf63285b92c991e64022b06800ac1a0a53e5499ff4",
+      "bytes": 1965,
+      "filter_method": "",
+      "destination_sha256": "065ef271f6b04b772606daaf63285b92c991e64022b06800ac1a0a53e5499ff4"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_swag_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_swag_tuning_results_importance.csv",
+      "source_sha256": "adfa080652b1ae6ea8358b26e612bea52bc2f2cb3c3c218d2d938bbc91571dc8",
+      "bytes": 28,
+      "filter_method": "",
+      "destination_sha256": "adfa080652b1ae6ea8358b26e612bea52bc2f2cb3c3c218d2d938bbc91571dc8"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_tuning_results.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_tuning_results.csv",
+      "source_sha256": "2ad5426c7cd115506f271331f3ef162a835ecb74ef9d4d6b73cd657abf960965",
+      "bytes": 16628,
+      "filter_method": "",
+      "destination_sha256": "2ad5426c7cd115506f271331f3ef162a835ecb74ef9d4d6b73cd657abf960965"
+    },
+    {
+      "source": "SIRD/ablation/tuning_results/multinomial_tuning_results_importance.csv",
+      "repository": "phd-thesis",
+      "destination": "SIRD/ablation/tuning_results/multinomial_tuning_results_importance.csv",
+      "source_sha256": "b0eab207c16ab06fc66cdf0a37425ee165beb386512c9a532f48e0c007fffafb",
+      "bytes": 333,
+      "filter_method": "",
+      "destination_sha256": "b0eab207c16ab06fc66cdf0a37425ee165beb386512c9a532f48e0c007fffafb"
+    },
+    {
+      "source": "SISL/variance_comparison/results/variance_COMBINED.csv",
+      "repository": "phd-thesis",
+      "destination": "SISL/variance_comparison/results/variance_COMBINED.csv",
+      "source_sha256": "df18202f7905e7b7471cea8583a4da08d1bfa09d1040d6f0e4eaee4bb706fdfd",
+      "bytes": 570578,
+      "filter_method": "",
+      "destination_sha256": "df18202f7905e7b7471cea8583a4da08d1bfa09d1040d6f0e4eaee4bb706fdfd"
+    },
+    {
+      "source": "SISL/variance_comparison/results/variance_COMBINED.RData",
+      "repository": "phd-thesis",
+      "destination": "SISL/variance_comparison/results/variance_COMBINED.RData",
+      "source_sha256": "792d102740fe423161b7d1b209d7c165860c23879351bdea06916553d6d0ec40",
+      "bytes": 183223,
+      "filter_method": "",
+      "destination_sha256": "792d102740fe423161b7d1b209d7c165860c23879351bdea06916553d6d0ec40"
+    },
+    {
+      "source": "SISL/variance_comparison/results/variance_Summary_Table.csv",
+      "repository": "phd-thesis",
+      "destination": "SISL/variance_comparison/results/variance_Summary_Table.csv",
+      "source_sha256": "da28ccd779f5d032f6aaa6c26787f7c758c117d9ee10db163618944ae4a8c1c9",
+      "bytes": 574,
+      "filter_method": "",
+      "destination_sha256": "da28ccd779f5d032f6aaa6c26787f7c758c117d9ee10db163618944ae4a8c1c9"
+    }
+  ],
+  "raw_data_ignore_probes_passed": 8
+}

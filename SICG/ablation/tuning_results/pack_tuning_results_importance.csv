@@ -1,0 +1,12 @@
+parameter,importance
+lr,0.45274730947922814
+batch_size,0.3860599565165079
+hidden_dim,0.043608233
+layers,0.030192009
+discriminator_steps,0.025399383273525495
+dropout,0.018058545
+scale_layer,0.014953202811155175
+weight_decay,0.00986494
+tau,0.009004215
+scale_lr,0.008788959
+scale_hidden_dim,0.001225919
