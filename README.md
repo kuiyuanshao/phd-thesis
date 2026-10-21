@@ -1,6 +1,6 @@
 # Two-Phase Sampling: Automated Imputation in Analysing Subsamples
 
-Code and thesis for a PhD project on two-phase validation designs. A large cohort holds an
+Code for a PhD project on two-phase validation designs. A large cohort holds an
 error-prone measurement, and a probability subsample is validated against a reference
 measurement. The goal is an unbiased regression coefficient with a confidence interval that
 covers at the nominal rate, rather than an accurate reconstruction of the missing values. The
@@ -22,7 +22,10 @@ estimators on three simulation designs and one clinical case study.
 - `code_vccc/` — the Vanderbilt Comprehensive Care Clinic case study.
 - `utils/` — shared R helpers for analysis, tables and figures.
 - `benchmarks/` — comparator code (TabCSDI).
-- `Shao_2026_thesis/` — the thesis LaTeX source and the compiled PDF.
+
+The thesis LaTeX project and compiled PDF are stored separately in `../phd-thesis-tex/`.
+The main source is `dissertation.tex`; its chapters, figures and bibliography are kept
+within that directory.
 
 ## Pipeline
 
@@ -36,6 +39,10 @@ but the stages are:
 - `04_retrieve_estimates.R` — collect the per-replicate estimates into `results_*.csv`.
 - `05_generate_results.R` — write `Summary_Table.csv`.
 - `06`–`08` — the thesis figures and tables.
+
+Run each design from its own `code_*` directory. Generated figures stay under
+`simulations/results/`; figures used in the thesis are kept separately in
+`../phd-thesis-tex/sections/figures/`.
 
 ## Data
 

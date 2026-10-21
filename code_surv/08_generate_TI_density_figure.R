@@ -1,7 +1,7 @@
 # Design III: imputed survival-time (T_I) density by method, SampleOE / SRS, replicate 1.
 # VAL (true) = black, UNVAL (error-prone) = grey, each imputation method its own colour.
 suppressMessages({library(mice); library(arrow); library(ggplot2)})
-setwd("D:/phd-thesis/code_surv")
+dir.create("simulations/results", recursive = TRUE, showWarnings = FALSE)
 simdir <- "simulations/SampleOE/SRS"
 
 te <- new.env(); load("data/True/0001.RData", envir = te); truth <- te$data
@@ -54,6 +54,6 @@ p <- ggplot(pdat, aes(value, colour = series)) +
         panel.grid.minor = element_blank(),
         legend.position = "bottom")
 
-ggsave("D:/phd-thesis/Shao_2026_thesis/sections/figures/simIII_TI_density.pdf",
+ggsave("simulations/results/simIII_TI_density.pdf",
        p, width = 11, height = 6, device = cairo_pdf)
 cat("written figure\n")

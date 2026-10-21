@@ -5,7 +5,7 @@
 # imputation method under Simulation Design II. For a single replicate under
 # simple random sampling, it plots the Gaussian outcome against the (imputed)
 # exposure for the unvalidated units, one panel per method, together with the
-# true reference fit. Output: sections/figures/simII_imputation_dispersion.pdf,
+# true reference fit. Output: simulations/results/simII_imputation_dispersion.pdf,
 # included in Appendix C.
 #
 # The panel content and styling deliberately mirror Figure 3.1: translucent
@@ -19,11 +19,11 @@ suppressMessages({
   library(ggplot2)
 })
 
-setwd("D:/phd-thesis/code_nutri")
+dir.create("simulations/results", recursive = TRUE, showWarnings = FALSE)
 
 rep_id  <- "0001"                 # first replicate
 sim_dir <- file.path("simulations", "SRS")
-out_pdf <- "D:/phd-thesis/Shao_2026_thesis/sections/figures/simII_imputation_dispersion.pdf"
+out_pdf <- "simulations/results/simII_imputation_dispersion.pdf"
 
 n_show  <- 2500                   # unvalidated units shown per panel (same units across panels)
 set.seed(1)

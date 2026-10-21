@@ -1,8 +1,8 @@
 # =====================================================================
 # .gitignore for the phd-thesis GitHub upload.
 #
-# Goal: publish SOURCE (R/Python/Slurm), CONFIG (yaml/Config), the THESIS
-# (LaTeX + figures), and the small CURATED result files that reproduce the
+# Goal: publish SOURCE (R/Python/Slurm), CONFIG (yaml/Config),
+# and the small CURATED result files that reproduce the
 # thesis tables/figures. EXCLUDE ~1.3 TB of raw data and simulation output,
 # and ALL raw clinical data (VCCC / Waitemata DHB) regardless of location.
 #
